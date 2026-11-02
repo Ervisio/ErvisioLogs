@@ -1,0 +1,9 @@
+# Development overlay: publishes the databases on loopback only, for local tooling.
+# docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.dev.yaml up -d
+services:
+  postgres:
+    ports: ["127.0.0.1:${DEV_POSTGRES_PORT:-5432}:5432"]
+  clickhouse:
+    ports:
+      - "127.0.0.1:${DEV_CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "127.0.0.1:${DEV_CLICKHOUSE_NATIVE_PORT:-9000}:9000"

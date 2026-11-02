@@ -1,0 +1,8 @@
+.git
+**/node_modules
+web/dist
+backend/internal/webui/dist/*
+!backend/internal/webui/dist/.gitkeep
+.env
+.env.*
+ervisio-logs-spec

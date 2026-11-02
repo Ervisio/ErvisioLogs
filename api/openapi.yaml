@@ -1,0 +1,95 @@
+openapi: 3.1.0
+info:
+  title: Ervisio Logs API
+  version: 0.1.0
+  summary: Skeleton produced by phase P0. Feature routes arrive with P1 and later.
+  description: |
+    Base path for feature routes is `/api/v1`. Errors use RFC 7807 `application/problem+json`
+    and always carry the `request_id` that is also returned in the `X-Request-ID` header.
+
+    This document is authoritative and is checked against the implemented routes by
+    `TestOpenAPIMatchesRouter`: an undocumented or unimplemented route fails the test suite.
+  license:
+    name: TBD (to be decided by the project owner)
+    identifier: NOASSERTION
+servers:
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: health
+    description: Process and dependency probes (unauthenticated, no sensitive detail).
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      operationId: getLiveness
+      summary: Liveness probe
+      description: Reports that the process is running. Never checks dependencies.
+      security: []
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Liveness"
+  /readyz:
+    get:
+      tags: [health]
+      operationId: getReadiness
+      summary: Readiness probe
+      description: |
+        Succeeds only when PostgreSQL and ClickHouse answer and both schemas are at the version
+        this binary expects. Results are cached for a few seconds. Failure reasons are logged
+        server-side and never returned.
+      security: []
+      responses:
+        "200":
+          description: Ready to serve traffic.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: At least one check failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+components:
+  securitySchemes:
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: Scoped API token (defined in P1; no authenticated route exists yet).
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ervisio_logs_session
+      description: HttpOnly same-site session cookie for the browser UI (defined in P1).
+  schemas:
+    Liveness:
+      type: object
+      required: [status, version]
+      properties:
+        status: { type: string, const: ok }
+        version: { type: string, examples: ["0.1.0"] }
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status: { type: string, enum: [ready, not_ready] }
+        checks:
+          type: object
+          description: Result per check name.
+          additionalProperties: { type: string, enum: [ok, fail] }
+    Problem:
+      type: object
+      description: RFC 7807 problem document.
+      required: [type, title, status]
+      properties:
+        type: { type: string, examples: ["about:blank"] }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        request_id: { type: string, examples: ["req_9f2c4a1b7e3d5a60b1c2d3e4"] }

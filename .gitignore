@@ -16,3 +16,4 @@ backend/internal/webui/dist/*
 # Editors
 .idea/
 .vscode/
+.variant-studio/

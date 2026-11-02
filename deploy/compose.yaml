@@ -1,0 +1,100 @@
+# Ervisio Logs: compact deployment (Go app + PostgreSQL + ClickHouse).
+# Usage: scripts/gen-env.sh && docker compose --env-file .env -f deploy/compose.yaml up -d --build
+# Databases are on a private network and are NOT published to the host (see compose.dev.yaml).
+
+name: ervisio-logs
+
+x-app-env: &app-env
+  ERVISIO_LOGS_ENV: ${ERVISIO_LOGS_ENV:-development}
+  ERVISIO_LOGS_LOG_LEVEL: ${ERVISIO_LOGS_LOG_LEVEL:-info}
+  ERVISIO_LOGS_POSTGRES_DSN: postgres://ervisio_logs:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/ervisio_logs?sslmode=disable
+  ERVISIO_LOGS_CLICKHOUSE_ADDR: clickhouse:9000
+  ERVISIO_LOGS_CLICKHOUSE_DATABASE: ervisio_logs
+  ERVISIO_LOGS_CLICKHOUSE_USER: ervisio_logs
+  ERVISIO_LOGS_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run scripts/gen-env.sh}
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *hardening
+    # Pinned by digest (verified 2026-11-02, linux/amd64+arm64 index). Bump deliberately.
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    environment:
+      POSTGRES_DB: ervisio_logs
+      POSTGRES_USER: ervisio_logs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-env.sh}
+    volumes: [pg-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ervisio_logs -d ervisio_logs"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # postgres needs a few capabilities to drop privileges at start-up
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    mem_limit: 1g
+
+  clickhouse:
+    <<: *hardening
+    image: clickhouse/clickhouse-server:25.8-alpine@sha256:87e0a5b72f5465b18eacca7c76850e7ff551c9795c50e451f5646299e5e24146
+    environment:
+      CLICKHOUSE_DB: ervisio_logs
+      CLICKHOUSE_USER: ervisio_logs
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run scripts/gen-env.sh}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "0"
+    volumes: [ch-data:/var/lib/clickhouse]
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID, SYS_NICE, IPC_LOCK]
+    mem_limit: 2g
+
+  # One-shot migration job. The app reports "not ready" until it has completed.
+  migrate:
+    build: { context: .., dockerfile: Dockerfile }
+    image: ervisio-logs:dev
+    command: ["migrate", "up"]
+    environment: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+
+  app:
+    <<: *hardening
+    image: ervisio-logs:dev
+    command: ["serve"]
+    environment:
+      <<: *app-env
+      ERVISIO_LOGS_HTTP_ADDR: ":8080"
+    ports:
+      # Loopback only: put a TLS reverse proxy in front for anything beyond local use.
+      - "127.0.0.1:${ERVISIO_LOGS_PORT:-8080}:8080"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    # Dedicated volumes for the durable spool (P2) and archive cache (P4) are declared now so
+    # their disk budgets stay independent from the databases; nothing writes to them yet.
+    volumes:
+      - spool:/var/lib/ervisio-logs/spool
+      - cache:/var/lib/ervisio-logs/cache
+    mem_limit: 512m
+
+volumes:
+  pg-data:
+  ch-data:
+  spool:
+  cache:
