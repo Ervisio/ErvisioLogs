@@ -120,7 +120,10 @@ func Verify(ctx context.Context, d Driver, ms []Migration) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	sort.Slice(applied, func(i, j int) bool { return applied[i].Version < applied[j].Version })
+	applied, err = dedupeRecords(applied)
+	if err != nil {
+		return Status{}, err
+	}
 	for i, r := range applied {
 		if i >= len(ms) {
 			return Status{}, fmt.Errorf("migrate: database has version %04d unknown to this binary (downgrade?)", r.Version)
@@ -133,6 +136,25 @@ func Verify(ctx context.Context, d Driver, ms []Migration) (Status, error) {
 		}
 	}
 	return Status{Applied: applied, Pending: ms[len(applied):]}, nil
+}
+
+// dedupeRecords sorts records by version and collapses identical duplicates. ClickHouse has no unique
+// constraint, so concurrent runners can record the same migration twice; since its scripts must be
+// idempotent that is harmless. Two different records for one version are real corruption, and an error.
+func dedupeRecords(in []Record) ([]Record, error) {
+	sorted := append([]Record(nil), in...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Version < sorted[j].Version })
+	out := sorted[:0]
+	for _, r := range sorted {
+		if n := len(out); n > 0 && out[n-1].Version == r.Version {
+			if out[n-1] != r {
+				return nil, fmt.Errorf("migrate: conflicting records for version %04d (%s, %s)", r.Version, out[n-1].Name, r.Name)
+			}
+			continue
+		}
+		out = append(out, r)
+	}
+	return out, nil
 }
 
 // Check reports the migration state without changing the schema (apart from the bookkeeping table).
@@ -192,25 +214,49 @@ func Down(ctx context.Context, d Driver, ms []Migration, steps int) (int, error)
 	return n, nil
 }
 
-// SplitStatements splits a script on semicolons that end a line, ignoring "--" comment lines.
-// It is intentionally simple: migration scripts must not contain ";" inside string literals.
+// SplitStatements splits a script on semicolons that end a line, ignoring "--" comments (whole-line or
+// trailing). It is intentionally simple: migration scripts must not contain ";" at the end of a line
+// inside a string literal.
 func SplitStatements(script string) []string {
 	var out []string
 	var cur strings.Builder
+	flush := func() {
+		s := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(cur.String()), ";"))
+		if s != "" {
+			out = append(out, s)
+		}
+		cur.Reset()
+	}
 	for _, line := range strings.Split(script, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "--") {
+		line = stripLineComment(line)
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		cur.WriteString(line)
 		cur.WriteByte('\n')
-		if strings.HasSuffix(trimmed, ";") {
-			out = append(out, strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(cur.String()), ";")))
-			cur.Reset()
+		if strings.HasSuffix(strings.TrimSpace(line), ";") {
+			flush()
 		}
 	}
-	if s := strings.TrimSpace(cur.String()); s != "" {
-		out = append(out, s)
-	}
+	flush()
 	return out
+}
+
+// stripLineComment removes a "--" comment from one line, leaving "--" inside quotes alone.
+func stripLineComment(line string) string {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"' || c == '`':
+			quote = c
+		case c == '-' && i+1 < len(line) && line[i+1] == '-':
+			return line[:i]
+		}
+	}
+	return line
 }

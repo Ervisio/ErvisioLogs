@@ -14,10 +14,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Ervisio/ErvisioLogs/backend/internal/api"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/db"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/migrate"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/server"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/version"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/webui"
 	"github.com/Ervisio/ErvisioLogs/backend/migrations"
@@ -28,7 +32,8 @@ const usage = `usage: ervisio-logs <command>
 commands:
   serve                 run the HTTP server
   migrate up            apply pending PostgreSQL and ClickHouse migrations
-  migrate down [-n N]   revert the last N migrations on both stores (default 1)
+  migrate down --store postgres|clickhouse [-n N]
+                        revert the last N migrations on that store (default 1)
   migrate status        show applied and pending migrations
   version               print version information
   config-check          validate the environment configuration and exit
@@ -63,9 +68,13 @@ func run(args []string) error {
 		if len(args) < 2 {
 			return errors.New("migrate: missing subcommand (up|down|status)")
 		}
-		sub, rest := args[1], args[2:]
+		// Argument errors must not need a valid configuration or a database connection.
+		opts, err := parseMigrateArgs(args[1], args[2:])
+		if err != nil {
+			return err
+		}
 		return withConfig(func(ctx context.Context, c config.Config, log *slog.Logger) error {
-			return runMigrate(ctx, c, sub, rest)
+			return runMigrate(ctx, c, opts)
 		})
 	default:
 		fmt.Fprintln(os.Stderr, usage)
@@ -154,8 +163,26 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		server.Check{Name: "migrations_clickhouse", Fn: migrated(chDrv, chMigs)},
 	)
 
+	providers := map[string]oauth.Provider{}
+	if g := cfg.Auth.Google; g.Enabled() {
+		providers["google"] = oauth.NewGoogle(g.ClientID, g.ClientSecret, oauth.RedirectURL(cfg.Auth.PublicURL, "google"))
+	}
+	if c := cfg.Auth.Cognito; c.Enabled() {
+		providers["cognito"] = oauth.NewCognito(c.Issuer, c.ClientID, c.ClientSecret, oauth.RedirectURL(cfg.Auth.PublicURL, "cognito"))
+	}
+	if d := cfg.Auth.Discord; d.Enabled() {
+		providers["discord"] = oauth.NewDiscord(d.ClientID, d.ClientSecret, oauth.RedirectURL(cfg.Auth.PublicURL, "discord"))
+	}
+	apiHandlers := api.New(store.New(pool), auth.NewHasher(auth.DefaultParams, 4), cfg.Auth, providers, log)
+	apiHandlers.TrustProxy = cfg.Auth.TrustProxy
+	// The setup code is only meaningful once the schema exists; before `migrate up` the query fails and
+	// the code is created on the next start.
+	if err := apiHandlers.EnsureSetupCode(ctx); err != nil {
+		log.Warn("could not check for first-run setup (migrations pending?)", "error", err)
+	}
+
 	srv := server.NewHTTPServer(cfg.HTTPAddr, server.NewRouter(server.Options{
-		Log: log, Health: health, UI: webui.Handler(), MaxBodyBytes: cfg.MaxBodyBytes,
+		Log: log, Health: health, API: apiHandlers, UI: webui.Handler(), MaxBodyBytes: cfg.MaxBodyBytes,
 	}))
 
 	errc := make(chan error, 1)
@@ -177,37 +204,84 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	return nil
 }
 
-func runMigrate(ctx context.Context, cfg config.Config, sub string, args []string) error {
-	fs := flag.NewFlagSet("migrate "+sub, flag.ContinueOnError)
-	steps := fs.Int("n", 1, "number of migrations to revert (down only)")
-	if err := fs.Parse(args); err != nil {
-		return err
+const (
+	storePostgres   = "postgres"
+	storeClickHouse = "clickhouse"
+)
+
+type migrateOptions struct {
+	sub   string
+	store string // empty means every store (never for down)
+	steps int
+}
+
+// stores lists the stores this invocation touches.
+func (o migrateOptions) stores() []string {
+	if o.store != "" {
+		return []string{o.store}
 	}
+	return []string{storePostgres, storeClickHouse}
+}
+
+// parseMigrateArgs validates a migrate command line. `down` destroys data and the two stores have
+// independent histories, so it must name the store it acts on.
+func parseMigrateArgs(sub string, args []string) (migrateOptions, error) {
+	o := migrateOptions{sub: sub}
+	if sub != "up" && sub != "down" && sub != "status" {
+		return o, fmt.Errorf("unknown migrate subcommand %q", sub)
+	}
+	fs := flag.NewFlagSet("migrate "+sub, flag.ContinueOnError)
+	fs.StringVar(&o.store, "store", "", "store to act on: postgres or clickhouse (required for down)")
+	fs.IntVar(&o.steps, "n", 1, "number of migrations to revert (down only)")
+	if err := fs.Parse(args); err != nil {
+		return o, err
+	}
+	if fs.NArg() > 0 {
+		return o, fmt.Errorf("migrate %s: unexpected argument %q", sub, fs.Arg(0))
+	}
+	if o.store != "" && o.store != storePostgres && o.store != storeClickHouse {
+		return o, fmt.Errorf("migrate %s: --store must be %s or %s", sub, storePostgres, storeClickHouse)
+	}
+	if sub == "down" && o.store == "" {
+		return o, fmt.Errorf("migrate down: --store (%s or %s) is required", storePostgres, storeClickHouse)
+	}
+	if sub == "down" && o.steps < 1 {
+		return o, errors.New("migrate down: -n must be >= 1")
+	}
+	return o, nil
+}
+
+func runMigrate(ctx context.Context, cfg config.Config, o migrateOptions) error {
 	pgMigs, chMigs, err := loadAll()
 	if err != nil {
 		return err
 	}
-	pool, err := db.OpenPostgres(ctx, cfg.Postgres)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	ch, err := db.OpenClickHouse(cfg.ClickHouse)
-	if err != nil {
-		return err
-	}
-	defer ch.Close()
-
-	targets := []struct {
+	type target struct {
 		name string
 		drv  migrate.Driver
 		ms   []migrate.Migration
-	}{
-		{"postgres", migrate.Postgres{Pool: pool}, pgMigs},
-		{"clickhouse", migrate.ClickHouse{Conn: ch}, chMigs},
+	}
+	var targets []target
+	for _, name := range o.stores() {
+		switch name {
+		case storePostgres:
+			pool, err := db.OpenPostgres(ctx, cfg.Postgres)
+			if err != nil {
+				return err
+			}
+			defer pool.Close()
+			targets = append(targets, target{name, migrate.Postgres{Pool: pool}, pgMigs})
+		case storeClickHouse:
+			ch, err := db.OpenClickHouse(cfg.ClickHouse)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+			targets = append(targets, target{name, migrate.ClickHouse{Conn: ch}, chMigs})
+		}
 	}
 	for _, t := range targets {
-		switch sub {
+		switch o.sub {
 		case "up":
 			n, err := migrate.Up(ctx, t.drv, t.ms)
 			if err != nil {
@@ -215,7 +289,7 @@ func runMigrate(ctx context.Context, cfg config.Config, sub string, args []strin
 			}
 			fmt.Printf("%s: applied %d migration(s)\n", t.name, n)
 		case "down":
-			n, err := migrate.Down(ctx, t.drv, t.ms, *steps)
+			n, err := migrate.Down(ctx, t.drv, t.ms, o.steps)
 			if err != nil {
 				return fmt.Errorf("%s: %w", t.name, err)
 			}
@@ -226,8 +300,6 @@ func runMigrate(ctx context.Context, cfg config.Config, sub string, args []strin
 				return fmt.Errorf("%s: %w", t.name, err)
 			}
 			fmt.Printf("%s: %d applied, %d pending\n", t.name, len(st.Applied), len(st.Pending))
-		default:
-			return fmt.Errorf("unknown migrate subcommand %q", sub)
 		}
 	}
 	return nil

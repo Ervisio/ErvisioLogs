@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 func TestLoad(t *testing.T) {
@@ -38,6 +39,14 @@ func TestLoadErrors(t *testing.T) {
 func TestSplitStatements(t *testing.T) {
 	got := SplitStatements("-- c\nCREATE TABLE a (\n x int\n);\n\n-- d\nINSERT INTO a VALUES (1);\nSELECT 2")
 	want := []string{"CREATE TABLE a (\n x int\n)", "INSERT INTO a VALUES (1)", "SELECT 2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSplitStatementsTrailingComments(t *testing.T) {
+	got := SplitStatements("CREATE TABLE a (x int); -- first\nINSERT INTO a VALUES ('a--b;'); -- second\n;\nSELECT 1 -- last\n")
+	want := []string{"CREATE TABLE a (x int)", "INSERT INTO a VALUES ('a--b;')", "SELECT 1"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q", got)
 	}
@@ -112,6 +121,56 @@ func TestDowngradeDetected(t *testing.T) {
 	_, _ = Up(ctx, f, set())
 	if _, err := Check(ctx, f, set()[:2]); err == nil {
 		t.Fatal("expected unknown-version error")
+	}
+}
+
+func TestVerifyToleratesIdenticalDuplicates(t *testing.T) {
+	f, ctx := &fake{}, context.Background()
+	_, _ = Up(ctx, f, set()[:2])
+	f.rec = append(f.rec, f.rec...) // what two concurrent ClickHouse runners leave behind
+	st, err := Verify(ctx, f, set())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Applied) != 2 || len(st.Pending) != 1 || st.Pending[0].Version != 3 {
+		t.Fatalf("got %+v", st)
+	}
+	if n, err := Up(ctx, f, set()); n != 1 || err != nil {
+		t.Fatalf("up after duplicates: %d %v", n, err)
+	}
+}
+
+func TestVerifyRejectsConflictingDuplicates(t *testing.T) {
+	f, ctx := &fake{}, context.Background()
+	_, _ = Up(ctx, f, set()[:1])
+	f.rec = append(f.rec, Record{1, "a", "different"})
+	if _, err := Verify(ctx, f, set()); err == nil || !strings.Contains(err.Error(), "conflicting") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestWaitForLock(t *testing.T) {
+	never := func(context.Context) (bool, error) { return false, nil }
+	if err := waitForLock(context.Background(), 20*time.Millisecond, time.Millisecond, never); err == nil || !strings.Contains(err.Error(), "holds the migration lock") {
+		t.Fatalf("timeout: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := waitForLock(ctx, time.Minute, time.Millisecond, never); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancel: %v", err)
+	}
+	calls := 0
+	if err := waitForLock(context.Background(), time.Minute, time.Millisecond, func(context.Context) (bool, error) {
+		calls++
+		return calls == 3, nil
+	}); err != nil || calls != 3 {
+		t.Fatalf("eventual success: %d %v", calls, err)
+	}
+	boom := errors.New("boom")
+	if err := waitForLock(context.Background(), time.Minute, time.Millisecond, func(context.Context) (bool, error) {
+		return false, boom
+	}); !errors.Is(err, boom) {
+		t.Fatalf("query error: %v", err)
 	}
 }
 

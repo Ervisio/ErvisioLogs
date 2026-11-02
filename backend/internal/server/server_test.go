@@ -12,6 +12,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+
+	apipkg "github.com/Ervisio/ErvisioLogs/backend/internal/api"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
 	"gopkg.in/yaml.v3"
 	"os"
 )
@@ -120,7 +123,10 @@ func TestOpenAPIMatchesRouter(t *testing.T) {
 		}
 	}
 	implemented := map[string]bool{}
-	err = chi.Walk(router().(chi.Routes), func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	// The contract test needs the feature routes; handlers are never called, so no store is required.
+	full := NewRouter(Options{Log: quiet, Health: NewHealth(quiet), MaxBodyBytes: 1024,
+		API: apipkg.New(nil, nil, config.Auth{PublicURL: "http://localhost:8080", SecretKey: strings.Repeat("k", 32)}, nil, quiet)})
+	err = chi.Walk(full.(chi.Routes), func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		implemented[method+" "+route] = true
 		return nil
 	})

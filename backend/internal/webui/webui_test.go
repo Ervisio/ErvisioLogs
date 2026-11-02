@@ -3,6 +3,7 @@ package webui
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -30,6 +31,22 @@ func TestSPAFallbackAndAssets(t *testing.T) {
 	}
 	if rec := serve(root, "POST", "/"); rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("POST: %d", rec.Code)
+	}
+}
+
+func TestDirectoriesAreNotListed(t *testing.T) {
+	root := fstest.MapFS{
+		"index.html":  {Data: []byte("app")},
+		"assets/a.js": {Data: []byte("js")},
+	}
+	for _, p := range []string{"/assets/", "/assets"} {
+		rec := serve(root, "GET", p)
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "a.js") {
+			t.Errorf("%s: %d %q", p, rec.Code, rec.Body)
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != "application/problem+json" {
+			t.Errorf("%s: content type %q", p, ct)
+		}
 	}
 }
 

@@ -31,7 +31,11 @@ func handler(root fs.FS) http.Handler {
 		if name == "" {
 			name = "index.html"
 		}
-		if _, err := fs.Stat(root, name); err == nil {
+		if info, err := fs.Stat(root, name); err == nil {
+			if info.IsDir() { // the file server would list its contents
+				httpx.WriteProblem(w, r, http.StatusNotFound, "not found")
+				return
+			}
 			if strings.HasPrefix(name, "assets/") { // content-hashed by Vite
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	apipkg "github.com/Ervisio/ErvisioLogs/backend/internal/api"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 )
 
@@ -16,6 +17,7 @@ import (
 type Options struct {
 	Log          *slog.Logger
 	Health       *Health
+	API          *apipkg.API  // feature routes under /api/v1; may be nil in tests
 	UI           http.Handler // served for non-API paths; may be nil
 	MaxBodyBytes int64
 }
@@ -29,13 +31,22 @@ func NewRouter(o Options) http.Handler {
 	r.Get("/readyz", o.Health.Ready)
 
 	r.Route("/api/v1", func(api chi.Router) {
-		// Feature routes are added by later phases. Unknown API paths answer with a problem document.
+		if o.API != nil {
+			o.API.Routes(api)
+		}
+		// Unknown API paths answer with a problem document.
 		api.NotFound(func(w http.ResponseWriter, req *http.Request) {
 			httpx.WriteProblem(w, req, http.StatusNotFound, "not found")
 		})
 		api.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
 			httpx.WriteProblem(w, req, http.StatusMethodNotAllowed, "method not allowed")
 		})
+	})
+
+	// Only the GET-only probes are method-routed at this level; the UI handles its own methods.
+	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Allow", http.MethodGet)
+		httpx.WriteProblem(w, req, http.StatusMethodNotAllowed, "method not allowed")
 	})
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {

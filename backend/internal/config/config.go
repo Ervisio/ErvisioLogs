@@ -39,6 +39,37 @@ type ClickHouse struct {
 	TLS      bool
 }
 
+// OAuthProvider holds one external identity provider's credentials. Empty ClientID means disabled.
+type OAuthProvider struct {
+	ClientID     string
+	ClientSecret string
+	// Issuer is the OIDC issuer URL (Cognito only; Google's is fixed, Discord is plain OAuth2).
+	Issuer string
+}
+
+func (p OAuthProvider) Enabled() bool { return p.ClientID != "" }
+
+// Auth holds authentication settings.
+type Auth struct {
+	// PublicURL is the externally visible base URL (OAuth redirect URIs, cookie Secure flag).
+	PublicURL string
+	// SecretKey keys the HMAC used to store API tokens. At least 32 characters.
+	SecretKey string
+	// OpenRegistration lets anyone create an account. Off by default: after the first admin
+	// exists, accounts are created by an instance admin.
+	OpenRegistration bool
+	// SetupCode authorises creating the first (instance admin) account. Generated and logged
+	// at start-up when unset and no user exists.
+	SetupCode  string
+	SessionTTL time.Duration
+	// TrustProxy takes the client IP from the last X-Forwarded-For entry. Enable only behind a
+	// reverse proxy that sets that header itself.
+	TrustProxy bool
+	Google     OAuthProvider
+	Cognito    OAuthProvider
+	Discord    OAuthProvider
+}
+
 // Config is the validated service configuration.
 type Config struct {
 	Env             Env
@@ -49,6 +80,7 @@ type Config struct {
 	MaxBodyBytes int64
 	Postgres     Postgres
 	ClickHouse   ClickHouse
+	Auth         Auth
 }
 
 // Load reads the configuration using os.Getenv / os.ReadFile and validates it.
@@ -90,6 +122,27 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 			Password: secret("CLICKHOUSE_PASSWORD"),
 		},
 		Postgres: Postgres{DSN: secret("POSTGRES_DSN")},
+		Auth: Auth{
+			PublicURL: strings.TrimRight(get("PUBLIC_URL", "http://localhost:8080"), "/"),
+			SecretKey: secret("SECRET_KEY"),
+			SetupCode: secret("SETUP_CODE"),
+			Google:    OAuthProvider{ClientID: get("GOOGLE_CLIENT_ID", ""), ClientSecret: secret("GOOGLE_CLIENT_SECRET")},
+			Cognito: OAuthProvider{
+				ClientID: get("COGNITO_CLIENT_ID", ""), ClientSecret: secret("COGNITO_CLIENT_SECRET"),
+				Issuer: strings.TrimRight(get("COGNITO_ISSUER", ""), "/"),
+			},
+			Discord: OAuthProvider{ClientID: get("DISCORD_CLIENT_ID", ""), ClientSecret: secret("DISCORD_CLIENT_SECRET")},
+		},
+	}
+	var perr error
+	if c.Auth.OpenRegistration, perr = strconv.ParseBool(get("OPEN_REGISTRATION", "false")); perr != nil {
+		errs = append(errs, fmt.Errorf("%sOPEN_REGISTRATION must be a boolean", prefix))
+	}
+	if c.Auth.TrustProxy, perr = strconv.ParseBool(get("TRUST_PROXY", "false")); perr != nil {
+		errs = append(errs, fmt.Errorf("%sTRUST_PROXY must be a boolean", prefix))
+	}
+	if c.Auth.SessionTTL, perr = time.ParseDuration(get("SESSION_TTL", "336h")); perr != nil || c.Auth.SessionTTL <= 0 {
+		errs = append(errs, fmt.Errorf("%sSESSION_TTL must be a positive duration", prefix))
 	}
 
 	if err := c.LogLevel.UnmarshalText([]byte(get("LOG_LEVEL", "info"))); err != nil {
@@ -128,6 +181,7 @@ func (c Config) validate() []error {
 	if !strings.Contains(c.ClickHouse.Addr, ":") {
 		errs = append(errs, fmt.Errorf("%sCLICKHOUSE_ADDR must be host:port", prefix))
 	}
+	errs = append(errs, c.validateAuth()...)
 	if c.Env == EnvProduction {
 		if u, err := url.Parse(c.Postgres.DSN); err == nil && u.Query().Get("sslmode") == "disable" {
 			errs = append(errs, fmt.Errorf("%sPOSTGRES_DSN: sslmode=disable is refused in production", prefix))
@@ -135,6 +189,34 @@ func (c Config) validate() []error {
 		if looksLikePlaceholder(c.ClickHouse.Password) || looksLikePlaceholder(c.Postgres.DSN) {
 			errs = append(errs, errors.New("placeholder credentials (change_me) are refused in production"))
 		}
+	}
+	return errs
+}
+
+func (c Config) validateAuth() []error {
+	var errs []error
+	a := c.Auth
+	if len(a.SecretKey) < 32 {
+		errs = append(errs, fmt.Errorf("%sSECRET_KEY (or _FILE) is required and must be at least 32 characters", prefix))
+	}
+	u, err := url.Parse(a.PublicURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		errs = append(errs, fmt.Errorf("%sPUBLIC_URL must be an http(s) URL", prefix))
+	} else if c.Env == EnvProduction && u.Scheme != "https" {
+		errs = append(errs, fmt.Errorf("%sPUBLIC_URL must be https in production", prefix))
+	}
+	for name, p := range map[string]OAuthProvider{"GOOGLE": a.Google, "COGNITO": a.Cognito, "DISCORD": a.Discord} {
+		if p.Enabled() && p.ClientSecret == "" {
+			errs = append(errs, fmt.Errorf("%s%s_CLIENT_SECRET is required when %s_CLIENT_ID is set", prefix, name, name))
+		}
+	}
+	if a.Cognito.Enabled() {
+		if iu, err := url.Parse(a.Cognito.Issuer); err != nil || iu.Scheme != "https" || iu.Host == "" {
+			errs = append(errs, fmt.Errorf("%sCOGNITO_ISSUER must be the https pool issuer URL", prefix))
+		}
+	}
+	if c.Env == EnvProduction && looksLikePlaceholder(a.SecretKey) {
+		errs = append(errs, errors.New("placeholder SECRET_KEY refused in production"))
 	}
 	return errs
 }
@@ -151,6 +233,8 @@ func (c Config) Redacted() map[string]any {
 	}
 	return map[string]any{
 		"env": c.Env, "http_addr": c.HTTPAddr, "log_level": c.LogLevel.String(),
+		"public_url": c.Auth.PublicURL, "open_registration": c.Auth.OpenRegistration,
+		"oauth_google": c.Auth.Google.Enabled(), "oauth_cognito": c.Auth.Cognito.Enabled(), "oauth_discord": c.Auth.Discord.Enabled(),
 		"postgres_host": host, "clickhouse_addr": c.ClickHouse.Addr,
 		"clickhouse_database": c.ClickHouse.Database, "clickhouse_tls": c.ClickHouse.TLS,
 	}

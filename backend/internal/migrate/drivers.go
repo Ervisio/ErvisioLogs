@@ -2,7 +2,9 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/jackc/pgx/v5"
@@ -12,23 +14,74 @@ import (
 // advisoryLockKey serialises PostgreSQL migration runners ("ervlogs" as an int64 tag).
 const advisoryLockKey int64 = 0x6572766c6f6773
 
+// defaultLockTimeout bounds how long a runner waits for another one to finish.
+const defaultLockTimeout = 2 * time.Minute
+
+const lockPollInterval = 250 * time.Millisecond
+
 // Postgres migrates a PostgreSQL database; each migration runs in one transaction.
-type Postgres struct{ Pool *pgxpool.Pool }
+type Postgres struct {
+	Pool *pgxpool.Pool
+	// LockTimeout bounds the wait for the advisory lock; zero means defaultLockTimeout.
+	LockTimeout time.Duration
+}
 
 func (p Postgres) Lock(ctx context.Context) (func(), error) {
+	timeout := p.LockTimeout
+	if timeout <= 0 {
+		timeout = defaultLockTimeout
+	}
 	conn, err := p.Pool.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", advisoryLockKey); err != nil {
+	// pg_try_advisory_lock instead of pg_advisory_lock: the wait stays bounded and cancellable and
+	// no statement sits blocked on the server.
+	err = waitForLock(ctx, timeout, lockPollInterval, func(ctx context.Context) (bool, error) {
+		var got bool
+		err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", advisoryLockKey).Scan(&got)
+		return got, err
+	})
+	if err != nil {
 		conn.Release()
 		return nil, err
 	}
 	return func() {
 		// Use a fresh context: the caller's may already be cancelled.
-		_, _ = conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", advisoryLockKey)
+		uctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := conn.Exec(uctx, "SELECT pg_advisory_unlock($1)", advisoryLockKey); err != nil {
+			// The lock is tied to the session: closing it is the only way not to return a pooled
+			// connection that still holds the lock.
+			_ = conn.Conn().Close(uctx)
+		}
 		conn.Release()
 	}, nil
+}
+
+// waitForLock polls try until it succeeds, fails, ctx ends or timeout elapses.
+func waitForLock(ctx context.Context, timeout, interval time.Duration, try func(context.Context) (bool, error)) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+	for {
+		got, err := try(ctx)
+		if err == nil && got {
+			return nil
+		}
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return fmt.Errorf("migrate: another runner still holds the migration lock after %s", timeout)
+			}
+			return ctx.Err()
+		case <-tick.C:
+		}
+	}
 }
 
 func (p Postgres) Init(ctx context.Context) error {
@@ -88,10 +141,13 @@ func (p Postgres) Revert(ctx context.Context, m Migration) error {
 }
 
 // ClickHouse migrates a ClickHouse database. DDL is not transactional: statements must be
-// idempotent (IF NOT EXISTS / IF EXISTS) so a half-applied migration can be re-run.
+// idempotent (IF NOT EXISTS / IF EXISTS) so a half-applied migration can be re-run, and so two
+// concurrent `up` runners converge on the same schema.
 type ClickHouse struct{ Conn driver.Conn }
 
-// Lock is a no-op: ClickHouse has no advisory locks. Run migrations from a single one-shot job.
+// Lock is a no-op: ClickHouse has no advisory locks. Concurrent `up` runners are safe because scripts
+// are idempotent and Verify tolerates the duplicate records they leave behind. Never run `down`
+// concurrently with anything else.
 func (ClickHouse) Lock(context.Context) (func(), error) { return func() {}, nil }
 
 func (c ClickHouse) Init(ctx context.Context) error {

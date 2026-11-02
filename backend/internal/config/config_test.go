@@ -16,6 +16,7 @@ func valid() map[string]string {
 	return map[string]string{
 		"ERVISIO_LOGS_POSTGRES_DSN":        "postgres://u:p@pg:5432/db?sslmode=disable",
 		"ERVISIO_LOGS_CLICKHOUSE_PASSWORD": "s3cret",
+		"ERVISIO_LOGS_SECRET_KEY":          strings.Repeat("k", 32),
 	}
 }
 
@@ -88,5 +89,40 @@ func TestRedactedHasNoSecrets(t *testing.T) {
 		if s, ok := v.(string); ok && (strings.Contains(s, "s3cret") || strings.Contains(s, "u:p")) {
 			t.Fatalf("secret leaked in %s", k)
 		}
+	}
+}
+
+func TestAuthValidation(t *testing.T) {
+	m := valid()
+	m["ERVISIO_LOGS_SECRET_KEY"] = "short"
+	m["ERVISIO_LOGS_GOOGLE_CLIENT_ID"] = "id"
+	m["ERVISIO_LOGS_COGNITO_CLIENT_ID"] = "id"
+	m["ERVISIO_LOGS_COGNITO_CLIENT_SECRET"] = "s"
+	m["ERVISIO_LOGS_COGNITO_ISSUER"] = "http://insecure"
+	_, err := load(env(m), noFiles)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	for _, want := range []string{"SECRET_KEY", "GOOGLE_CLIENT_SECRET", "COGNITO_ISSUER"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("missing %q in %v", want, err)
+		}
+	}
+}
+
+func TestAuthDefaultsAreClosed(t *testing.T) {
+	c, err := load(env(valid()), noFiles)
+	if err != nil || c.Auth.OpenRegistration || c.Auth.Google.Enabled() {
+		t.Fatalf("got %+v %v", c.Auth, err)
+	}
+}
+
+func TestProductionRequiresHTTPSPublicURL(t *testing.T) {
+	m := valid()
+	m["ERVISIO_LOGS_ENV"] = "production"
+	m["ERVISIO_LOGS_POSTGRES_DSN"] = "postgres://u:p@pg/db?sslmode=require"
+	_, err := load(env(m), noFiles)
+	if err == nil || !strings.Contains(err.Error(), "PUBLIC_URL must be https") {
+		t.Fatalf("got %v", err)
 	}
 }

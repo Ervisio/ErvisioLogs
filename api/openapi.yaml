@@ -1,23 +1,33 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
   title: Ervisio Logs API
-  version: 0.1.0
-  summary: Skeleton produced by phase P0. Feature routes arrive with P1 and later.
+  version: "0.2.0"
+  summary: "Phase P1: authentication, tenancy, RBAC, API tokens, audit. Ingestion and search arrive in P2."
   description: |
-    Base path for feature routes is `/api/v1`. Errors use RFC 7807 `application/problem+json`
-    and always carry the `request_id` that is also returned in the `X-Request-ID` header.
+    Base path for feature routes is `/api/v1`. Errors use RFC 7807 `application/problem+json` and carry the `request_id` also returned in `X-Request-ID`.
 
-    This document is authoritative and is checked against the implemented routes by
-    `TestOpenAPIMatchesRouter`: an undocumented or unimplemented route fails the test suite.
+    Browser sessions use an HttpOnly cookie. Every POST, PATCH and DELETE made with the cookie must send the `X-CSRF-Token` returned by `/auth/login`, `/auth/register` or `/auth/me`, and a browser `Origin` header must match the public URL. API tokens (`Authorization: Bearer evl_...`) are project-scoped and cannot call user routes.
+
+    This document is checked against the implemented routes by `TestOpenAPIMatchesRouter`: an undocumented or unimplemented route fails the test suite.
   license:
     name: TBD (to be decided by the project owner)
     identifier: NOASSERTION
 servers:
-  - url: http://localhost:8080
+  - url: "http://localhost:8080"
     description: Local development
 tags:
   - name: health
-    description: Process and dependency probes (unauthenticated, no sensitive detail).
+    description: "Process and dependency probes (unauthenticated, no sensitive detail)."
+  - name: auth
+    description: Local and external sign-in.
+  - name: workspaces
+  - name: members
+  - name: projects
+    description: "Projects, environments and streams."
+  - name: tokens
+  - name: audit
+  - name: admin
+    description: Instance administrator only. Grants no access to workspace data.
 paths:
   /healthz:
     get:
@@ -38,10 +48,7 @@ paths:
       tags: [health]
       operationId: getReadiness
       summary: Readiness probe
-      description: |
-        Succeeds only when PostgreSQL and ClickHouse answer and both schemas are at the version
-        this binary expects. Results are cached for a few seconds. Failure reasons are logged
-        server-side and never returned.
+      description: Succeeds only when PostgreSQL and ClickHouse answer and both schemas are at the version this binary expects. Results are cached for a few seconds. Failure reasons are logged server-side and never returned.
       security: []
       responses:
         "200":
@@ -56,40 +63,1651 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Readiness"
+  /api/v1/auth/providers:
+    get:
+      tags: [auth]
+      operationId: listAuthProviders
+      summary: Sign-in methods and instance state
+      description: Public. The login page uses it to draw the provider buttons and to detect a fresh install.
+      security: []
+      responses:
+        "200":
+          description: Enabled providers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthProviders"
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: "Create an account with email, username and password"
+      description: "On a fresh install (no users) `setup_code` is required and the account becomes the instance administrator. Afterwards registration works only when `open_registration` is true; otherwise an administrator creates accounts. Password: 10 to 128 bytes."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      security: []
+      responses:
+        "201":
+          description: Account created and signed in. Sets the session cookie.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/TooMany"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Sign in with email or username and password
+      description: "Attempts are rate limited per IP, per account and client IP, and per account across all IPs with a higher threshold (`429` with `Retry-After`). The email and the username of an account share its counters. The answer is identical for unknown accounts, accounts without a password, disabled accounts and wrong passwords."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login:
+                  type: string
+                  description: Email or username.
+                password:
+                  type: string
+              additionalProperties: false
+      security: []
+      responses:
+        "200":
+          description: Signed in. Sets the HttpOnly session cookie.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/TooMany"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Sign out and revoke the session
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Session revoked.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: "Current user, workspaces and CSRF token"
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  "/api/v1/auth/oauth/{provider}/start":
+    get:
+      tags: [auth]
+      operationId: oauthStart
+      summary: Start a sign-in with an external provider
+      description: "Providers: `google` and `cognito` (OpenID Connect, the ID token is verified for signature, issuer, audience, expiry and nonce) and `discord` (OAuth 2.0). Only providers listed by `/auth/providers` exist."
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, cognito, discord]
+      security: []
+      responses:
+        "302":
+          description: "Redirect to the provider authorisation page (authorisation code flow with PKCE S256, state and, for OpenID Connect, nonce)."
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooMany"
+        "502":
+          description: The provider could not be reached.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  "/api/v1/auth/oauth/{provider}/callback":
+    get:
+      tags: [auth]
+      operationId: oauthCallback
+      summary: Complete a sign-in with an external provider
+      description: "Accounts are linked by (provider, subject). A verified provider email may link to an existing account unless that account is disabled (`account_disabled`), has a password and an unverified email (`email_in_use`), or already has another identity of this provider (`identity_conflict`). The callback must come from the browser that started the flow, proved by a cookie set at start (otherwise `invalid_state`). New accounts are created only when registration is open and the instance is already set up."
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, cognito, discord]
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      security: []
+      responses:
+        "303":
+          description: "Redirects to `/` with the session cookie set, or to `/login?error=<code>`. Codes: provider_denied, invalid_request, invalid_state, exchange_failed, email_unverified, email_in_use, identity_conflict, registration_closed, setup_required, account_disabled, server_error."
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooMany"
+  /api/v1/workspaces:
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaces
+      summary: "List the caller's workspaces"
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: "Workspaces with the caller's role."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Workspace"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [workspaces]
+      operationId: createWorkspace
+      summary: Create a workspace (the caller becomes owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                slug:
+                  type: string
+                  pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
+                  description: Defaults to a slug of the name.
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  "/api/v1/workspaces/{id}":
+    get:
+      tags: [workspaces]
+      operationId: getWorkspace
+      summary: "Get a workspace and the caller's permissions"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Workspace.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workspace, permissions]
+                properties:
+                  workspace:
+                    $ref: "#/components/schemas/Workspace"
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [workspaces]
+      operationId: updateWorkspace
+      summary: "Rename a workspace (needs workspace:manage)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [workspaces]
+      operationId: deleteWorkspace
+      summary: "Delete a workspace and everything in it (needs workspace:manage)"
+      description: Destructive. The body must repeat the workspace slug.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: string
+                  description: Must equal the workspace slug.
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  "/api/v1/workspaces/{id}/members":
+    get:
+      tags: [members]
+      operationId: listMembers
+      summary: List members
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Members.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Member"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [members]
+      operationId: addMember
+      summary: "Add an existing account to the workspace (needs members:manage)"
+      description: Only an owner can grant the owner role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: "#/components/schemas/Role"
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  "/api/v1/workspaces/{id}/members/{userId}":
+    patch:
+      tags: [members]
+      operationId: updateMember
+      summary: "Change a member's role (needs members:manage)"
+      description: "The last owner cannot be demoted (`409`). Only an owner can grant or change the owner role."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  $ref: "#/components/schemas/Role"
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Updated.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [members]
+      operationId: removeMember
+      summary: "Remove a member, or leave the workspace"
+      description: "A member may always remove themselves. Removing someone else needs members:manage. The last owner cannot be removed."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  "/api/v1/workspaces/{id}/audit":
+    get:
+      tags: [audit]
+      operationId: listAudit
+      summary: "Security audit trail (needs members:manage)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: "Events, newest first."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEvent"
+                  next_cursor:
+                    type: [string, "null"]
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/projects:
+    get:
+      tags: [projects]
+      operationId: listProjects
+      summary: List projects of a workspace
+      parameters:
+        - name: workspace_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Projects.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    post:
+      tags: [projects]
+      operationId: createProject
+      summary: "Create a project (needs projects:write)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, name]
+              properties:
+                workspace_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  maxLength: 100
+                slug:
+                  type: string
+                  pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: "Created with a default `production` environment and `default` stream."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  "/api/v1/projects/{id}":
+    get:
+      tags: [projects]
+      operationId: getProject
+      summary: Get a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [projects]
+      operationId: updateProject
+      summary: "Rename a project (needs projects:write)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [projects]
+      operationId: deleteProject
+      summary: "Delete a project, its environments, streams and tokens (needs projects:write)"
+      description: Destructive. The body must repeat the project slug.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: string
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  "/api/v1/projects/{id}/environments":
+    get:
+      tags: [projects]
+      operationId: listEnvironments
+      summary: List environments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Environments.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Environment"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [projects]
+      operationId: createEnvironment
+      summary: "Create an environment (needs projects:write)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  "/api/v1/projects/{id}/environments/{envId}":
+    delete:
+      tags: [projects]
+      operationId: deleteEnvironment
+      summary: "Delete an environment (needs projects:write)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: envId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Environment id.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  "/api/v1/projects/{id}/streams":
+    get:
+      tags: [projects]
+      operationId: listStreams
+      summary: List streams
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Streams.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Stream"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [projects]
+      operationId: createStream
+      summary: "Create a stream (needs projects:write)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  pattern: "^[a-z0-9][a-z0-9._-]{0,62}$"
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stream"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  "/api/v1/projects/{id}/streams/{streamId}":
+    delete:
+      tags: [projects]
+      operationId: deleteStream
+      summary: "Delete a stream (needs projects:write)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Stream id.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/tokens:
+    get:
+      tags: [tokens]
+      operationId: listTokens
+      summary: "List API tokens of a project (needs tokens:manage)"
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Tokens. Never includes the secret.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ApiToken"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    post:
+      tags: [tokens]
+      operationId: createToken
+      summary: "Create an API token (needs tokens:manage)"
+      description: "A token is bound to one project and carries a subset of `logs:ingest`, `logs:read`, `logs:export`. A creator cannot grant a scope they do not hold. A token never exceeds its creator: at every request its effective scopes are those it was created with that the creator's current role still allows, and it stops working while the creator is disabled, is not a member of the workspace, or no scope remains. These conditions revoke nothing: restoring the creator restores the token. Only an HMAC of the token is stored."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, name, scopes]
+              properties:
+                project_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  maxLength: 100
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum: ["logs:ingest", "logs:read", "logs:export"]
+                  minItems: 1
+                expires_at:
+                  type: [string, "null"]
+                  format: date-time
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: "Created. `token` is shown once and cannot be retrieved again."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, api_token]
+                properties:
+                  token:
+                    type: string
+                    examples: [evl_...]
+                  api_token:
+                    $ref: "#/components/schemas/ApiToken"
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/tokens/current:
+    get:
+      tags: [tokens]
+      operationId: getCurrentToken
+      summary: Describe the API token used for this call
+      description: "Send `Authorization: Bearer evl_...`. `scopes` are the effective ones, reduced to what the creator's current role allows. Fails with 401 once the token is revoked or expired, while its creator is disabled or no longer a member of the workspace, or when no scope remains. Ingestion and search (later phases) authenticate the same way."
+      security:
+        - bearerToken: []
+      responses:
+        "200":
+          description: "The token's metadata."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiToken"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  "/api/v1/tokens/{id}":
+    delete:
+      tags: [tokens]
+      operationId: revokeToken
+      summary: "Revoke an API token (needs tokens:manage)"
+      description: Takes effect immediately.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Token id.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Revoked (also when it already was).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/audit:
+    get:
+      tags: [admin, audit]
+      operationId: adminListAudit
+      summary: Instance-level audit trail (instance administrator)
+      description: "Events without a workspace: sign-ins, failed sign-ins, registrations, account changes and workspace deletions. A failed password sign-in targets the user, or for an unknown login a keyed digest of it (target type `login`), never the text typed."
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: "Events, newest first."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEvent"
+                  next_cursor:
+                    type: [string, "null"]
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/users:
+    get:
+      tags: [admin]
+      operationId: adminListUsers
+      summary: List accounts (instance administrator)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 500
+            default: 100
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Users.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [admin]
+      operationId: adminCreateUser
+      summary: Create an account (instance administrator)
+      description: "Without `password` the account can only sign in through an external provider; the first sign-in with a verified email proves ownership of the address. The instance administrator gets no access to workspace data from this."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, username]
+              properties:
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+                  pattern: "^[a-z0-9][a-z0-9_.-]{2,31}$"
+                password:
+                  type: string
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  "/api/v1/admin/users/{id}":
+    patch:
+      tags: [admin]
+      operationId: adminUpdateUser
+      summary: Enable or disable an account (instance administrator)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, disabled]
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Updated. Disabling revokes every session of the user.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
 components:
   securitySchemes:
     bearerToken:
       type: http
       scheme: bearer
-      description: Scoped API token (defined in P1; no authenticated route exists yet).
+      description: "Project-scoped API token (`evl_...`), shown once at creation."
     sessionCookie:
       type: apiKey
       in: cookie
       name: ervisio_logs_session
-      description: HttpOnly same-site session cookie for the browser UI (defined in P1).
+      description: "HttpOnly, SameSite=Lax session cookie. Mutations also need the X-CSRF-Token header."
+  responses:
+    BadRequest:
+      description: "Malformed JSON, unknown field, trailing data or invalid pagination cursor."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    PayloadTooLarge:
+      description: The request body exceeds the size limit.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unavailable:
+      description: "Too many password operations are in progress; retry shortly."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
+    Unauthorized:
+      description: Authentication required or credentials invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: "Authenticated but not allowed: missing permission, missing or wrong CSRF token, or cross-origin request."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: "Not found. Also returned when the resource belongs to a workspace the caller is not a member of, so existence is not revealed."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: "The resource already exists, or the change would remove the last owner."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Invalid:
+      description: Validation failed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    TooMany:
+      description: Rate limited.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
   schemas:
     Liveness:
       type: object
       required: [status, version]
       properties:
-        status: { type: string, const: ok }
-        version: { type: string, examples: ["0.1.0"] }
+        status:
+          type: string
+          const: ok
+        version:
+          type: string
+          examples: ["0.1.0"]
+      additionalProperties: false
     Readiness:
       type: object
       required: [status, checks]
       properties:
-        status: { type: string, enum: [ready, not_ready] }
+        status:
+          type: string
+          enum: [ready, not_ready]
         checks:
           type: object
           description: Result per check name.
-          additionalProperties: { type: string, enum: [ok, fail] }
+          additionalProperties:
+            type: string
+            enum: [ok, fail]
+      additionalProperties: false
     Problem:
       type: object
       description: RFC 7807 problem document.
       required: [type, title, status]
       properties:
-        type: { type: string, examples: ["about:blank"] }
-        title: { type: string }
-        status: { type: integer }
-        detail: { type: string }
-        request_id: { type: string, examples: ["req_9f2c4a1b7e3d5a60b1c2d3e4"] }
+        type:
+          type: string
+          examples: ["about:blank"]
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        request_id:
+          type: string
+          examples: [req_9f2c4a1b7e3d5a60b1c2d3e4]
+    Role:
+      type: string
+      enum: [owner, admin, developer, analyst, viewer]
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - username
+        - email_verified
+        - is_instance_admin
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        username:
+          type: string
+        email_verified:
+          type: boolean
+        is_instance_admin:
+          type: boolean
+        status:
+          type: string
+          enum: [active, disabled]
+        created_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    Workspace:
+      type: object
+      required: [id, slug, name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        role:
+          $ref: "#/components/schemas/Role"
+      additionalProperties: false
+    Member:
+      type: object
+      required: [user_id, email, username, role, joined_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        username:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        joined_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    Project:
+      type: object
+      required: [id, workspace_id, slug, name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    Environment:
+      type: object
+      required: [id, project_id, name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    Stream:
+      type: object
+      required: [id, project_id, name, type, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [logs]
+        created_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ApiToken:
+      type: object
+      required:
+        - id
+        - workspace_id
+        - project_id
+        - name
+        - prefix
+        - scopes
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        prefix:
+          type: string
+          description: "First characters, safe to display."
+        scopes:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+        last_used_at:
+          type: [string, "null"]
+          format: date-time
+        revoked_at:
+          type: [string, "null"]
+          format: date-time
+      additionalProperties: false
+    AuditEvent:
+      type: object
+      required: [id, action, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: [string, "null"]
+          format: uuid
+        actor_user_id:
+          type: [string, "null"]
+          format: uuid
+        actor_token_id:
+          type: [string, "null"]
+          format: uuid
+        action:
+          type: string
+          examples: [token.create]
+        target_type:
+          type: string
+        target_id:
+          type: string
+        request_id:
+          type: string
+        ip:
+          type: string
+        detail:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+      description: Never contains secrets.
+      additionalProperties: false
+    AuthProviders:
+      type: object
+      required: [local, providers, open_registration, setup_required]
+      properties:
+        local:
+          type: boolean
+        providers:
+          type: array
+          items:
+            type: string
+            enum: [google, cognito, discord]
+        open_registration:
+          type: boolean
+        setup_required:
+          type: boolean
+          description: True until the first account (the instance administrator) exists.
+      additionalProperties: false
+    RegisterRequest:
+      type: object
+      required: [email, username, password]
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9_.-]{2,31}$"
+        password:
+          type: string
+          minLength: 10
+          maxLength: 128
+        setup_code:
+          type: string
+          description: One-time code from the server log (or ERVISIO_LOGS_SETUP_CODE). Needed only for the first account.
+      additionalProperties: false
+    Me:
+      type: object
+      required: [user, workspaces]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        workspaces:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workspace"
+        csrf_token:
+          type: string
+          description: "Send as `X-CSRF-Token` on every POST, PATCH and DELETE made with the session cookie."
+      additionalProperties: false
