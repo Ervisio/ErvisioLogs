@@ -7,11 +7,27 @@ name: ervisio-logs
 x-app-env: &app-env
   ERVISIO_LOGS_ENV: ${ERVISIO_LOGS_ENV:-development}
   ERVISIO_LOGS_LOG_LEVEL: ${ERVISIO_LOGS_LOG_LEVEL:-info}
-  ERVISIO_LOGS_POSTGRES_DSN: postgres://ervisio_logs:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/ervisio_logs?sslmode=disable
-  ERVISIO_LOGS_CLICKHOUSE_ADDR: clickhouse:9000
+  # The bundled PostgreSQL has no TLS, so production (which refuses sslmode=disable) needs either a full
+  # DSN pointing at a TLS-enabled server or TLS configured on this one plus POSTGRES_SSLMODE.
+  ERVISIO_LOGS_POSTGRES_DSN: ${ERVISIO_LOGS_POSTGRES_DSN:-postgres://ervisio_logs:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/ervisio_logs?sslmode=${POSTGRES_SSLMODE:-disable}}
+  ERVISIO_LOGS_CLICKHOUSE_ADDR: ${ERVISIO_LOGS_CLICKHOUSE_ADDR:-clickhouse:9000}
   ERVISIO_LOGS_CLICKHOUSE_DATABASE: ervisio_logs
   ERVISIO_LOGS_CLICKHOUSE_USER: ervisio_logs
   ERVISIO_LOGS_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run scripts/gen-env.sh}
+  ERVISIO_LOGS_CLICKHOUSE_TLS: ${ERVISIO_LOGS_CLICKHOUSE_TLS:-false}
+  ERVISIO_LOGS_SECRET_KEY: ${ERVISIO_LOGS_SECRET_KEY:?run scripts/gen-env.sh}
+  ERVISIO_LOGS_PUBLIC_URL: ${ERVISIO_LOGS_PUBLIC_URL:?run scripts/gen-env.sh}
+  ERVISIO_LOGS_OPEN_REGISTRATION: ${ERVISIO_LOGS_OPEN_REGISTRATION:-false}
+  ERVISIO_LOGS_SETUP_CODE: ${ERVISIO_LOGS_SETUP_CODE:-}
+  ERVISIO_LOGS_SESSION_TTL: ${ERVISIO_LOGS_SESSION_TTL:-336h}
+  ERVISIO_LOGS_TRUST_PROXY: ${ERVISIO_LOGS_TRUST_PROXY:-false}
+  ERVISIO_LOGS_GOOGLE_CLIENT_ID: ${ERVISIO_LOGS_GOOGLE_CLIENT_ID:-}
+  ERVISIO_LOGS_GOOGLE_CLIENT_SECRET: ${ERVISIO_LOGS_GOOGLE_CLIENT_SECRET:-}
+  ERVISIO_LOGS_COGNITO_CLIENT_ID: ${ERVISIO_LOGS_COGNITO_CLIENT_ID:-}
+  ERVISIO_LOGS_COGNITO_CLIENT_SECRET: ${ERVISIO_LOGS_COGNITO_CLIENT_SECRET:-}
+  ERVISIO_LOGS_COGNITO_ISSUER: ${ERVISIO_LOGS_COGNITO_ISSUER:-}
+  ERVISIO_LOGS_DISCORD_CLIENT_ID: ${ERVISIO_LOGS_DISCORD_CLIENT_ID:-}
+  ERVISIO_LOGS_DISCORD_CLIENT_SECRET: ${ERVISIO_LOGS_DISCORD_CLIENT_SECRET:-}
 
 x-hardening: &hardening
   security_opt: ["no-new-privileges:true"]
@@ -64,6 +80,8 @@ services:
     image: ervisio-logs:dev
     command: ["migrate", "up"]
     environment: *app-env
+    # The image HEALTHCHECK probes the HTTP server, which this one-shot job never starts.
+    healthcheck: { disable: true }
     depends_on:
       postgres: { condition: service_healthy }
       clickhouse: { condition: service_healthy }
@@ -87,7 +105,8 @@ services:
     read_only: true
     tmpfs: ["/tmp:size=16m"]
     # Dedicated volumes for the durable spool (P2) and archive cache (P4) are declared now so
-    # their disk budgets stay independent from the databases; nothing writes to them yet.
+    # their disk budgets stay independent from the databases; nothing writes to them yet. The image
+    # owns these paths as the non-root user, which Docker copies onto a volume when it is first created.
     volumes:
       - spool:/var/lib/ervisio-logs/spool
       - cache:/var/lib/ervisio-logs/cache

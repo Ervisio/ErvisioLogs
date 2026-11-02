@@ -8,8 +8,8 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
       - run: go vet ./...
         working-directory: backend
@@ -20,8 +20,8 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci
         working-directory: web
@@ -30,13 +30,28 @@ jobs:
   openapi:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 24 }
-      - run: npx --yes @redocly/cli@latest lint api/openapi.yaml
+      - run: npx --yes @redocly/cli@2.72.1 lint api/openapi.yaml # version: keep in sync with the Makefile
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      # Throwaway databases started from Compose, so their digests have one source of truth.
+      - run: scripts/gen-env.sh
+      - run: docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.dev.yaml up -d --wait --wait-timeout 180 postgres clickhouse
+      - run: make test-integration
+      - if: failure()
+        run: docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.dev.yaml logs --tail=100 postgres clickhouse
+      - if: always()
+        run: docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.dev.yaml down -v
   smoke:
     runs-on: ubuntu-latest
-    needs: [backend, web]
+    needs: [backend, web, integration]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: scripts/smoke.sh
