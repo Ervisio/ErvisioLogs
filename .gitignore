@@ -17,3 +17,4 @@ backend/internal/webui/dist/*
 .idea/
 .vscode/
 .variant-studio/
+*.tsbuildinfo

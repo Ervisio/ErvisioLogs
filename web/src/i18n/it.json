@@ -1,0 +1,42 @@
+{
+  "app": {
+    "name": "Ervisio Logs"
+  },
+  "nav": {
+    "overview": "Panoramica",
+    "explorer": "Esplora log",
+    "tail": "Live Tail",
+    "settings": "Impostazioni",
+    "soon": "Non ancora disponibile",
+    "collapse": "Comprimi",
+    "expand": "Espandi"
+  },
+  "theme": {
+    "light": "Chiaro",
+    "dark": "Scuro",
+    "toggle": "Cambia tema"
+  },
+  "language": "Lingua",
+  "overview": {
+    "title": "Panoramica",
+    "intro": "Eventi, errori e velocità di ingestione compariranno qui quando arriverà l'ingestione dei log."
+  },
+  "status": {
+    "title": "Stato del sistema",
+    "loading": "Controllo dei servizi…",
+    "ready": "Tutti i servizi sono pronti",
+    "not_ready": "Alcuni servizi non sono pronti",
+    "unreachable": "Il server non risponde",
+    "ok": "OK",
+    "fail": "In errore",
+    "checks": {
+      "postgres": "PostgreSQL",
+      "clickhouse": "ClickHouse",
+      "migrations_postgres": "Migrazioni PostgreSQL",
+      "migrations_clickhouse": "Migrazioni ClickHouse"
+    }
+  },
+  "search": {
+    "placeholder": "Cerca o esegui un comando"
+  }
+}

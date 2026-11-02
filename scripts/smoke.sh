@@ -30,7 +30,8 @@ curl -s "$base/" | grep -qi '<div id="root"' || fail "web UI not served"
 # Databases must not be reachable from the host in the base stack.
 if (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null; then fail "postgres is published on the host"; fi
 # Migrations are idempotent.
-dc run --rm migrate migrate up | grep -q 'applied 0' || fail "second migrate up was not a no-op"
+out=$(dc run --rm -T migrate migrate up 2>&1) || fail "second migrate up failed: $out"
+[[ $(grep -c 'applied 0 migration' <<<"$out") == 2 ]] || fail "second migrate up was not a no-op: $out"
 # Tables really exist.
 dc exec -T postgres psql -U ervisio_logs -d ervisio_logs -tAc "select count(*) from instance_settings where key='instance_id'" | grep -qx 1 || fail "pg instance_id missing"
 dc exec -T clickhouse clickhouse-client --user ervisio_logs --password "$(grep ^CLICKHOUSE_PASSWORD "$ENVFILE" | cut -d= -f2)" -q "EXISTS TABLE ervisio_logs.events" | grep -qx 1 || fail "ch events table missing"

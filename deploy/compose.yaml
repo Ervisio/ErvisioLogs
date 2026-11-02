@@ -55,7 +55,7 @@ services:
       timeout: 3s
       retries: 20
     cap_drop: [ALL]
-    cap_add: [CHOWN, SETGID, SETUID, SYS_NICE, IPC_LOCK]
+    cap_add: [CHOWN, SETGID, SETUID, KILL, SYS_NICE, IPC_LOCK]
     mem_limit: 2g
 
   # One-shot migration job. The app reports "not ready" until it has completed.
