@@ -1,0 +1,35 @@
+{
+  "round": "005-navigazione",
+  "action": "choose",
+  "selected": [
+    "b"
+  ],
+  "note": "",
+  "variants": {},
+  "viewed_at": {
+    "viewport": "laptop",
+    "width": 1280,
+    "theme": "dark",
+    "layout": "focus"
+  },
+  "screenshots": {
+    "b": ".variant-studio/rounds/005-navigazione/_shots/mvzgt264-b.png"
+  },
+  "approved": {
+    "variant": "b",
+    "at": "2026-11-02T16:20:08.387Z"
+  },
+  "id": "fe5b1a9c45fb",
+  "at": "2026-11-02T16:20:08.388Z",
+  "consumed": true,
+  "hold_until": "2026-11-02T16:20:23.388Z",
+  "files": {
+    "a": ".variant-studio/rounds/005-navigazione/a.html",
+    "b": ".variant-studio/rounds/005-navigazione/b.html",
+    "c": ".variant-studio/rounds/005-navigazione/c.html",
+    "d": ".variant-studio/rounds/005-navigazione/d.html"
+  },
+  "round_dir": ".variant-studio/rounds/005-navigazione",
+  "_prev": null,
+  "consumed_at": "2026-11-02T16:22:00.117Z"
+}

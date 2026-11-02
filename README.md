@@ -2,8 +2,8 @@
 
 Self-hosted, API-first, multi-tenant log management. Standalone first, optional Ervisio plugin later.
 
-Status: **phase P0 (foundation) complete, P1 not started.** The service starts, reports health, migrates its
-databases and serves an app shell. It cannot ingest or search logs yet. See
+Status: **P0 complete, P1 backend complete, P1 frontend not started.** The API handles accounts, sign-in, workspaces,
+RBAC, API tokens and audit. The web app is still the P0 shell, and the service cannot ingest or search logs yet. See
 [`ervisio-logs-spec/implementation/PROGRESS.md`](ervisio-logs-spec/implementation/PROGRESS.md).
 
 ## Quick start

@@ -1,0 +1,79 @@
+{
+  "group": "Ervisio Logs / Direzione visiva",
+  "title": "Esplora log",
+  "question": "Quale direzione vuoi per la schermata principale di Ervisio Logs?",
+  "kind": "page",
+  "viewports": [
+    "laptop",
+    "mobile"
+  ],
+  "head": [],
+  "variants": [
+    {
+      "id": "a",
+      "label": "Canali Ervisio",
+      "notes": "Barra espandibile e colonna stream come Discord, nero OLED e ambra Ervisio: familiare e coerente con Ervisio, poco sorprendente."
+    },
+    {
+      "id": "b",
+      "label": "Conversazione",
+      "notes": "I log si leggono come una chat raggruppata per giocatore: racconta bene una storia, mostra meno righe per schermata."
+    },
+    {
+      "id": "c",
+      "label": "Linea del tempo",
+      "notes": "Istogramma grande che guida la ricerca, tema chiaro: ottimo per trovare i picchi, meno spazio per le righe."
+    },
+    {
+      "id": "d",
+      "label": "Frase-filtro",
+      "notes": "Scrivi la ricerca come una frase e tieni il dettaglio sempre aperto: facile per chi non conosce query, meno veloce per gli esperti."
+    },
+    {
+      "id": "e",
+      "label": "Tail da tastiera",
+      "notes": "Flusso a tutto schermo e barra comandi in basso, quasi senza interfaccia: rapidissimo per gli esperti, meno guidato."
+    }
+  ],
+  "created": "2026-11-02T15:57:20.921Z",
+  "states": [
+    "default",
+    "loading",
+    "empty",
+    "error"
+  ],
+  "context": "Schermata reale del prodotto con dati FiveM di esempio. Prova ricerca, filtri, dettaglio evento, stati e densità. Scegli pure pezzi da più varianti: dopo faremo round separati per navigazione, accesso e panoramica.",
+  "knobs": [
+    {
+      "token": "--accent",
+      "label": "Accento",
+      "type": "color",
+      "value": "#ffb547"
+    },
+    {
+      "token": "--radius",
+      "label": "Raggio",
+      "type": "range",
+      "min": 0,
+      "max": 20,
+      "unit": "px",
+      "value": 10
+    },
+    {
+      "attr": "density",
+      "label": "Densità",
+      "type": "select",
+      "options": [
+        "regular",
+        "compact",
+        "airy"
+      ]
+    }
+  ],
+  "checklist": [
+    "Trovo il prelievo da 50.000 $ in pochi secondi",
+    "Capisco subito errori e crash",
+    "La navigazione è chiara senza spiegazioni",
+    "Funziona bene su mobile"
+  ]
+}

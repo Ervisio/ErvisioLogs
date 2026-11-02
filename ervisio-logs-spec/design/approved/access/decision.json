@@ -1,0 +1,35 @@
+{
+  "round": "006-accesso",
+  "action": "choose",
+  "selected": [
+    "a"
+  ],
+  "note": "",
+  "variants": {},
+  "viewed_at": {
+    "viewport": "laptop",
+    "width": 1280,
+    "theme": "dark",
+    "layout": "grid"
+  },
+  "screenshots": {
+    "a": ".variant-studio/rounds/006-accesso/_shots/mvzgtqht-a.png"
+  },
+  "approved": {
+    "variant": "a",
+    "at": "2026-11-02T16:20:39.911Z"
+  },
+  "id": "3f33c0cd729a",
+  "at": "2026-11-02T16:20:39.911Z",
+  "consumed": true,
+  "hold_until": "2026-11-02T16:20:54.911Z",
+  "files": {
+    "a": ".variant-studio/rounds/006-accesso/a.html",
+    "b": ".variant-studio/rounds/006-accesso/b.html",
+    "c": ".variant-studio/rounds/006-accesso/c.html",
+    "d": ".variant-studio/rounds/006-accesso/d.html"
+  },
+  "round_dir": ".variant-studio/rounds/006-accesso",
+  "_prev": null,
+  "consumed_at": "2026-11-02T16:22:00.180Z"
+}

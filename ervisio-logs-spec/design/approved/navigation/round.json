@@ -1,0 +1,58 @@
+{
+  "group": "Ervisio Logs / Navigazione",
+  "title": "Navigazione",
+  "question": "Come vuoi muoverti tra sezioni, progetti e stream?",
+  "kind": "page",
+  "viewports": [
+    "laptop",
+    "mobile"
+  ],
+  "head": [],
+  "variants": [
+    {
+      "id": "a",
+      "label": "Rail e canali",
+      "notes": "Barra di icone espandibile più colonna stream: la più vicina alla variante scelta, occupa più larghezza."
+    },
+    {
+      "id": "b",
+      "label": "Progetti come server",
+      "notes": "Ogni progetto è un server nella barra, come Discord: passi da un progetto all’altro in un clic, serve con più progetti."
+    },
+    {
+      "id": "c",
+      "label": "Colonna unica",
+      "notes": "Una sola barra con sezioni e stream annidati, riducibile a icone: più spazio ai log, meno immediata per gli stream."
+    },
+    {
+      "id": "d",
+      "label": "Essenziale con ⌘K",
+      "notes": "Cinque icone e tutto il resto nel pannello comandi: massima pulizia, le sezioni rare restano nascoste."
+    }
+  ],
+  "created": "2026-11-02T16:10:17.741Z",
+  "knobs": [
+    {
+      "token": "--accent",
+      "label": "Accento",
+      "type": "color",
+      "value": "#ffb547"
+    },
+    {
+      "token": "--radius",
+      "label": "Raggio",
+      "type": "range",
+      "min": 0,
+      "max": 20,
+      "unit": "px",
+      "value": 10
+    }
+  ],
+  "context": "Parti dalla schermata scelta. Prova espansione, cambio progetto, cambio sezione e la versione mobile. Una voce non ancora costruita apre comunque la sua intestazione.",
+  "checklist": [
+    "Trovo ogni sezione senza spiegazioni",
+    "Cambio progetto in un attimo",
+    "Capisco dove sono",
+    "Su mobile resta comoda"
+  ]
+}

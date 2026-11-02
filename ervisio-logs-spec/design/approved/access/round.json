@@ -1,0 +1,64 @@
+{
+  "group": "Ervisio Logs / Accesso",
+  "title": "Accesso e registrazione",
+  "question": "Quale schermata di accesso vuoi?",
+  "kind": "page",
+  "viewports": [
+    "laptop",
+    "mobile"
+  ],
+  "head": [],
+  "variants": [
+    {
+      "id": "a",
+      "label": "Essenziale",
+      "notes": "Solo il modulo su nero: rapidissima da leggere, poca personalità."
+    },
+    {
+      "id": "b",
+      "label": "Flusso vivo",
+      "notes": "Metà schermo mostra log che scorrono: si capisce subito il prodotto, a sinistra resta meno spazio e su mobile il flusso sparisce."
+    },
+    {
+      "id": "c",
+      "label": "Provider prima",
+      "notes": "Google, Discord e Cognito in primo piano, email a un clic: comoda per chi usa i social, la password passa in secondo piano."
+    },
+    {
+      "id": "d",
+      "label": "Schede nello stesso pannello",
+      "notes": "Accedi e Registrati a schede senza cambiare pagina: flusso compatto, pannello più denso."
+    }
+  ],
+  "created": "2026-11-02T16:10:17.799Z",
+  "knobs": [
+    {
+      "token": "--accent",
+      "label": "Accento",
+      "type": "color",
+      "value": "#ffb547"
+    },
+    {
+      "token": "--radius",
+      "label": "Raggio",
+      "type": "range",
+      "min": 0,
+      "max": 20,
+      "unit": "px",
+      "value": 10
+    }
+  ],
+  "states": [
+    "default",
+    "registrazione",
+    "primo-avvio",
+    "errore"
+  ],
+  "context": "Usa il selettore degli stati per vedere registrazione, primo avvio con codice di setup ed errore di accesso.",
+  "checklist": [
+    "Vedo subito come entrare",
+    "Gli errori dicono cosa fare",
+    "La registrazione è chiara",
+    "Su mobile si compila bene"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "round": "004-explorer-direzione",
+  "action": "choose",
+  "selected": [
+    "a"
+  ],
+  "note": "",
+  "variants": {},
+  "viewed_at": {
+    "viewport": "laptop",
+    "width": 1280,
+    "theme": "dark",
+    "layout": "focus"
+  },
+  "screenshots": {
+    "a": ".variant-studio/rounds/004-explorer-direzione/_shots/mvzgfvc5-a.png"
+  },
+  "approved": {
+    "variant": "a",
+    "at": "2026-11-02T16:09:53.016Z"
+  },
+  "id": "4eb6a2501e33",
+  "at": "2026-11-02T16:09:53.024Z",
+  "consumed": true,
+  "hold_until": "2026-11-02T16:10:08.024Z",
+  "files": {
+    "a": ".variant-studio/rounds/004-explorer-direzione/a.html",
+    "b": ".variant-studio/rounds/004-explorer-direzione/b.html",
+    "c": ".variant-studio/rounds/004-explorer-direzione/c.html",
+    "d": ".variant-studio/rounds/004-explorer-direzione/d.html",
+    "e": ".variant-studio/rounds/004-explorer-direzione/e.html"
+  },
+  "round_dir": ".variant-studio/rounds/004-explorer-direzione",
+  "_prev": null,
+  "consumed_at": "2026-11-02T16:10:08.082Z"
+}
