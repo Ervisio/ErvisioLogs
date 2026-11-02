@@ -1,0 +1,13 @@
+# Initial prompt for Codex / Claude Code
+
+You are the lead engineer implementing **Ervisio Logs** in the current repository. Read `README.md`, `PRODUCT_REQUIREMENTS.md`, `DECISIONS.md`, all files under `architecture/`, `contracts/`, `design/`, `implementation/` and `operations/` before coding. These files are the source of truth; do not replace them with assumptions.
+
+This is a standalone, multi-tenant, API-first log platform with optional Ervisio plugin, universal sources and FiveM preset. Go+Chi backend, React+TypeScript frontend, PostgreSQL metadata, ClickHouse hot logs, optional S3-compatible or Hetzner Storage Box SFTP archive, Parquet segment catalog, bounded local cache, local/global retention, SSE and scoped tokens.
+
+**First assignment: execute P0 only**, then begin P1 only if P0 is complete and tested. Inspect the existing repository and report any relevant preexisting code. Do not build the whole product in one giant change. Before implementing uncertain architecture, prototype and document ADRs for remote query engine, WAL and cache budget. In particular, SFTP archive search cannot be assumed to have S3/ClickHouse performance; never mount Storage Box as a live ClickHouse database directory. Do not claim the Ervisio plugin works without inspecting its actual API/SDK; if unavailable, record blocker and leave a clean adapter interface.
+
+Deliver P0: reproducible Docker Compose dev environment, Go service with health checks and configuration validation, React/Vite app shell, PostgreSQL and ClickHouse migrations, OpenAPI skeleton, Makefile/scripts, `.env.example`, CI lint/test pipeline, developer setup instructions and smoke tests. Secure defaults; no hardcoded credentials; no production deployment or external changes. Keep code modular, readable and lightweight. Run tests and report actual outputs, changed files, decisions, blockers and next step. Update `implementation/PROGRESS.md` with evidence.
+
+Critical rules: HTTP 202 only after durable ingestion acknowledgement in future phases; at-least-once semantics; never silently drop accepted logs; no cross-tenant query access; remote copy verified before local eviction; 3d local / 14d global example; max local cache GB with high/low watermark; local cache expiry may occur early due to capacity. Separate cache cap from WAL/DB disk budgets. English-first UI, Italian translation support. No fabricated success or in-game testing: I will test FiveM in-game myself.
+
+At the start, give a short implementation plan for P0, identify ambiguities, and proceed autonomously on safe local repository changes. Ask only for genuine external credentials or destructive/production decisions. At completion, stop and give a concise handoff for P1.

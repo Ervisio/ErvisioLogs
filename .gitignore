@@ -1,0 +1,18 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+*.local
+# Go
+backend/bin/
+backend/coverage.out
+# Web
+web/node_modules/
+web/dist/
+web/coverage/
+# Embedded UI build output (placeholder is tracked)
+backend/internal/webui/dist/*
+!backend/internal/webui/dist/.gitkeep
+# Editors
+.idea/
+.vscode/

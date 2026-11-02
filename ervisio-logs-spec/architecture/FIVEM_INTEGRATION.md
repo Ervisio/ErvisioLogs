@@ -1,0 +1,3 @@
+# FiveM preset and Lua SDK
+
+Provide optional resource `ervisio_logs` with exports `Log(stream,level,event,message,attributes)` and `LogBatch`; ESX and ox_inventory examples; server-side only token handling, no client exposure. FiveM HTTP calls async and nonblocking; queue bounded; batch by size/time; exponential retry with jitter; handle 429/503; optional disk queue only if safe and supported; never block game thread. Fields: resource, player_id, event, action, identifiers only if opted in; redact sensitive data. Central config for API URL, project token, stream mappings and feature toggles. Examples: inventory add/remove, money transaction, player join/leave, moderation. Tests via mocked HTTP; in-game tests must be performed by human operator, never claimed by agent.
