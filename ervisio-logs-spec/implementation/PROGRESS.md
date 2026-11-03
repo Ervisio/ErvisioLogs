@@ -1,14 +1,14 @@
 # Progress tracker
 
-Status: **P0 complete except the ADR prototypes. P1 backend complete. P1 frontend and P3 shell written in `web/`, uncommitted, tested end to end against the real stack (2026-11-03).**
+Status: **P0 complete except the D001/D005 prototypes. P1 backend committed. P1 frontend, P2 and P3 implemented and tested, uncommitted on `feat/p2-ingest` (2026-11-03). P4, P5 and P7 not started; P6 blocked.**
 Repository: https://github.com/Ervisio/ErvisioLogs (private).
 
 | Phase | Status | Evidence |
 |---|---|---|
 | P0 Discovery/foundation | **Done except the D001/D002/D005 prototypes**, see open items | commits `675ad91`, `cd294a1`, ADRs in `docs/adr/`; test runs below |
 | P1 Tenant/auth | **Backend done, frontend uncommitted, tested against the real API.** Real Google, Cognito and Discord never tested | commits `6a1c837`, `009ef1b`; P1 section below; web section below |
-| P2 Ingestion/hot queries | Not started | — |
-| P3 UI | Sign-in and navigation implemented, uncommitted. Explorer table waits for the P2 events API | `ervisio-logs-spec/design/UI_DECISIONS.md`; web section below |
+| P2 Ingestion/hot queries | **Implemented and tested, uncommitted.** DoD met except a measured capacity figure (P7) | P2 section below; ADRs 0003, 0006, 0007 |
+| P3 UI | **Implemented and tested, uncommitted.** Explorer, live tail, event detail, first-event wizard, API tokens, Users. Wizard, tokens and Users not design-approved | P3 section below; `ervisio-logs-spec/design/UI_DECISIONS.md` |
 | P4 Tiered archives | Not started | — |
 | P5 Integrations | Not started | — |
 | P6 Ervisio plugin | Blocked: contract partly discovered, see ADR 0001 | `docs/adr/0001-*.md` |
@@ -38,6 +38,66 @@ checks only Postgres from the host), Makefile, CI workflow, `.env.example`, `gen
 
 Not run in P0: Playwright, browser rendering check of the React shell (design reviewed only as Variant Studio mockups).
 CI now runs `go test -race`, integration tests and the smoke test on GitHub Actions (ubuntu-latest, x64).
+
+## P3 delivered (uncommitted, 2026-11-03, Windows 11, Node 24, Docker)
+
+Log Explorer with free text and `key=value` filters, level and time range, keyset paging and an event detail dialog;
+Live mode over SSE with pause and resume (`last_event_id`); first-event wizard for empty projects (creates a token,
+shows a curl command, sends a test event and waits for it on the tail); API tokens page (create, copy once, revoke);
+Users page (list, change role, remove, leave, add by email, role help) with the owner rules the API enforces.
+
+| Check | Result |
+|---|---|
+| `npm run lint`, `npm run typecheck`, `npm run build` | clean |
+| `npm test` (vitest, stubbed API) | 47 passed |
+| `scripts/e2e.sh`: Playwright against a fresh Compose stack, random secrets, no stubs | 3 of 3 pass |
+
+The end-to-end suite (`web/e2e/first-run.e2e.ts`) covers: first administrator with the setup code, workspace and
+project, wizard token (`evl_` prefix), test event visible on the live tail, a second event sent with the token only,
+search by `user=ada` plus free text, detail dialog, the token on the tokens page; at 375 px no sideways scroll, drawer
+navigation to Settings and Users, 44 px touch targets; dark theme survives a reload. CI runs it as the `e2e` job.
+
+Found and fixed during the end-to-end run:
+- Typing the same query again does not search again; the test clears the box first. Live mode covers refreshing.
+- Tokens and Users appear in the drawer only inside Settings; the test now navigates there first.
+
+Limits:
+- No row virtualization: a page holds at most the page size the API returns.
+- No histogram over time.
+- The wizard forgets its state (token shown once) if you leave the page before the first event arrives.
+- Wizard, tokens and Users pages were not designed through Variant Studio; they await owner approval.
+- npm audit reports 11 moderate findings in the eslint toolchain (dev only), not addressed.
+
+## P2 backend delivered (uncommitted, 2026-11-03, Windows 11, Go 1.27.3, Docker, ClickHouse 25.8)
+
+Single and batch ingest (`/api/v1/ingest`, `/api/v1/ingest/batch`, gzip, strict JSON, per-event errors), segmented WAL
+with group commit (`internal/wal`), normalizer and limits (`internal/ingest/event.go`), ClickHouse writer with replay
+and insert deduplication (`internal/ingest/writer.go`), search with filters, keyset pagination and totals
+(`/api/v1/logs/search`), SSE live tail with resume (`/api/v1/logs/tail`), Prometheus metrics (`/metrics`), migration
+`0002_events_dedup`. OpenAPI 0.3.0. Compose passes the ingest settings; `.env.example` documents them.
+
+| Check | Result |
+|---|---|
+| `go vet` with and without the integration tag, `gofmt` on every Go file | clean |
+| `go test -count=1 ./...` | 11 packages pass |
+| Integration (`api`, `ingest`, `migrate`) against real PostgreSQL and ClickHouse, `-v` | exit 0, 118 PASS lines, 0 SKIP, 0 FAIL |
+| `scripts/smoke.sh`: P0 checks, then admin, workspace, project, token; ingest; attribute search finds the event; clean restart keeps one copy; **ClickHouse stopped, batch answered 202, app killed with SIGKILL, restart: event stored exactly once** | `SMOKE OK` |
+| `redocly lint api/openapi.yaml` | valid, 10 warnings not examined |
+
+Found and fixed during testing:
+- A zero-valued `Validator` rejected every event ("older than 0s"). `MaxPastAge` now falls back to 7 days.
+- Insert deduplication tokens were `wal-<first>-<last>`. A fresh spool restarts at sequence 1, so ClickHouse dropped
+  new events as copies of old blocks and the first API test stored nothing. Tokens now carry a random spool id.
+- `exists` on an object path (`player`) never matched: ClickHouse reads such paths as NULL. It now checks `JSONAllPaths`.
+- The docs said filter fields need no `attributes.` prefix but the code required it. The prefix is now optional.
+
+Limits:
+- Live tail works within one instance only (ADR 0007). Run a single API instance until a shared bus exists (P7).
+- No throughput or latency benchmark of the ingest path or of search on a large table. The WAL figures in ADR 0003
+  come from this Windows desktop, not the target disk.
+- Race detector not run here (no cgo toolchain on this machine); CI runs `go test -race` on Linux.
+- Power loss was not simulated; SIGKILL leaves the OS page cache intact.
+- D004 (retention partitioning) stays open for P4. `events` partitioning and ORDER BY are still provisional.
 
 ## P1 backend delivered
 
@@ -77,10 +137,10 @@ Found by the end-to-end run and fixed: Vite inlined small woff2 files as `data:`
 `vite.config.ts` now never inlines fonts, and the strict CSP stays.
 
 Limits:
-- The end-to-end script lives outside the repository. It should become a Playwright suite in CI.
+- Done in P3: the end-to-end suite now lives in `web/e2e/` and runs in CI.
 - Google, Discord and Cognito buttons were not exercised: no provider credentials.
 - Project and workspace creation use a provisional form with no approved design: needs a Variant Studio round.
-- The Explorer shows an empty state until the P2 events API exists. Sections without a backend say they are unavailable.
+- Dashboards, Alerts, Integrations, Storage, Usage, Audit and the Settings overview show a "coming soon" notice. The audit API exists (P1) but has no page yet.
 
 ## Problems found and fixed
 - ClickHouse init script needs `CAP_KILL`; with `cap_drop: ALL` the first start failed and `--wait` reported unhealthy.
@@ -91,9 +151,10 @@ Limits:
 ## Decisions and open items
 - UI direction: rounds 4 to 6 replace rounds 1 to 3, see `ervisio-logs-spec/design/UI_DECISIONS.md`.
 - ADR 0001 (D006): contract discovered from real repos, adapter blocked until P6; unverified items listed there.
-- ADR 0002 to 0004 (D001, D002, D005): **Proposed only. No prototype has been run.** The P0 rule "resolve ADRs
-  D001/D002/D005 prototypes" is therefore **not satisfied**; schedule these spikes before P2 (WAL) and P4 (query engine, cache).
-- D003, D004, D007, D008, D009 untouched. ClickHouse `events` partitioning and ORDER BY are provisional.
+- ADR 0003 (D002 WAL): prototype run and implemented, awaiting approval. ADRs 0002 and 0004 (D001, D005): **Proposed
+  only, no prototype run**; both are needed before P4.
+- ADR 0006 (D007) and 0007 (P2 search and tail): implemented and tested, awaiting approval.
+- D003, D004, D008, D009 untouched. ClickHouse `events` partitioning and ORDER BY are provisional.
 - shadcn/ui is not installed yet (only Tailwind, `cn`, lucide). Add components when P3 needs them.
 - Repository was created **private** under the Ervisio organization. Licence is undecided (OpenAPI says TBD).
 - Compose runs with `ERVISIO_LOGS_ENV=development` because PostgreSQL traffic inside Compose has no TLS.
@@ -102,4 +163,5 @@ Limits:
 ## Next
 1. Commit `web/` on the owner's request. Move the end-to-end script into the repo as a Playwright suite. Run a Variant Studio round for project and workspace creation.
 2. Write the README auth section and the auth ADR, then settle the owner's open decisions and provider credentials.
-3. Run the D002 WAL spike and the D004 partitioning check before P2.
+3. P3: Explorer table on `/logs/search`, Live Tail view on `/logs/tail`, token management, onboarding wizard, Playwright suite in CI.
+4. Before P4: D001 and D005 prototypes, D004 partitioning check.

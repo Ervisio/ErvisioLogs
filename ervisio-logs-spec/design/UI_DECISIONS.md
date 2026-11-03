@@ -53,4 +53,10 @@ The Navigation and Sign-in subagents were stopped after approval and did not fin
 - "Ervisio Logs" and "Crea un account" wrap: fixed.
 - Cognito logo: removed, the button shows text only, because the source stays unverified.
 
-Provisional, not approved: the project and workspace creation form.
+Provisional, not approved (built from the approved tokens and components, never through a Variant Studio round): the
+project and workspace creation form, the first-event wizard, the API tokens page and the Users page.
+
+## Defect status (2026-11-03, uncommitted)
+
+- The Explorer table now exists. A Playwright run at 375 px found no sideways scroll on the Explorer and Users pages,
+  but nobody rechecked the "2 error, 1 f..." and "Vedi 13 di 214 eventi" labels at 320 px in Italian.
