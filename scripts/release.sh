@@ -3,7 +3,8 @@
 #   ervisio-logs-<v>-linux-amd64.tar.gz   standalone: binary with the web UI embedded, systemd unit, installer
 #   ervisio-logs-<v>-linux-arm64.tar.gz
 #   ervisio-logs-<v>-docker.tar.gz        Compose bundle that pulls the published image
-#   ervisio-logs-<v>-ervisio-plugin.tar.gz  Ervisio plugin (when integrations/ervisio-plugin exists)
+#   ervisio-logs-<v>.tar.gz (+ .sha256)   Ervisio plugin, unsigned, in the Ervisio/plugins registry format
+#   ervisio-logs-<v>-ervisio-plugin.tar.gz  the same plugin bytes under the first name
 #   SHA256SUMS
 # It does not build or push the container image: see .github/workflows/release.yml.
 #
@@ -96,8 +97,15 @@ with open(jpath, "w", encoding="utf-8", newline="\n") as f:
     f.write(src)
 PY
   # Ervisio installs plugins from a .tar.gz (an https:// address or a local path) and strips the top-level folder.
-  tar -C "$work/plugin" --owner=0 --group=0 -czf "$out/$name.tar.gz" ervisio-logs
-  echo "built $name.tar.gz"
+  # The Ervisio/plugins registry reads ervisio-logs-<v>.tar.gz and its .sha256 ("<hex>  <name>") from the latest
+  # stable release, signs it with the team key and lists it. Reproducible archive: sorted, owner 0, commit time.
+  mtime="$(git log -1 --format=%ct 2>/dev/null || echo 0)"
+  reg="ervisio-logs-$version"
+  tar -C "$work/plugin" --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$mtime" --format=gnu -cf - ervisio-logs \
+    | gzip -n -9 > "$out/$reg.tar.gz"
+  (cd "$out" && sha256sum -- "$reg.tar.gz" | sed 's/ \*/  /' > "$reg.tar.gz.sha256")
+  cp "$out/$reg.tar.gz" "$out/$name.tar.gz"
+  echo "built $reg.tar.gz (+ .sha256) and $name.tar.gz"
 fi
 
 (cd "$out" && sha256sum -- *.tar.gz > SHA256SUMS)

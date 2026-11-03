@@ -14,7 +14,8 @@ Not loaded in a real Ervisio yet.
 This folder is the source, not an installable plugin. `scripts/release.sh` builds the package: it stamps the version
 into `manifest.json`, replaces the `// @bundle` line of `index.js` with the release's `compose.yaml` and
 `.env.example`, adds `bin/release.version`, `bin/release.sha256` and `bin/uninstall.sh`, and writes
-`dist/<version>/ervisio-logs-<version>-ervisio-plugin.tar.gz`. Without those, the page refuses to install.
+`dist/<version>/ervisio-logs-<version>.tar.gz` with its `.sha256` (the format the `Ervisio/plugins` registry reads)
+and a copy named `ervisio-logs-<version>-ervisio-plugin.tar.gz`. Without those files, the page refuses to install.
 
 Rules the code keeps: no `confirm()` (the frame has no `allow-modals`), no secret shown on the page, no command that
 deletes volumes or data.

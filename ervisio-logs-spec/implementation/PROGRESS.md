@@ -1,6 +1,6 @@
 # Progress tracker
 
-Status: **P0 to P7 merged into `main` (PR #1, PR #2). On 2026-11-03 the CI that runs on push passed all six jobs on `abdc1f9`: backend, web, openapi, integration, e2e, smoke. Not run: the archive provider suite (`make archive-test`), the SDK and Lua specs, any release build, the Ervisio plugin, OTLP, FiveM in game.**
+Status: **P0 to P7 merged into `main` (PR #1, PR #2). On 2026-11-03 the CI that runs on push passed all six jobs on `abdc1f9`: backend, web, openapi, integration, e2e, smoke. v0.1.0 released on 2026-11-03 (image `ghcr.io/ervisio/ervisio-logs:0.1.0`, repo, release and image public); plugin registered in Ervisio/plugins#35, waiting for a maintainer merge before the team signature. Not run: the archive provider suite (`make archive-test`), the SDK and Lua specs, any package installed on a host, the plugin loaded in Ervisio, OTLP, FiveM in game.**
 Repository: https://github.com/Ervisio/ErvisioLogs (private).
 
 | Phase | Status | Evidence |
@@ -12,7 +12,7 @@ Repository: https://github.com/Ervisio/ErvisioLogs (private).
 | P4 Tiered archives | **Implemented, merged (PR #2). Integration tests pass in CI; the S3/SFTP provider suite was not run** | P4 section below; ADRs 0004, 0008, 0009 |
 | P5 Integrations | **Implemented, merged (PR #2). Integration tests pass in CI.** OTLP not validated; FiveM never run in game; SDK and Lua specs not run | P5 section below; ADR 0010 |
 | P6 Ervisio plugin | **Implemented, merged (PR #2), never loaded in Ervisio** | P6 section below; ADRs 0001, 0012 |
-| P7 Scale/hardening | **Packaging and release implemented, merged, never run (no tag yet).** Capacity, load and restore tests not done | P7 section below; ADR 0011 |
+| P7 Scale/hardening | **v0.1.0 released by the tag workflow; no package installed on a host yet.** Capacity, load and restore tests not done | P7 section below; ADR 0011 |
 
 ## P0 delivered
 
@@ -65,7 +65,7 @@ Marketplace listing needs the Ervisio team's signature.
 **P7 (ADR 0011).** Multi-arch Dockerfile, `scripts/release.sh` (standalone tarballs, Docker bundle, plugin package,
 SHA256SUMS), tag workflow `.github/workflows/release.yml` (draft release), systemd unit with hardening,
 `install.sh`/`uninstall.sh`, deploy guides, `docs/security.md`, `docs/releases/0.1.0.md`.
-Not done: a release build, a workflow run, an install on a real host, a measured capacity figure, load and soak tests,
+Done: the v0.1.0 workflow run and release. Not done: an install on a real host, a measured capacity figure, load and soak tests,
 backup and restore drill, shared live-tail bus for several instances.
 
 **Commit note.** Files were written on Windows: when committing, set the exec bit with
@@ -228,6 +228,6 @@ Limits:
 ## Next
 1. Run `make archive-test`, the SDK tests and the Lua specs once the owner allows it.
 2. Use the app from source with `make up` (the e2e job covers this path).
-3. Tag a pre-release, check the workflow output, install each package on a test host, load the plugin in Ervisio.
+3. Merge Ervisio/plugins#35 (maintainer) so the registry signs and lists the plugin; install each package on a test host; load the plugin in Ervisio.
 4. Validate OTLP with a real exporter; FiveM in game by the human operator.
 5. Capacity measurement, restore drill, owner approval of the Proposed ADRs.
