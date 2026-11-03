@@ -90,9 +90,9 @@ reverts one store at a time; `--store` is mandatory because the stores have inde
 - Databases are not published to the host in the base Compose file; the app listens on loopback only. Put a TLS
   reverse proxy in front for anything else.
 - Containers run read-only (app), non-root, with capabilities dropped.
-- `ERVISIO_LOGS_ENV=production` refuses placeholder secrets, `sslmode=disable` and a non-https public URL. Compose
-  defaults to `development` because its bundled PostgreSQL has no TLS yet: for production set
-  `ERVISIO_LOGS_POSTGRES_DSN` to a TLS-enabled server (or configure TLS on the bundled one and set `POSTGRES_SSLMODE`),
-  and `ERVISIO_LOGS_CLICKHOUSE_ADDR` / `ERVISIO_LOGS_CLICKHOUSE_TLS` as needed.
+- `ERVISIO_LOGS_ENV=production` refuses placeholder secrets, `sslmode=disable` and a non-https public URL. The
+  bundled PostgreSQL serves TLS with a self-signed certificate from the `pg-tls` job, which the app verifies
+  (`verify-full`), so production works with it once the public URL is https. `.env.example` still starts in
+  `development` for `http://localhost`.
 - Do not expose the service to untrusted networks without the TLS reverse proxy; set `ERVISIO_LOGS_TRUST_PROXY=true`
   only behind one that sets `X-Forwarded-For` itself.

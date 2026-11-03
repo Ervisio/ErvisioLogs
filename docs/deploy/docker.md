@@ -21,8 +21,9 @@ ERVISIO_LOGS_PUBLIC_URL=https://logs.example.com
 ERVISIO_LOGS_TRUST_PROXY=true
 ```
 
-Production refuses `sslmode=disable`, and the bundled PostgreSQL has no TLS. Either point
-`ERVISIO_LOGS_POSTGRES_DSN` at a TLS-enabled server, or configure TLS on the bundled one and set `POSTGRES_SSLMODE`.
+Production refuses `sslmode=disable`. The bundled PostgreSQL serves TLS: the one-shot `pg-tls` job writes a
+self-signed certificate into the `pg-tls` volume on first start and keeps it afterwards, and the app checks the
+server against it (`sslmode=verify-full`). To use another PostgreSQL, set `ERVISIO_LOGS_POSTGRES_DSN`.
 
 The first administrator signs in with the setup code: set `ERVISIO_LOGS_SETUP_CODE` in `.env`, or read the generated
 code with `docker compose -f compose.yaml logs app`.

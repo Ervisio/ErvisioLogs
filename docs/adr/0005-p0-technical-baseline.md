@@ -13,4 +13,4 @@ Status: Accepted for P0. Revisit when P1 lands.
 | ClickHouse `events` table | Provisional. PARTITION BY day, ORDER BY (workspace, project, stream, timestamp, event_id), no TTL | Real values wait for D004 benchmarks |
 | Frontend | React, TypeScript, Vite, Tailwind v4, i18next (en, it) | Per baseline. shadcn components are added when P3 needs them |
 | Container | distroless nonroot, read-only root, caps dropped | Secure defaults |
-| PostgreSQL TLS inside Compose | `sslmode=disable` on the private network; `ERVISIO_LOGS_ENV=production` refuses it, so the Compose default is `development` until the app connects to TLS-enabled PostgreSQL | Documented limitation |
+| PostgreSQL TLS inside Compose | Since 0.1.1 the `pg-tls` job writes a self-signed certificate, PostgreSQL runs with `ssl=on`, and the app connects with `verify-full` against that certificate (ADR 0013) | Resolved in 0.1.1 |

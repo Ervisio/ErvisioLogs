@@ -6,7 +6,8 @@ written but not tested.
 ## Before going live
 - [ ] TLS reverse proxy in front of the app; the app itself listens on `127.0.0.1:8080`.
 - [ ] `ERVISIO_LOGS_ENV=production`. It refuses placeholder secrets, `sslmode=disable` and a non-https public URL.
-- [ ] PostgreSQL reached over TLS (external server, or TLS configured on the bundled one).
+- [ ] PostgreSQL reached over TLS. The bundled one in Compose serves TLS from the `pg-tls` job (0.1.1+); an external
+  server needs `sslmode=verify-full` in its DSN.
 - [ ] `ERVISIO_LOGS_TRUST_PROXY=true` only behind a proxy that sets `X-Forwarded-For` itself.
 - [ ] First administrator created; the setup code is then inert. `ERVISIO_LOGS_OPEN_REGISTRATION` left off.
 - [ ] `.env` (Docker) mode 600 or the plugin's 2770 `root:docker` folder; `/etc/ervisio-logs/ervisio-logs.env` 0640.

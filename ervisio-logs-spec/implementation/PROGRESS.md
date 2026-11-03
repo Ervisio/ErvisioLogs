@@ -222,7 +222,7 @@ Limits:
 - D003, D004, D008, D009 untouched. ClickHouse `events` partitioning and ORDER BY are provisional.
 - shadcn/ui is not installed yet (only Tailwind, `cn`, lucide). Add components when P3 needs them.
 - Repository was created **private** under the Ervisio organization. Licence is undecided (OpenAPI says TBD).
-- Compose runs with `ERVISIO_LOGS_ENV=development` because PostgreSQL traffic inside Compose has no TLS.
+- Compose: since 0.1.1 the bundled PostgreSQL serves TLS (`pg-tls` job, `verify-full`), so production mode works with it (ADR 0013).
 - Nothing was deployed anywhere; only local Docker and GitHub Actions were used.
 
 ## Next

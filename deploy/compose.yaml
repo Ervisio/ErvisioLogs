@@ -7,9 +7,9 @@ name: ervisio-logs
 x-app-env: &app-env
   ERVISIO_LOGS_ENV: ${ERVISIO_LOGS_ENV:-development}
   ERVISIO_LOGS_LOG_LEVEL: ${ERVISIO_LOGS_LOG_LEVEL:-info}
-  # The bundled PostgreSQL has no TLS, so production (which refuses sslmode=disable) needs either a full
-  # DSN pointing at a TLS-enabled server or TLS configured on this one plus POSTGRES_SSLMODE.
-  ERVISIO_LOGS_POSTGRES_DSN: ${ERVISIO_LOGS_POSTGRES_DSN:-postgres://ervisio_logs:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/ervisio_logs?sslmode=${POSTGRES_SSLMODE:-disable}}
+  # The bundled PostgreSQL serves TLS with a certificate made by the pg-tls job; the app checks it against that same
+  # certificate (verify-full), so production mode works with the bundled database. Set a full DSN to use another server.
+  ERVISIO_LOGS_POSTGRES_DSN: ${ERVISIO_LOGS_POSTGRES_DSN:-postgres://ervisio_logs:${POSTGRES_PASSWORD:?run scripts/gen-env.sh}@postgres:5432/ervisio_logs?sslmode=${POSTGRES_SSLMODE:-verify-full}&sslrootcert=/var/lib/ervisio-logs/tls/server.crt}
   ERVISIO_LOGS_CLICKHOUSE_ADDR: ${ERVISIO_LOGS_CLICKHOUSE_ADDR:-clickhouse:9000}
   ERVISIO_LOGS_CLICKHOUSE_DATABASE: ervisio_logs
   ERVISIO_LOGS_CLICKHOUSE_USER: ervisio_logs
@@ -43,6 +43,18 @@ x-hardening: &hardening
   restart: unless-stopped
 
 services:
+  # One-shot job: a self-signed certificate for PostgreSQL in the pg-tls volume, kept across restarts.
+  pg-tls:
+    build: { context: .., dockerfile: Dockerfile }
+    image: ${ERVISIO_LOGS_IMAGE:-ervisio-logs:dev}
+    command: ["tls-cert", "--dir", "/var/lib/ervisio-logs/tls", "--host", "postgres"]
+    volumes: [pg-tls:/var/lib/ervisio-logs/tls]
+    healthcheck: { disable: true }
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+
   postgres:
     <<: *hardening
     # Pinned by digest (verified 2026-11-02, linux/amd64+arm64 index). Bump deliberately.
@@ -51,7 +63,23 @@ services:
       POSTGRES_DB: ervisio_logs
       POSTGRES_USER: ervisio_logs
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-env.sh}
-    volumes: [pg-data:/var/lib/postgresql/data]
+    # PostgreSQL wants its key owned by itself with mode 0600: copy it out of the job's volume before the
+    # official entrypoint starts the server with TLS on.
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        install -d -o postgres -g postgres -m 0700 /var/lib/postgresql/tls &&
+        install -o postgres -g postgres -m 0600 /tls/server.key /var/lib/postgresql/tls/server.key &&
+        install -o postgres -g postgres -m 0644 /tls/server.crt /var/lib/postgresql/tls/server.crt &&
+        exec docker-entrypoint.sh "$@"
+      - --
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - pg-tls:/tls:ro
+    depends_on:
+      pg-tls: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ervisio_logs -d ervisio_logs"]
       interval: 5s
@@ -104,6 +132,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     read_only: true
+    volumes: [pg-tls:/var/lib/ervisio-logs/tls:ro]
 
   app:
     <<: *hardening
@@ -125,9 +154,11 @@ services:
     volumes:
       - spool:/var/lib/ervisio-logs/spool
       - cache:/var/lib/ervisio-logs/cache
+      - pg-tls:/var/lib/ervisio-logs/tls:ro
     mem_limit: 512m
 
 volumes:
+  pg-tls:
   pg-data:
   ch-data:
   spool:
