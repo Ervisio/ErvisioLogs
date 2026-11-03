@@ -13,6 +13,57 @@ export type Workspace = { id: string; slug: string; name: string; created_at: st
 export type Project = { id: string; workspace_id: string; slug: string; name: string; created_at: string };
 export type Environment = { id: string; project_id: string; name: string; created_at: string };
 export type Stream = { id: string; project_id: string; name: string; type: string; created_at: string };
+export type ApiToken = {
+  id: string;
+  project_id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+  revoked_at: string | null;
+};
+export type Member = { user_id: string; email: string; username: string; role: string; joined_at: string };
+export type LogItem = {
+  id: string;
+  timestamp: string;
+  ingested_at: string;
+  level: string;
+  severity_number: number;
+  event: string;
+  message: string;
+  stream: string;
+  environment: string;
+  service: string;
+  host: string;
+  resource: string;
+  trace_id: string;
+  span_id: string;
+  attributes: Record<string, unknown> | null;
+};
+export type AttrFilter = { field: string; op: string; value?: string };
+export type SearchRequest = {
+  project_id: string;
+  from?: string;
+  to?: string;
+  query?: string;
+  levels?: string[];
+  streams?: string[];
+  environments?: string[];
+  filters?: AttrFilter[];
+  limit?: number;
+  cursor?: string;
+  include_total?: boolean;
+};
+export type SearchResult = {
+  items: LogItem[] | null;
+  next_cursor: string | null;
+  total?: number;
+  level_counts?: Record<string, number>;
+  searched_tiers: string[];
+  partial: boolean;
+};
 export type Session = { user: User; workspaces: Workspace[]; csrf_token: string };
 export type Providers = {
   local: boolean;
@@ -79,6 +130,27 @@ export const api = {
     list<Environment>(`/projects/${encodeURIComponent(projectId)}/environments`, signal),
   streams: (projectId: string, signal?: AbortSignal) =>
     list<Stream>(`/projects/${encodeURIComponent(projectId)}/streams`, signal),
+  searchLogs: (body: SearchRequest, signal?: AbortSignal) => request<SearchResult>('POST', '/logs/search', body, signal),
+  tokens: (projectId: string, signal?: AbortSignal) =>
+    list<ApiToken>(`/tokens?project_id=${encodeURIComponent(projectId)}`, signal),
+  createToken: (body: { project_id: string; name: string; scopes: string[] }) =>
+    request<{ token: string; api_token: ApiToken }>('POST', '/tokens', body),
+  revokeToken: (id: string) => request<void>('DELETE', `/tokens/${encodeURIComponent(id)}`),
+  members: (workspaceId: string, signal?: AbortSignal) =>
+    list<Member>(`/workspaces/${encodeURIComponent(workspaceId)}/members`, signal),
+  addMember: (workspaceId: string, body: { email: string; role: string }) =>
+    request<Member>('POST', `/workspaces/${encodeURIComponent(workspaceId)}/members`, body),
+  setMemberRole: (workspaceId: string, userId: string, role: string) =>
+    request<void>('PATCH', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`, { role }),
+  removeMember: (workspaceId: string, userId: string) =>
+    request<void>('DELETE', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`),
+};
+
+/** URL of the live tail. EventSource sends the session cookie; GET needs no CSRF header. */
+export const tailUrl = (params: Record<string, string | undefined>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
+  return `/api/v1/logs/tail?${q.toString()}`;
 };
 
 /** Browser navigation, not fetch: the OAuth flow ends with a redirect back to the app. */

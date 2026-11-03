@@ -12,7 +12,12 @@ import AccountMenu from './AccountMenu';
 import CommandPalette, { type Command } from './CommandPalette';
 
 type ProjectData = { status: 'loading' | 'failed' } | { status: 'ready'; environments: Environment[]; streams: Stream[] };
-export type ShellContext = { streams: Stream[]; openMenu: () => void; topbar: (title: ReactNode) => ReactNode };
+export type ShellContext = {
+  streams: Stream[];
+  environment: Environment | null;
+  openMenu: () => void;
+  topbar: (title: ReactNode) => ReactNode;
+};
 
 type Tip = { text: string; top: number; left: number } | null;
 
@@ -113,7 +118,9 @@ export default function Shell() {
 
   const streams = data.status === 'ready' && knownProjectId ? data.streams : NO_STREAMS;
   const environments = data.status === 'ready' && knownProjectId ? data.environments : NO_ENVIRONMENTS;
-  const envId = (knownProjectId && envs[knownProjectId]) || environments[0]?.id || '';
+  // Empty means every environment: events may arrive without one.
+  const envId = (knownProjectId && envs[knownProjectId]) || '';
+  const environment = environments.find((e) => e.id === envId) ?? null;
   const inSettings = /\/(settings|tokens|users)$/.test(location.pathname);
 
   const commands = useMemo<Command[]>(() => {
@@ -219,6 +226,7 @@ export default function Shell() {
                 <label className="text-ink2 mt-1 flex items-center justify-between gap-2 px-2 text-[13px]">
                   {t('nav.environment')}
                   <select value={envId} onChange={(e) => setEnvs((cur) => ({ ...cur, [knownProjectId]: e.target.value }))} className="bg-sunk text-ink border-field h-11 max-w-[130px] truncate rounded-row border px-1.5 md:h-8">
+                    <option value="">{t('nav.allEnvironments')}</option>
                     {environments.map((env) => (
                       <option key={env.id} value={env.id}>
                         {env.name}
@@ -281,7 +289,7 @@ export default function Shell() {
       </div>
 
       <main className="bg-bg md:border-line flex min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-        <Outlet context={{ streams, openMenu, topbar } satisfies ShellContext} />
+        <Outlet context={{ streams, environment, openMenu, topbar } satisfies ShellContext} />
       </main>
 
       {tip && !drawer && (

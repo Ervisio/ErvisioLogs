@@ -26,7 +26,8 @@
     "expand": "Expand",
     "soon": "Not available yet",
     "status": "System status",
-    "loadFailed": "Could not load this project."
+    "loadFailed": "Could not load this project.",
+    "allEnvironments": "All"
   },
   "theme": {
     "light": "Light",
@@ -74,9 +75,50 @@
     "hintClose": "Esc to close"
   },
   "explorer": {
-    "emptyTitle": "No events yet",
-    "emptyText": "Log ingestion is not available in this version. Events will appear here once it ships.",
-    "emptyStream": "Log ingestion is not available in this version. Events from {{stream}} will appear here once it ships."
+    "allStreams": "All streams",
+    "events_one": "{{n}} event",
+    "events_other": "{{n}} events",
+    "errors_one": "{{n}} error",
+    "errors_other": "{{n}} errors",
+    "search": "Search",
+    "searchPlaceholder": "Search messages, or filter with key=value",
+    "searchHint": "Filter with key=value, key!=value, key~text, key>n or has:key. Other words match the message.",
+    "clear": "Clear search",
+    "levels": "Levels",
+    "range": "Time range",
+    "ranges": {
+      "15m": "Last 15 minutes",
+      "1h": "Last hour",
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days"
+    },
+    "partial": "Some storage did not answer, so these results may be incomplete.",
+    "loading": "Searching…",
+    "failed": "The search failed. Check your connection and try again.",
+    "noMatchTitle": "No events match",
+    "noMatchText": "Widen the time range, clear a level or change the search.",
+    "caption": "Log events, newest first",
+    "col": {
+      "time": "Time",
+      "level": "Level",
+      "stream": "Stream",
+      "resource": "Source",
+      "event": "Event",
+      "message": "Message",
+      "source": "Tier"
+    },
+    "open": "Open event from {{time}}",
+    "tier": {
+      "live": "Live",
+      "hot": "Hot",
+      "unknown": "Unknown"
+    },
+    "shownOf": "Showing {{shown}} of {{total}}",
+    "shown": "Showing {{shown}}",
+    "moreFailed": "Could not load more events.",
+    "more": "Load more",
+    "narrow": "You reached the page limit. Narrow the search to see older events."
   },
   "section": {
     "soonText": "This section is not available in this version."
@@ -259,6 +301,126 @@
         "title": "Server error",
         "text": "Sign in failed. Try again shortly. If this continues, tell whoever runs the server."
       }
+    }
+  },
+  "live": {
+    "at": "Live, last event {{time}}",
+    "on": "Live",
+    "connecting": "Connecting…",
+    "noFilters": "Live view does not support key=value filters. Remove them to go live.",
+    "pause": "Pause",
+    "start": "Go live",
+    "waitingTitle": "Waiting for events",
+    "waitingText": "New events that match these filters appear here as they arrive."
+  },
+  "detail": {
+    "time": "Time",
+    "received": "Received",
+    "environment": "Environment",
+    "service": "Service",
+    "host": "Host",
+    "trace": "Trace",
+    "title": "Event details",
+    "copy": "Copy JSON",
+    "copied": "Copied",
+    "close": "Close",
+    "attributes": "Attributes"
+  },
+  "first": {
+    "title": "Send the first event to {{project}}",
+    "text": "Connect a server in three steps. It takes about a minute.",
+    "step1": "Create an ingest token",
+    "step1Text": "Your server sends events with this token. It can only write logs to this project.",
+    "createToken": "Create token",
+    "tokenReady": "Token created.",
+    "manageTokens": "Manage tokens",
+    "step2": "Send an event",
+    "step2Text": "Run this from your server, or send a test event from here.",
+    "copy": "Copy",
+    "tokenOnce": "Copy the token now. You will not see it again after you leave this page.",
+    "sendTest": "Send a test event",
+    "step3": "See it arrive",
+    "waiting": "Waiting for the first event…",
+    "tokenName": "First server",
+    "testMessage": "Test event from the setup page",
+    "forbidden": "You need permission to manage tokens. Ask a project admin.",
+    "tokenFailed": "Could not create the token. Try again.",
+    "sendFailed": "The test event was not accepted. Try again or use the command above."
+  },
+  "tokens": {
+    "intro": "Servers and scripts use API tokens to send or read logs. Each token belongs to this project.",
+    "createdTitle": "Token {{name}} created",
+    "createdText": "Copy it now. You will not see it again.",
+    "done": "I copied it",
+    "active": "Active tokens",
+    "loading": "Loading tokens…",
+    "forbidden": "You need permission to manage tokens. Ask a project admin.",
+    "loadFailed": "Could not load tokens.",
+    "none": "No active tokens.",
+    "created": "Created {{date}}",
+    "used": "last used {{date}}",
+    "neverUsed": "never used",
+    "expires": "expires {{date}}",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke {{name}}? Anything using it stops working.",
+    "revokeFailed": "Could not revoke the token.",
+    "revokedCount_one": "{{count}} revoked token",
+    "revokedCount_other": "{{count}} revoked tokens",
+    "revokedOn": "revoked {{date}}",
+    "new": "New token",
+    "name": "Name",
+    "namePlaceholder": "Production server",
+    "scopes": "Permissions",
+    "scope": {
+      "ingest": "send logs",
+      "read": "search and read logs",
+      "export": "export logs"
+    },
+    "nameRequired": "Enter a name.",
+    "scopeRequired": "Pick at least one permission.",
+    "create": "Create token",
+    "createFailed": "Could not create the token."
+  },
+  "users": {
+    "intro": "These people can open {{workspace}} and every project in it. A role sets what each person can do.",
+    "members": "Members",
+    "loading": "Loading members…",
+    "loadFailed": "Could not load members.",
+    "forbidden": "You need permission to manage members. Ask a workspace owner or admin.",
+    "you": "(you)",
+    "joined": "Joined {{date}}",
+    "roleOf": "Role of {{name}}",
+    "leave": "Leave workspace",
+    "remove": "Remove",
+    "removeOne": "Remove {{name}}",
+    "removeConfirm": "Remove {{name}} from {{workspace}}?",
+    "roleFailed": "Could not change the role.",
+    "removeFailed": "Could not remove the member.",
+    "lastOwner": "A workspace needs at least one owner. Make someone else owner first.",
+    "add": "Add a member",
+    "email": "Email",
+    "emailHint": "The person needs an account on this instance already.",
+    "emailInvalid": "Enter a valid email address.",
+    "roleLabel": "Role",
+    "addButton": "Add member",
+    "added": "{{name}} joined as {{role}}.",
+    "noAccount": "No account uses this email. Ask an instance admin to create it first.",
+    "already": "This person is already a member.",
+    "addFailed": "Could not add the member.",
+    "rolesTitle": "What each role can do",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "developer": "Developer",
+      "analyst": "Analyst",
+      "viewer": "Viewer"
+    },
+    "roleText": {
+      "owner": "Everything, including workspace settings and granting the owner role.",
+      "admin": "Manage members, tokens, storage and alerts. Read, export and delete logs.",
+      "developer": "Create projects and tokens, set up alerts, read and export logs.",
+      "analyst": "Search, read and export logs.",
+      "viewer": "Search and read logs."
     }
   }
 }

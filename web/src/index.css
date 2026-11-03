@@ -18,6 +18,7 @@
   --discord: #7983f5;
   --ok: #3ddc97;
   --err: #ff6b81;
+  --warn: #f2c94c;
   color-scheme: dark;
 }
 :root[data-theme='light'] {
@@ -36,6 +37,7 @@
   --discord: #4f5bd5;
   --ok: #0f7a50;
   --err: #c42d4a;
+  --warn: #7a5600;
   color-scheme: light;
 }
 
@@ -61,6 +63,7 @@
   --color-discord: var(--discord);
   --color-ok: var(--ok);
   --color-err: var(--err);
+  --color-warn: var(--warn);
   --radius-card: 18px;
   --radius-control: 12px;
   --radius-row: 7px;

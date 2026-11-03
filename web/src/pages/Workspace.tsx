@@ -1,11 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Compass, Inbox } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import type { ShellContext } from '../components/Shell';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, type Project } from '../lib/api';
 import { initials, useTenancy } from '../lib/tenancy';
 import { SECTIONS } from '../lib/sections';
+import Logs from './Logs';
+import Tokens from './Tokens';
+import Users from './Users';
 
 function Title({ children }: { children: ReactNode }) {
   return <h1 className="truncate text-base font-bold">{children}</h1>;
@@ -64,12 +67,14 @@ export function Home() {
 }
 
 /** While projects load, keep the frame steady; afterwards a foreign id is a plain "not found". */
-function useProjectFromUrl() {
+type FoundProject = { state: 'loading' } | { state: 'failed' } | { state: 'missing' } | { state: 'ready'; project: Project };
+
+function useProjectFromUrl(): FoundProject {
   const { projectId } = useParams();
   const { projects } = useTenancy();
-  if (projects.status !== 'ready') return { state: projects.status } as const;
+  if (projects.status !== 'ready') return { state: projects.status };
   const project = projects.projects.find((p) => p.id === projectId);
-  return project ? ({ state: 'ready', project } as const) : ({ state: 'missing' } as const);
+  return project ? { state: 'ready', project } : { state: 'missing' };
 }
 
 function ProjectPending({ failed }: { failed: boolean }) {
@@ -97,33 +102,24 @@ function ProjectPending({ failed }: { failed: boolean }) {
 }
 
 export function Explorer() {
-  const { t } = useTranslation();
-  const { streamId } = useParams();
-  const { streams, topbar } = useOutletContext<ShellContext>();
   const found = useProjectFromUrl();
   if (found.state === 'loading' || found.state === 'failed') return <ProjectPending failed={found.state === 'failed'} />;
   if (found.state === 'missing') return <NotFound />;
-  const stream = streams.find((s) => s.id === streamId);
-  return (
-    <>
-      {topbar(<Title>{stream ? `# ${stream.name}` : t('nav.explorer')}</Title>)}
-      <Notice
-        icon={<Inbox className="size-7" aria-hidden />}
-        title={t('explorer.emptyTitle')}
-        text={stream ? t('explorer.emptyStream', { stream: stream.name }) : t('explorer.emptyText')}
-      />
-    </>
-  );
+  return <Logs key={found.project.id} project={found.project} live={false} />;
 }
 
 export function SectionPage() {
   const { t } = useTranslation();
   const { section } = useParams();
   const { topbar } = useOutletContext<ShellContext>();
+  const { workspace } = useTenancy();
   const found = useProjectFromUrl();
   if (found.state === 'loading' || found.state === 'failed') return <ProjectPending failed={found.state === 'failed'} />;
   const def = SECTIONS.find((s) => s.key === section);
   if (found.state === 'missing' || !def || def.key === 'explorer') return <NotFound />;
+  if (def.key === 'live') return <Logs key={`${found.project.id}:live`} project={found.project} live />;
+  if (def.key === 'tokens') return <Tokens key={found.project.id} project={found.project} />;
+  if (def.key === 'users' && workspace) return <Users key={workspace.id} workspace={workspace} />;
   const Icon = def.icon;
   return (
     <>

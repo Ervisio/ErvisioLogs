@@ -26,7 +26,8 @@
     "expand": "Espandi",
     "soon": "Non ancora disponibile",
     "status": "Stato del sistema",
-    "loadFailed": "Impossibile caricare questo progetto."
+    "loadFailed": "Impossibile caricare questo progetto.",
+    "allEnvironments": "Tutti"
   },
   "theme": {
     "light": "Chiaro",
@@ -74,9 +75,50 @@
     "hintClose": "Esc per chiudere"
   },
   "explorer": {
-    "emptyTitle": "Ancora nessun evento",
-    "emptyText": "L'ingestione dei log non è disponibile in questa versione. Gli eventi compariranno qui quando arriverà.",
-    "emptyStream": "L'ingestione dei log non è disponibile in questa versione. Gli eventi di {{stream}} compariranno qui quando arriverà."
+    "allStreams": "Tutti gli stream",
+    "events_one": "{{n}} evento",
+    "events_other": "{{n}} eventi",
+    "errors_one": "{{n}} errore",
+    "errors_other": "{{n}} errori",
+    "search": "Cerca",
+    "searchPlaceholder": "Cerca nei messaggi o filtra con chiave=valore",
+    "searchHint": "Filtra con chiave=valore, chiave!=valore, chiave~testo, chiave>n o has:chiave. Le altre parole cercano nel messaggio.",
+    "clear": "Cancella ricerca",
+    "levels": "Livelli",
+    "range": "Intervallo",
+    "ranges": {
+      "15m": "Ultimi 15 minuti",
+      "1h": "Ultima ora",
+      "24h": "Ultime 24 ore",
+      "7d": "Ultimi 7 giorni",
+      "30d": "Ultimi 30 giorni"
+    },
+    "partial": "Parte dell'archivio non ha risposto: i risultati potrebbero essere incompleti.",
+    "loading": "Ricerca in corso…",
+    "failed": "La ricerca non è riuscita. Controlla la connessione e riprova.",
+    "noMatchTitle": "Nessun evento corrisponde",
+    "noMatchText": "Allarga l'intervallo, togli un livello o cambia la ricerca.",
+    "caption": "Eventi di log, dal più recente",
+    "col": {
+      "time": "Ora",
+      "level": "Livello",
+      "stream": "Stream",
+      "resource": "Origine",
+      "event": "Evento",
+      "message": "Messaggio",
+      "source": "Archivio"
+    },
+    "open": "Apri l'evento delle {{time}}",
+    "tier": {
+      "live": "Live",
+      "hot": "Hot",
+      "unknown": "Sconosciuto"
+    },
+    "shownOf": "{{shown}} di {{total}}",
+    "shown": "{{shown}} mostrati",
+    "moreFailed": "Impossibile caricare altri eventi.",
+    "more": "Carica altri",
+    "narrow": "Hai raggiunto il limite della pagina. Restringi la ricerca per vedere eventi più vecchi."
   },
   "section": {
     "soonText": "Questa sezione non è disponibile in questa versione."
@@ -259,6 +301,126 @@
         "title": "Errore del server",
         "text": "Accesso non riuscito. Riprova tra poco. Se continua, avvisa chi amministra il server."
       }
+    }
+  },
+  "live": {
+    "at": "Live, ultimo evento {{time}}",
+    "on": "Live",
+    "connecting": "Connessione…",
+    "noFilters": "La vista live non supporta i filtri chiave=valore. Toglili per andare live.",
+    "pause": "Pausa",
+    "start": "Vai live",
+    "waitingTitle": "In attesa di eventi",
+    "waitingText": "I nuovi eventi che corrispondono ai filtri compaiono qui appena arrivano."
+  },
+  "detail": {
+    "time": "Ora",
+    "received": "Ricevuto",
+    "environment": "Ambiente",
+    "service": "Servizio",
+    "host": "Host",
+    "trace": "Trace",
+    "title": "Dettagli evento",
+    "copy": "Copia JSON",
+    "copied": "Copiato",
+    "close": "Chiudi",
+    "attributes": "Attributi"
+  },
+  "first": {
+    "title": "Invia il primo evento a {{project}}",
+    "text": "Collega un server in tre passi. Serve circa un minuto.",
+    "step1": "Crea un token di ingest",
+    "step1Text": "Il server invia gli eventi con questo token. Può solo scrivere log in questo progetto.",
+    "createToken": "Crea token",
+    "tokenReady": "Token creato.",
+    "manageTokens": "Gestisci token",
+    "step2": "Invia un evento",
+    "step2Text": "Esegui questo comando dal server, oppure invia un evento di prova da qui.",
+    "copy": "Copia",
+    "tokenOnce": "Copia ora il token. Quando esci da questa pagina non lo vedrai più.",
+    "sendTest": "Invia un evento di prova",
+    "step3": "Guardalo arrivare",
+    "waiting": "In attesa del primo evento…",
+    "tokenName": "Primo server",
+    "testMessage": "Evento di prova dalla pagina di configurazione",
+    "forbidden": "Ti serve il permesso di gestire i token. Chiedi a un admin del progetto.",
+    "tokenFailed": "Impossibile creare il token. Riprova.",
+    "sendFailed": "L'evento di prova non è stato accettato. Riprova o usa il comando sopra."
+  },
+  "tokens": {
+    "intro": "Server e script usano i token API per inviare o leggere log. Ogni token appartiene a questo progetto.",
+    "createdTitle": "Token {{name}} creato",
+    "createdText": "Copialo ora. Non lo vedrai più.",
+    "done": "L'ho copiato",
+    "active": "Token attivi",
+    "loading": "Caricamento token…",
+    "forbidden": "Ti serve il permesso di gestire i token. Chiedi a un admin del progetto.",
+    "loadFailed": "Impossibile caricare i token.",
+    "none": "Nessun token attivo.",
+    "created": "Creato il {{date}}",
+    "used": "ultimo uso {{date}}",
+    "neverUsed": "mai usato",
+    "expires": "scade il {{date}}",
+    "revoke": "Revoca",
+    "revokeConfirm": "Revocare {{name}}? Tutto ciò che lo usa smetterà di funzionare.",
+    "revokeFailed": "Impossibile revocare il token.",
+    "revokedCount_one": "{{count}} token revocato",
+    "revokedCount_other": "{{count}} token revocati",
+    "revokedOn": "revocato il {{date}}",
+    "new": "Nuovo token",
+    "name": "Nome",
+    "namePlaceholder": "Server di produzione",
+    "scopes": "Permessi",
+    "scope": {
+      "ingest": "inviare log",
+      "read": "cercare e leggere log",
+      "export": "esportare log"
+    },
+    "nameRequired": "Inserisci un nome.",
+    "scopeRequired": "Scegli almeno un permesso.",
+    "create": "Crea token",
+    "createFailed": "Impossibile creare il token."
+  },
+  "users": {
+    "intro": "Queste persone possono aprire {{workspace}} e tutti i suoi progetti. Il ruolo stabilisce cosa può fare ognuna.",
+    "members": "Membri",
+    "loading": "Caricamento membri…",
+    "loadFailed": "Impossibile caricare i membri.",
+    "forbidden": "Ti serve il permesso di gestire i membri. Chiedi a un owner o a un admin del workspace.",
+    "you": "(tu)",
+    "joined": "Entrato il {{date}}",
+    "roleOf": "Ruolo di {{name}}",
+    "leave": "Esci dal workspace",
+    "remove": "Rimuovi",
+    "removeOne": "Rimuovi {{name}}",
+    "removeConfirm": "Rimuovere {{name}} da {{workspace}}?",
+    "roleFailed": "Impossibile cambiare il ruolo.",
+    "removeFailed": "Impossibile rimuovere il membro.",
+    "lastOwner": "Un workspace ha bisogno di almeno un owner. Nomina prima un altro owner.",
+    "add": "Aggiungi un membro",
+    "email": "Email",
+    "emailHint": "La persona deve avere già un account su questa istanza.",
+    "emailInvalid": "Inserisci un indirizzo email valido.",
+    "roleLabel": "Ruolo",
+    "addButton": "Aggiungi membro",
+    "added": "{{name}} è entrato come {{role}}.",
+    "noAccount": "Nessun account usa questa email. Chiedi a un admin dell'istanza di crearlo.",
+    "already": "Questa persona è già un membro.",
+    "addFailed": "Impossibile aggiungere il membro.",
+    "rolesTitle": "Cosa può fare ogni ruolo",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "developer": "Developer",
+      "analyst": "Analyst",
+      "viewer": "Viewer"
+    },
+    "roleText": {
+      "owner": "Tutto, comprese le impostazioni del workspace e la nomina di altri owner.",
+      "admin": "Gestisce membri, token, archiviazione e alert. Legge, esporta ed elimina log.",
+      "developer": "Crea progetti e token, configura alert, legge ed esporta log.",
+      "analyst": "Cerca, legge ed esporta log.",
+      "viewer": "Cerca e legge log."
     }
   }
 }
