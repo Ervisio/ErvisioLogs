@@ -47,7 +47,8 @@ install -m 0644 -o root -g root "$here/ervisio-logs.service" "$unit"
 
 install -d -m 0750 -o root -g "$user" "$etc"
 # Archive credentials (one file per destination). setgid keeps new files in the service group; make them 0640.
-install -d -m 2750 -o root -g "$user" "$etc/secrets"
+# Group-writable so the service can save credentials typed in the Storage page (ADR 0017).
+install -d -m 2770 -o root -g "$user" "$etc/secrets"
 created_env=0
 if [[ ! -e "$env_file" ]]; then
   umask 077

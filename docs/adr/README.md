@@ -21,5 +21,6 @@ A record only becomes `Accepted` after the listed tests have run and the project
 | [0014](0014-plugin-v2-sdk-and-caddy.md) | Plugin 0.1.1 on the plugin SDK, with Caddy publishing | Proposed (built, not loaded in a real Ervisio) |
 | [0015](0015-sftp-password-and-secrets-folder.md) | SFTP password sign-in and a secrets folder in every install | Proposed (built, never connected) |
 | [0016](0016-several-workspaces-in-the-ui.md) | Create and switch workspaces from the projects page | Proposed (built, not run) |
+| [0017](0017-credentials-from-the-storage-page.md) | Type archive credentials in the Storage page | Proposed (built, not run) |
 
 D008 (archive encryption) and D009 (replica quorum) stay open.

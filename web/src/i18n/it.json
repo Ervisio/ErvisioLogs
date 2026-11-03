@@ -513,14 +513,35 @@
       "password": "Password"
     },
     "secretHint": {
-      "s3": "Un file JSON nella cartella dei segreti con access_key e secret_key. Ervisio Logs non fa mai passare le credenziali dal browser.",
-      "sftp": "Un file nella cartella dei segreti con la chiave privata non cifrata. Ervisio Logs non fa mai passare le credenziali dal browser.",
-      "sftpPassword": "Un file nella cartella dei segreti con la sola password. Ervisio Logs non fa mai passare le credenziali dal browser."
+      "s3": "Nome di un file JSON nella cartella dei segreti con access_key e secret_key.",
+      "sftp": "Nome di un file nella cartella dei segreti con la chiave privata non cifrata.",
+      "sftpPassword": "Nome di un file nella cartella dei segreti con la sola password."
     },
     "nameRequired": "Dai un nome alla destinazione.",
     "addButton": "Aggiungi destinazione",
     "addFailed": "La destinazione non è stata aggiunta. Riprova.",
-    "addedUnhealthy": "{{name}} è stata aggiunta, ma Ervisio Logs non riesce a raggiungerla. Correggi le impostazioni e verifica la connessione."
+    "addedUnhealthy": "{{name}} è stata aggiunta, ma Ervisio Logs non riesce a raggiungerla. Correggi le impostazioni e verifica la connessione.",
+    "cred": {
+      "title": "Credenziali",
+      "mode": {
+        "enter": "Inseriscile qui",
+        "server": "Usa un file già sul server"
+      },
+      "accessKey": "Access key",
+      "secretKey": "Secret key",
+      "password": "Password",
+      "privateKey": "Chiave privata (non cifrata)",
+      "fromFile": "Oppure caricale da un file di questo computer",
+      "fileHintS3": "Un file JSON con access_key e secret_key. Riempie i campi qui sopra.",
+      "fileHint": "Un file di testo. Riempie il campo qui sopra.",
+      "fileLoaded": "Caricate da {{name}}. Controlla i campi, poi aggiungi la destinazione.",
+      "fileNotS3": "Il file non è un JSON con access_key e secret_key.",
+      "fileTooBig": "Il file supera 32 KiB.",
+      "stored": "Ervisio Logs le salva nella cartella dei segreti sul server, leggibili solo dal servizio, e non le mostra più.",
+      "s3Required": "Inserisci access key e secret key, oppure scegli un file sul server.",
+      "passwordRequired": "Inserisci la password, oppure scegli un file sul server.",
+      "keyRequired": "Incolla la chiave privata, oppure scegli un file sul server."
+    }
   },
   "alerts": {
     "intro": "Un alert conta gli eventi che corrispondono a una ricerca in una finestra di tempo e avvisa i tuoi canali quando il conteggio supera la soglia, e di nuovo quando rientra.",

@@ -261,6 +261,9 @@ export const api = {
   deleteProvider: (id: string) => request<void>('DELETE', `/admin/storage/providers/${encodeURIComponent(id)}`),
   testProvider: (id: string) => request<StorageProvider>('POST', `/admin/storage/providers/${encodeURIComponent(id)}/test`),
   setActiveProvider: (id: string | null) => request<void>('PUT', '/admin/storage/active', { provider_id: id }),
+  secrets: (signal?: AbortSignal) => list<string>('/admin/storage/secrets', signal),
+  putSecret: (name: string, value: string) =>
+    request<void>('PUT', `/admin/storage/secrets/${encodeURIComponent(name)}`, { value }),
   retention: (signal?: AbortSignal) => list<RetentionPolicy>('/admin/retention', signal),
   putRetention: (scope: ScopeType, id: string, body: RetentionInput) =>
     request<RetentionPolicy>('PUT', `/admin/retention/${scope}/${encodeURIComponent(id)}`, body),

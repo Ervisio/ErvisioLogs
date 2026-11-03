@@ -612,6 +612,7 @@ describe('storage', () => {
     'GET /auth/me': { body: admin },
     'GET /admin/storage': { body: overview },
     'GET /admin/retention': { body: { items: [instance] } },
+    'GET /admin/storage/secrets': { body: { items: [] } },
   };
 
   test('a member who is not the instance administrator gets an explanation', async () => {
@@ -648,5 +649,23 @@ describe('storage', () => {
     await waitFor(() =>
       expect(calls.find((c) => c.key === 'POST /admin/storage/providers')?.body).toEqual({ name: 'Spare', type: 'local', config: { root: '/mnt/spare' }, secret_file: null }),
     );
+  });
+
+  test('S3 keys typed in the form go to a new secret file, then the provider names it', async () => {
+    const routes: Routes = { ...storageRoutes, 'POST /admin/storage/providers': { status: 201, body: { ...disk, id: 'pv3', name: 'Bucket', type: 's3', active: false } } };
+    // The file name ends in a time stamp, so any secret PUT answers 204.
+    const calls = stubApi(new Proxy(routes, { get: (r, k: string) => (k.startsWith('PUT /admin/storage/secrets/') ? { status: 204 } : r[k]) }));
+    renderApp('/projects/p1/storage');
+    await userEvent.type(await screen.findByLabelText('Name'), 'My Bucket');
+    await userEvent.type(screen.getByLabelText('Bucket'), 'logs');
+    await userEvent.type(screen.getByLabelText('Access key'), 'AK');
+    await userEvent.type(screen.getByLabelText('Secret key'), 'SK');
+    await userEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+    await waitFor(() => expect(calls.find((c) => c.key === 'POST /admin/storage/providers')).toBeDefined());
+    const put = calls.find((c) => c.key.startsWith('PUT /admin/storage/secrets/'));
+    const file = put?.key.slice('PUT /admin/storage/secrets/'.length);
+    expect(file).toMatch(/^my-bucket-[0-9a-z]+$/);
+    expect(put?.body).toEqual({ value: JSON.stringify({ access_key: 'AK', secret_key: 'SK' }) });
+    expect(calls.find((c) => c.key === 'POST /admin/storage/providers')?.body).toEqual({ name: 'My Bucket', type: 's3', config: { bucket: 'logs' }, secret_file: file });
   });
 });

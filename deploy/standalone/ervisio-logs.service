@@ -32,6 +32,9 @@ StateDirectory=ervisio-logs ervisio-logs/spool ervisio-logs/cache
 StateDirectoryMode=0750
 # The archive cache can instead live inside ClickHouse's user_files (see the env file); "-" ignores it when absent.
 ReadWritePaths=-/var/lib/clickhouse/user_files/ervisio-archive
+# The Storage page writes archive credentials here (ADR 0017). Point ERVISIO_LOGS_ARCHIVE_SECRETS_DIR elsewhere and
+# that folder stays read-only unless you add it to this line.
+ReadWritePaths=-/etc/ervisio-logs/secrets
 
 # Hardening
 NoNewPrivileges=yes

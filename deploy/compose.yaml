@@ -158,7 +158,8 @@ services:
       - cache:/var/lib/ervisio-logs/cache
       - pg-tls:/var/lib/ervisio-logs/tls:ro
       # A host folder next to compose.yaml, owned by uid 65532 with mode 0700 (the Ervisio plugin sets this up).
-      - ./secrets:/run/ervisio-logs/secrets:ro
+      # Writable: the Storage page saves credentials typed in the browser here (ADR 0017).
+      - ./secrets:/run/ervisio-logs/secrets
     # edge: the network a reverse proxy in Docker (Caddy) joins to reach the app, and nothing else, as
     # ervisio-logs-app:8080. The Ervisio plugin attaches a Caddy container to it when it publishes the site.
     networks:
