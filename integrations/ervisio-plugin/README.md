@@ -12,7 +12,7 @@ Ervisio yet.
 | `plugin/manifest.json` | id, page, commands, files, the `docker` HTTP capability over `/var/run/docker.sock` |
 | `plugin/bin/standalone.sh` | Downloads the release tarball, checks its SHA-256, runs `install.sh`; or runs `uninstall.sh` |
 | `src/index.ts` | `activate(sdk)`: registers strings (en, it), styles and the page |
-| `src/views/` | Header and inner menu (`LogsPage`), `Setup`, `Overview`, `Address` (Caddy), `Settings`, `Console` |
+| `src/views/` | Header and inner menu (`LogsPage`), `Setup`, `Overview`, `Address` (Caddy), `Settings` with `Secrets` (archive credentials, ADR 0015), `Console` |
 | `src/api/logs.ts` | Mode, state, install, update, env file, production checks |
 | `src/api/caddy.ts`, `caddy-core.ts` | Finds Caddy (system service or container), writes the site, validates, reloads, rolls back |
 | `src/api/docker.ts` | The Docker Engine API calls the Caddy step needs |

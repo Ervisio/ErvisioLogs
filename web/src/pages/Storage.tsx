@@ -523,7 +523,7 @@ function RowButton({ danger, ...rest }: { danger?: boolean; disabled?: boolean; 
   );
 }
 
-type FieldDef = { key: string; label: string; placeholder?: string; number?: boolean; check?: boolean; wide?: boolean };
+type FieldDef = { key: string; label: string; placeholder?: string; number?: boolean; check?: boolean; wide?: boolean; options?: { value: string; label: string }[] };
 
 function AddDestination({ onAdded }: { onAdded: () => void }) {
   const { t } = useTranslation();
@@ -547,6 +547,14 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
       { key: 'host', label: t('storage.f.host') },
       { key: 'port', label: t('storage.f.port'), placeholder: '22', number: true },
       { key: 'user', label: t('storage.f.user') },
+      {
+        key: 'auth',
+        label: t('storage.f.auth'),
+        options: [
+          { value: 'key', label: t('storage.auth.key') },
+          { value: 'password', label: t('storage.auth.password') },
+        ],
+      },
       { key: 'base_dir', label: t('storage.f.baseDir'), placeholder: 'archive' },
       { key: 'host_key', label: t('storage.f.hostKey'), placeholder: 'ssh-ed25519 AAAA…', wide: true },
     ],
@@ -561,6 +569,8 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
       const v = values[f.key];
       if (f.check) {
         if (v) config[f.key] = true;
+      } else if (f.options) {
+        if (typeof v === 'string' && v !== f.options[0].value) config[f.key] = v;
       } else if (typeof v === 'string' && v.trim() !== '') config[f.key] = f.number ? Number(v) : v.trim();
     }
     setBusy(true);
@@ -605,6 +615,24 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
               <input type="checkbox" checked={!!values[f.key]} onChange={(e) => setValues({ ...values, [f.key]: e.target.checked })} className="size-4" />
               {f.label}
             </label>
+          ) : f.options ? (
+            <div key={`${type}-${f.key}`} className="grid gap-1.5">
+              <label htmlFor={`st-a-${f.key}`} className="font-semibold">
+                {f.label}
+              </label>
+              <select
+                id={`st-a-${f.key}`}
+                value={String(values[f.key] ?? f.options[0].value)}
+                onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+                className="bg-sunk border-field h-12 w-full rounded-row border px-3 text-base md:h-11 md:text-sm"
+              >
+                {f.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
             <TextField
               key={`${type}-${f.key}`}
@@ -619,7 +647,7 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
           ),
         )}
         {type !== 'local' && (
-          <TextField id="st-a-secret" label={t('storage.f.secret')} value={secret} onChange={setSecret} placeholder={type === 's3' ? 's3-archive.json' : 'sftp-archive.json'} hint={t(`storage.secretHint.${type}`)} wide />
+          <TextField id="st-a-secret" label={t('storage.f.secret')} value={secret} onChange={setSecret} placeholder={type === 's3' ? 's3-archive.json' : values.auth === 'password' ? 'storagebox-password' : 'storagebox-key'} hint={t(type === 'sftp' && values.auth === 'password' ? 'storage.secretHint.sftpPassword' : `storage.secretHint.${type}`)} wide />
         )}
       </div>
       <SubmitRow busy={busy} label={t('storage.addButton')} error={error} done={null} />

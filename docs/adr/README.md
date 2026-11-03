@@ -19,5 +19,6 @@ A record only becomes `Accepted` after the listed tests have run and the project
 | [0012](0012-ervisio-plugin.md) | P6 Ervisio plugin: Docker stack or standalone deploy | Proposed (implemented, not loaded in a real Ervisio) |
 | [0013](0013-compose-postgres-tls.md) | TLS for the bundled PostgreSQL in Compose | Proposed (built, stack not started) |
 | [0014](0014-plugin-v2-sdk-and-caddy.md) | Plugin 0.1.1 on the plugin SDK, with Caddy publishing | Proposed (built, not loaded in a real Ervisio) |
+| [0015](0015-sftp-password-and-secrets-folder.md) | SFTP password sign-in and a secrets folder in every install | Proposed (built, never connected) |
 
 D008 (archive encryption) and D009 (replica quorum) stay open.

@@ -13,6 +13,8 @@ After=network-online.target postgresql.service clickhouse-server.service
 Type=simple
 User=ervisio-logs
 Group=ervisio-logs
+# Credentials of archive destinations, one file each. The env file can point elsewhere; it overrides this line.
+Environment=ERVISIO_LOGS_ARCHIVE_SECRETS_DIR=/etc/ervisio-logs/secrets
 EnvironmentFile=/etc/ervisio-logs/ervisio-logs.env
 # Refuses to start on a bad configuration, then applies pending migrations (idempotent).
 ExecStartPre=/usr/local/bin/ervisio-logs config-check

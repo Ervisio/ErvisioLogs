@@ -8,6 +8,7 @@ import { envGet, envSet, oneLine } from '../api/env';
 import * as logs from '../api/logs';
 import { Badge, Button, Icon, Input, Segmented, Skeleton, Switch } from '../kit';
 import type { Ctx } from './LogsPage';
+import { Secrets } from './Secrets';
 import { errText, t, useLoad } from './util';
 
 interface FieldDef {
@@ -173,6 +174,8 @@ export function Settings({ ctx }: { ctx: Ctx }) {
         )}
         <p className="el-muted">{t('set.otherKeys')}</p>
       </section>
+
+      <Secrets ctx={ctx} />
 
       {saved && !dirty && (
         <div className="el-note is-ok">

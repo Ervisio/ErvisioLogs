@@ -141,6 +141,8 @@ services:
     environment:
       <<: *app-env
       ERVISIO_LOGS_HTTP_ADDR: ":8080"
+      # Credentials of archive destinations (Storage page): one file each, named in the destination.
+      ERVISIO_LOGS_ARCHIVE_SECRETS_DIR: /run/ervisio-logs/secrets
     ports:
       # Loopback only: put a TLS reverse proxy in front for anything beyond local use.
       - "127.0.0.1:${ERVISIO_LOGS_PORT:-8080}:8080"
@@ -155,6 +157,8 @@ services:
       - spool:/var/lib/ervisio-logs/spool
       - cache:/var/lib/ervisio-logs/cache
       - pg-tls:/var/lib/ervisio-logs/tls:ro
+      # A host folder next to compose.yaml, owned by uid 65532 with mode 0700 (the Ervisio plugin sets this up).
+      - ./secrets:/run/ervisio-logs/secrets:ro
     # edge: the network a reverse proxy in Docker (Caddy) joins to reach the app, and nothing else, as
     # ervisio-logs-app:8080. The Ervisio plugin attaches a Caddy container to it when it publishes the site.
     networks:

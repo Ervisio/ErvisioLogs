@@ -30,7 +30,16 @@ type SFTPConfig struct {
 	// HostKey is the server's public key in authorized_keys form ("ssh-ed25519 AAAA...").
 	// Connections to a server with any other key are refused.
 	HostKey string `json:"host_key"`
+	// Auth says what the secret file holds: "key" (default) an unencrypted private key, "password"
+	// the account password. Hetzner Storage Boxes accept both.
+	Auth string `json:"auth,omitempty"`
 }
+
+// SFTP auth modes.
+const (
+	SFTPAuthKey      = "key"
+	SFTPAuthPassword = "password"
+)
 
 // SFTP is a provider over SSH. It assumes nothing beyond plain files: no server checksums and no
 // ranged reads, so verification reads every upload back (STORAGE_AND_RETENTION.md).
@@ -44,8 +53,9 @@ type SFTP struct {
 	client *sftp.Client
 }
 
-// NewSFTP takes the private key (PEM, OpenSSH format) from the secret file.
-func NewSFTP(cfg SFTPConfig, privateKey []byte) (*SFTP, error) {
+// NewSFTP takes the secret file's content: a private key (PEM, OpenSSH format) or, with Auth
+// "password", the password (one trailing newline is dropped).
+func NewSFTP(cfg SFTPConfig, secret []byte) (*SFTP, error) {
 	if cfg.Host == "" || cfg.User == "" {
 		return nil, errors.New("sftp host and user are required")
 	}
@@ -59,9 +69,30 @@ func NewSFTP(cfg SFTPConfig, privateKey []byte) (*SFTP, error) {
 	if err != nil {
 		return nil, errors.New("sftp host_key must be a public key line such as \"ssh-ed25519 AAAA...\"")
 	}
-	signer, err := ssh.ParsePrivateKey(privateKey)
-	if err != nil {
-		return nil, errors.New("sftp secret file must hold an unencrypted private key")
+	var auth []ssh.AuthMethod
+	switch cfg.Auth {
+	case "", SFTPAuthKey:
+		signer, err := ssh.ParsePrivateKey(secret)
+		if err != nil {
+			return nil, errors.New("sftp secret file must hold an unencrypted private key (or set auth to \"password\")")
+		}
+		auth = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+	case SFTPAuthPassword:
+		pw := strings.TrimSuffix(strings.TrimSuffix(string(secret), "\n"), "\r")
+		if pw == "" {
+			return nil, errors.New("sftp secret file is empty")
+		}
+		// Some servers offer only keyboard-interactive; answer every prompt with the password.
+		answer := func(_, _ string, questions []string, _ []bool) ([]string, error) {
+			out := make([]string, len(questions))
+			for i := range out {
+				out[i] = pw
+			}
+			return out, nil
+		}
+		auth = []ssh.AuthMethod{ssh.Password(pw), ssh.KeyboardInteractive(answer)}
+	default:
+		return nil, errors.New("sftp auth must be \"key\" or \"password\"")
 	}
 	base := strings.TrimRight(cfg.BaseDir, "/")
 	if base == "" {
@@ -78,7 +109,7 @@ func NewSFTP(cfg SFTPConfig, privateKey []byte) (*SFTP, error) {
 		base: base,
 		ssh: &ssh.ClientConfig{
 			User:            cfg.User,
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+			Auth:            auth,
 			HostKeyCallback: ssh.FixedHostKey(hostKey),
 			// Ask only for the pinned key's algorithm; otherwise the server may present another of
 			// its host keys and the pin fails.
