@@ -1,6 +1,6 @@
 # Progress tracker
 
-Status: **P0 to P3 merged into `main` (PR #1). P4 to P7 implemented on `feat/p4-archive`, uncommitted, not tested: the owner asked not to run tests or CI (2026-11-03). Static checks only.**
+Status: **P0 to P7 merged into `main` (PR #1, PR #2). On 2026-11-03 the CI that runs on push passed all six jobs on `abdc1f9`: backend, web, openapi, integration, e2e, smoke. Not run: the archive provider suite (`make archive-test`), the SDK and Lua specs, any release build, the Ervisio plugin, OTLP, FiveM in game.**
 Repository: https://github.com/Ervisio/ErvisioLogs (private).
 
 | Phase | Status | Evidence |
@@ -9,10 +9,10 @@ Repository: https://github.com/Ervisio/ErvisioLogs (private).
 | P1 Tenant/auth | **Backend done, frontend uncommitted, tested against the real API.** Real Google, Cognito and Discord never tested | commits `6a1c837`, `009ef1b`; P1 section below; web section below |
 | P2 Ingestion/hot queries | **Implemented and tested, merged (PR #1).** DoD met except a measured capacity figure (P7) | P2 section below; ADRs 0003, 0006, 0007 |
 | P3 UI | **Implemented and tested, merged (PR #1).** Explorer, live tail, event detail, first-event wizard, API tokens, Users. Wizard, tokens and Users not design-approved | P3 section below; `ervisio-logs-spec/design/UI_DECISIONS.md` |
-| P4 Tiered archives | **Implemented, uncommitted. Final tree not tested** (owner asked to stop running tests) | P4 section below; ADRs 0004, 0008, 0009 |
-| P5 Integrations | **Implemented, uncommitted, not tested.** OTLP not validated; FiveM never run in game | P5 section below; ADR 0010 |
-| P6 Ervisio plugin | **Implemented, uncommitted, never loaded in Ervisio** | P6 section below; ADRs 0001, 0012 |
-| P7 Scale/hardening | **Packaging and release implemented, never run.** Capacity, load and restore tests not done | P7 section below; ADR 0011 |
+| P4 Tiered archives | **Implemented, merged (PR #2). Integration tests pass in CI; the S3/SFTP provider suite was not run** | P4 section below; ADRs 0004, 0008, 0009 |
+| P5 Integrations | **Implemented, merged (PR #2). Integration tests pass in CI.** OTLP not validated; FiveM never run in game; SDK and Lua specs not run | P5 section below; ADR 0010 |
+| P6 Ervisio plugin | **Implemented, merged (PR #2), never loaded in Ervisio** | P6 section below; ADRs 0001, 0012 |
+| P7 Scale/hardening | **Packaging and release implemented, merged, never run (no tag yet).** Capacity, load and restore tests not done | P7 section below; ADR 0011 |
 
 ## P0 delivered
 
@@ -93,8 +93,8 @@ backup and restore drill, shared live-tail bus for several instances.
 
 Tests: integration tests exist for the store, the archiver (crash at each state, retries, eviction, expiry, budget),
 the provider contract, orphan cleanup, the admin API and search after eviction, plus 4 web tests for the Storage page.
-They ran during development, but **the final tree was not tested**: on 2026-11-03 the owner asked to stop running tests
-and CI. Before merging, run `make lint test test-integration archive-test`.
+The CI run on push for `abdc1f9` passed the unit and integration tests. `make archive-test` (S3, SFTP) is not in CI
+and was not run on the final tree.
 
 Limits:
 - D004/D005 benchmark (`docs/prototypes/d004/`) stopped before writing results. ADRs 0004 and 0009 are unmeasured.
@@ -226,8 +226,8 @@ Limits:
 - Nothing was deployed anywhere; only local Docker and GitHub Actions were used.
 
 ## Next
-1. Run the whole test suite (unit, integration, e2e, SDK, Lua specs) once the owner allows it, and fix what fails.
-2. Commit P4 to P7 on the owner's request and open the PR.
+1. Run `make archive-test`, the SDK tests and the Lua specs once the owner allows it.
+2. Use the app from source with `make up` (the e2e job covers this path).
 3. Tag a pre-release, check the workflow output, install each package on a test host, load the plugin in Ervisio.
 4. Validate OTLP with a real exporter; FiveM in game by the human operator.
 5. Capacity measurement, restore drill, owner approval of the Proposed ADRs.
