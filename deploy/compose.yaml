@@ -155,7 +155,17 @@ services:
       - spool:/var/lib/ervisio-logs/spool
       - cache:/var/lib/ervisio-logs/cache
       - pg-tls:/var/lib/ervisio-logs/tls:ro
+    # edge: the network a reverse proxy in Docker (Caddy) joins to reach the app, and nothing else, as
+    # ervisio-logs-app:8080. The Ervisio plugin attaches a Caddy container to it when it publishes the site.
+    networks:
+      default: {}
+      edge: { aliases: [ervisio-logs-app] }
     mem_limit: 512m
+
+networks:
+  default: {}
+  edge:
+    name: ervisiologs_edge
 
 volumes:
   pg-tls:
