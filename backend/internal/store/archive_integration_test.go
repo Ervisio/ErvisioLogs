@@ -155,7 +155,9 @@ func day(offset int) time.Time {
 func newSeg(provider uuid.UUID, d time.Time, cutoff time.Time) store.NewSegment {
 	return store.NewSegment{WorkspaceID: wsID, ProjectID: projID, StreamID: streamID, Day: d, ProviderID: provider,
 		CutoffTo: cutoff, SchemaVersion: 1,
-		KeyFor: func(id uuid.UUID, gen int32) string { return d.Format("2006/01/02") + "/g" + string(rune('0'+gen)) + "-" + id.String() }}
+		KeyFor: func(id uuid.UUID, gen int32) string {
+			return d.Format("2006/01/02") + "/g" + string(rune('0'+gen)) + "-" + id.String()
+		}}
 }
 
 func TestSegmentLifecycle(t *testing.T) {

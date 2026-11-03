@@ -339,7 +339,7 @@ func (c Config) Redacted() map[string]any {
 		"clickhouse_database": c.ClickHouse.Database, "clickhouse_tls": c.ClickHouse.TLS,
 		"spool_dir": c.Ingest.SpoolDir, "spool_max_bytes": c.Ingest.SpoolMaxBytes,
 		"metrics_protected": c.Ingest.MetricsToken != "",
-		"alerts_interval": c.Alerts.Interval.String(), "webhook_allow_private": c.Alerts.WebhookAllowPrivate,
+		"alerts_interval":   c.Alerts.Interval.String(), "webhook_allow_private": c.Alerts.WebhookAllowPrivate,
 		"export_max_rows": c.ExportMaxRows,
 	}
 }

@@ -102,7 +102,7 @@ func TestOTLPEventMapping(t *testing.T) {
 		{"cloud.region", "eu"}}}
 	sc := otlpScope{name: "lib", version: "1.2"}
 	rec := otlpRecord{timeNano: 1_700_000_000_123_456_789, severity: 17, body: "boom",
-		attrs: []otlpKV{{"event.name", "player.join"}, {"ervisio.environment", "prod"}, {"player.id", "42"}},
+		attrs:   []otlpKV{{"event.name", "player.join"}, {"ervisio.environment", "prod"}, {"player.id", "42"}},
 		traceID: "0102030405060708090a0b0c0d0e0f10", spanID: "0102030405060708"}
 	ev := otlpEvent(res, sc, rec)
 	if ev.Service != "api" || ev.Host != "node-1" || ev.Stream != "economy" || ev.Environment != "prod" ||

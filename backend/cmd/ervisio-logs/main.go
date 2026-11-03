@@ -21,8 +21,8 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/db"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/ingest"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/migrate"
-	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/server"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/version"
@@ -232,7 +232,10 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.Alerts.Interval > 0 {
 		alctx, stopAlerts := context.WithCancel(context.Background())
 		alertsDone := make(chan struct{})
-		go func() { defer close(alertsDone); apiHandlers.RunAlerts(alctx, cfg.Alerts.Interval, cfg.Alerts.HistoryRetention) }()
+		go func() {
+			defer close(alertsDone)
+			apiHandlers.RunAlerts(alctx, cfg.Alerts.Interval, cfg.Alerts.HistoryRetention)
+		}()
 		defer func() { stopAlerts(); <-alertsDone }()
 	}
 

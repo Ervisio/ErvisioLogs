@@ -70,6 +70,9 @@ services:
       CLICKHOUSE_USER: ervisio_logs
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run scripts/gen-env.sh}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "0"
+      # The entrypoint chowns /var/lib/clickhouse recursively and exits on the read-only archive
+      # mount below. The named data volume already gets the image's clickhouse ownership.
+      CLICKHOUSE_DO_NOT_CHOWN: "1"
     # The archive cache, read-only: ClickHouse reads Parquet segments from it with file() and
     # never writes there. The app is the only writer (ADR 0008).
     volumes:
