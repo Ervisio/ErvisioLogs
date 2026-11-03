@@ -1,7 +1,7 @@
 {
   "id": "ervisio-logs",
   "name": "Ervisio Logs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "Ervisio team",
   "description": "Install and run Ervisio Logs on this server, as a Docker Compose stack (shown in the Docker plugin) or as a systemd service, and publish it through the Caddy you already run. Data is never deleted by the plugin.",
   "homepage": "https://github.com/Ervisio/ErvisioLogs",
