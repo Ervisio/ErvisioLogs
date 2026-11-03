@@ -129,7 +129,7 @@
     "action": "Go to all projects"
   },
   "projects": {
-    "title": "All projects",
+    "title": "Workspaces and projects",
     "loading": "Loading projects…",
     "loadFailed": "Could not load projects.",
     "none": "This workspace has no projects yet.",
@@ -147,7 +147,12 @@
     "nameTooLong": "Use 100 characters at most.",
     "forbidden": "Your role in this workspace cannot do this. Ask an owner or an admin.",
     "conflict": "That name is already in use. Choose another.",
-    "failed": "That did not work. Try again."
+    "failed": "That did not work. Try again.",
+    "workspacesTitle": "Workspaces",
+    "newWorkspace": "New workspace",
+    "workspaceHint": "You become its owner. Projects, tokens and members stay separate per workspace.",
+    "open": "Open",
+    "inWorkspace": "Projects in {{name}}"
   },
   "login": {
     "loading": "Loading…",
@@ -503,7 +508,10 @@
       "auth": "Sign in with"
     },
     "namePlaceholder": "Off-site archive",
-    "auth": { "key": "SSH key", "password": "Password" },
+    "auth": {
+      "key": "SSH key",
+      "password": "Password"
+    },
     "secretHint": {
       "s3": "A JSON file in the secrets folder with access_key and secret_key. Ervisio Logs never sends credentials through the browser.",
       "sftp": "A file in the secrets folder holding the unencrypted private key. Ervisio Logs never sends credentials through the browser.",

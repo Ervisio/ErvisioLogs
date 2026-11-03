@@ -129,7 +129,7 @@
     "action": "Vai a tutti i progetti"
   },
   "projects": {
-    "title": "Tutti i progetti",
+    "title": "Workspace e progetti",
     "loading": "Carico i progetti…",
     "loadFailed": "Impossibile caricare i progetti.",
     "none": "Questo workspace non ha ancora progetti.",
@@ -147,7 +147,12 @@
     "nameTooLong": "Usa al massimo 100 caratteri.",
     "forbidden": "Il tuo ruolo in questo workspace non lo permette. Chiedi a un owner o a un admin.",
     "conflict": "Questo nome è già in uso. Scegline un altro.",
-    "failed": "Non ha funzionato. Riprova."
+    "failed": "Non ha funzionato. Riprova.",
+    "workspacesTitle": "Workspace",
+    "newWorkspace": "Nuovo workspace",
+    "workspaceHint": "Ne diventi owner. Progetti, token e membri restano separati per ogni workspace.",
+    "open": "Aperto",
+    "inWorkspace": "Progetti in {{name}}"
   },
   "login": {
     "loading": "Carico…",
@@ -503,7 +508,10 @@
       "auth": "Accesso con"
     },
     "namePlaceholder": "Archivio esterno",
-    "auth": { "key": "Chiave SSH", "password": "Password" },
+    "auth": {
+      "key": "Chiave SSH",
+      "password": "Password"
+    },
     "secretHint": {
       "s3": "Un file JSON nella cartella dei segreti con access_key e secret_key. Ervisio Logs non fa mai passare le credenziali dal browser.",
       "sftp": "Un file nella cartella dei segreti con la chiave privata non cifrata. Ervisio Logs non fa mai passare le credenziali dal browser.",

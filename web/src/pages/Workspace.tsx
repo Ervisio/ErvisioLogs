@@ -136,6 +136,7 @@ export function SectionPage() {
 }
 
 function NameForm(props: {
+  id: string;
   label: string;
   hint?: string;
   idle: string;
@@ -143,7 +144,7 @@ function NameForm(props: {
   create: (name: string) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const { label, hint, idle, busy, create } = props;
+  const { id, label, hint, idle, busy, create } = props;
   const [name, setName] = useState('');
   const [invalid, setInvalid] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -170,19 +171,19 @@ function NameForm(props: {
   return (
     <form noValidate onSubmit={(e) => void submit(e)} className="grid gap-3">
       <div className="grid gap-1.5">
-        <label htmlFor="name-field" className="font-semibold">
+        <label htmlFor={id} className="font-semibold">
           {label}
         </label>
         <input
-          id="name-field"
+          id={id}
           value={name}
           aria-invalid={!!invalid}
-          aria-describedby={invalid || hint ? 'name-field-m' : undefined}
+          aria-describedby={invalid || hint ? `${id}-m` : undefined}
           onChange={(e) => setName(e.target.value)}
           className={`bg-sunk h-12 w-full rounded-row border px-3 text-base md:h-11 md:text-sm ${invalid ? 'border-err' : 'border-field'}`}
         />
         {(invalid || hint) && (
-          <p id="name-field-m" role={invalid ? 'alert' : undefined} className={`text-[13px] ${invalid ? 'text-err' : 'text-ink3'}`}>
+          <p id={`${id}-m`} role={invalid ? 'alert' : undefined} className={`text-[13px] ${invalid ? 'text-err' : 'text-ink3'}`}>
             {invalid ?? hint}
           </p>
         )}
@@ -199,7 +200,8 @@ export function Projects() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { topbar } = useOutletContext<ShellContext>();
-  const { workspace, addWorkspace, projects, addProject, reload } = useTenancy();
+  const { workspaces, workspace, selectWorkspace, addWorkspace, projects, addProject, reload } = useTenancy();
+  const [newWorkspace, setNewWorkspace] = useState(false);
 
   if (!workspace) {
     return (
@@ -209,6 +211,7 @@ export function Projects() {
           <div className="mx-auto grid max-w-[360px] grid-cols-[minmax(0,1fr)] gap-4 pt-[8vh]">
             <p className="text-ink2">{t('projects.createWorkspaceText')}</p>
             <NameForm
+              id="workspace-name"
               label={t('projects.workspaceName')}
               idle={t('projects.createWorkspace')}
               busy={t('projects.creatingWorkspace')}
@@ -226,7 +229,50 @@ export function Projects() {
       {topbar(<Title>{t('projects.title')}</Title>)}
       <div className="flex-1 overflow-auto p-6">
         <div className="mx-auto grid max-w-[480px] grid-cols-[minmax(0,1fr)] gap-6">
-          <p className="text-ink2">{workspace.name}</p>
+          <section aria-labelledby="workspaces" className="grid gap-3">
+            <h2 id="workspaces" className="text-[17px] font-bold">
+              {t('projects.workspacesTitle')}
+            </h2>
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
+              {workspaces.map((w) => {
+                const current = w.id === workspace.id;
+                return (
+                  <li key={w.id}>
+                    <button
+                      type="button"
+                      aria-pressed={current}
+                      onClick={() => selectWorkspace(w.id)}
+                      className={`flex min-h-12 w-full items-center gap-3 rounded-row px-2 text-left ${current ? 'bg-sunk' : 'hover:bg-sunk'}`}
+                    >
+                      <span aria-hidden className="border-field grid size-9 flex-none place-items-center rounded-row border text-xs font-bold">
+                        {initials(w.name)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-semibold">{w.name}</span>
+                      <span className="text-ink3 text-[13px]">{current ? t('projects.open') : t(`users.role.${w.role}`, { defaultValue: w.role })}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {newWorkspace ? (
+              <NameForm
+                id="workspace-name"
+                label={t('projects.workspaceName')}
+                hint={t('projects.workspaceHint')}
+                idle={t('projects.createWorkspace')}
+                busy={t('projects.creatingWorkspace')}
+                create={async (name) => {
+                  addWorkspace(await api.createWorkspace(name));
+                  setNewWorkspace(false);
+                }}
+              />
+            ) : (
+              <button type="button" onClick={() => setNewWorkspace(true)} className="text-hue min-h-11 justify-self-start font-semibold underline underline-offset-2">
+                {t('projects.newWorkspace')}
+              </button>
+            )}
+          </section>
+          <h2 className="text-[17px] font-bold">{t('projects.inWorkspace', { name: workspace.name })}</h2>
           {projects.status === 'loading' && (
             <p role="status" className="text-ink2 flex items-center gap-2">
               <span className="spinner" aria-hidden />
@@ -257,10 +303,11 @@ export function Projects() {
             </ul>
           )}
           <section aria-labelledby="new-project" className="grid gap-3">
-            <h2 id="new-project" className="text-[17px] font-bold">
-              {t('projects.createProjectTitle')}
-            </h2>
+            <h3 id="new-project" className="font-bold">
+              {t('projects.createProjectTitle', { name: workspace.name })}
+            </h3>
             <NameForm
+              id="project-name"
               label={t('projects.projectName')}
               hint={t('projects.projectHint')}
               idle={t('projects.createProject')}
