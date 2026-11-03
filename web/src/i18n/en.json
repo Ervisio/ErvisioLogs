@@ -499,12 +499,15 @@
       "baseDir": "Folder on the server",
       "hostKey": "Host public key",
       "root": "Absolute folder path",
-      "secret": "Credentials file"
+      "secret": "Credentials file",
+      "auth": "Sign in with"
     },
     "namePlaceholder": "Off-site archive",
+    "auth": { "key": "SSH key", "password": "Password" },
     "secretHint": {
       "s3": "A JSON file in the secrets folder with access_key and secret_key. Ervisio Logs never sends credentials through the browser.",
-      "sftp": "A JSON file in the secrets folder with password or private_key. Ervisio Logs never sends credentials through the browser."
+      "sftp": "A file in the secrets folder holding the unencrypted private key. Ervisio Logs never sends credentials through the browser.",
+      "sftpPassword": "A file in the secrets folder holding only the password. Ervisio Logs never sends credentials through the browser."
     },
     "nameRequired": "Give the destination a name.",
     "addButton": "Add destination",

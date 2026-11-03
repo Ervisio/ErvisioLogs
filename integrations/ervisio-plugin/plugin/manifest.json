@@ -1,7 +1,7 @@
 {
   "id": "ervisio-logs",
   "name": "Ervisio Logs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Ervisio team",
   "description": "Install and run Ervisio Logs on this server, as a Docker Compose stack (shown in the Docker plugin) or as a systemd service, and publish it through the Caddy you already run. Data is never deleted by the plugin.",
   "homepage": "https://github.com/Ervisio/ErvisioLogs",
@@ -367,6 +367,108 @@
           "-Gn"
         ],
         "timeoutSec": 10
+      },
+      {
+        "name": "secrets-init",
+        "description": "Create /opt/stacks/ervisio-logs/secrets for archive credentials, readable only by the app container user (uid 65532)",
+        "argv": [
+          "install",
+          "-d",
+          "-m",
+          "0700",
+          "-o",
+          "65532",
+          "-g",
+          "65532",
+          "/opt/stacks/ervisio-logs/secrets"
+        ],
+        "admin": true,
+        "timeoutSec": 30
+      },
+      {
+        "name": "secrets-install",
+        "description": "Move the credentials you entered into /opt/stacks/ervisio-logs/secrets, readable only by the app container user",
+        "argv": [
+          "install",
+          "-m",
+          "0400",
+          "-o",
+          "65532",
+          "-g",
+          "65532",
+          "/opt/stacks/ervisio-logs/.secret-incoming",
+          "{0}"
+        ],
+        "args": [
+          {
+            "pattern": "/opt/stacks/ervisio-logs/secrets/[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}",
+            "maxLen": 140
+          }
+        ],
+        "admin": true,
+        "timeoutSec": 30
+      },
+      {
+        "name": "secrets-list",
+        "description": "List the names of the archive credential files (never their content)",
+        "argv": [
+          "ls",
+          "-1A",
+          "/opt/stacks/ervisio-logs/secrets"
+        ],
+        "admin": true,
+        "timeoutSec": 15
+      },
+      {
+        "name": "standalone-secrets-init",
+        "description": "Create /etc/ervisio-logs/secrets for archive credentials, readable by the ervisio-logs service",
+        "argv": [
+          "install",
+          "-d",
+          "-m",
+          "2750",
+          "-o",
+          "root",
+          "-g",
+          "ervisio-logs",
+          "/etc/ervisio-logs/secrets"
+        ],
+        "admin": true,
+        "timeoutSec": 30
+      },
+      {
+        "name": "standalone-secrets-install",
+        "description": "Move the credentials you entered into /etc/ervisio-logs/secrets, readable by the ervisio-logs service",
+        "argv": [
+          "install",
+          "-m",
+          "0640",
+          "-o",
+          "root",
+          "-g",
+          "ervisio-logs",
+          "/etc/ervisio-logs/.secret-incoming",
+          "{0}"
+        ],
+        "args": [
+          {
+            "pattern": "/etc/ervisio-logs/secrets/[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}",
+            "maxLen": 130
+          }
+        ],
+        "admin": true,
+        "timeoutSec": 30
+      },
+      {
+        "name": "standalone-secrets-list",
+        "description": "List the names of the archive credential files (never their content)",
+        "argv": [
+          "ls",
+          "-1A",
+          "/etc/ervisio-logs/secrets"
+        ],
+        "admin": true,
+        "timeoutSec": 15
       }
     ],
     "files": {

@@ -64,10 +64,10 @@ export async function readText(path: string): Promise<string | null> {
 }
 
 /** Runs a declared command, streaming its output to `log`. Rejects on a non-zero exit. */
-export function run(cmd: string, log: Log): Promise<void> {
-  log(`$ ${cmd}`);
+export function run(cmd: string, log: Log, args: string[] = []): Promise<void> {
+  log(`$ ${[cmd, ...args].join(' ')}`);
   return new Promise((resolve, reject) => {
-    getSdk().api.execStream(cmd, [], {
+    getSdk().api.execStream(cmd, args, {
       onLine: (_s, line) => log(line),
       onExit: (code) => (code === 0 ? resolve() : reject(new Error(getSdk().t('err.exit', { cmd, n: code })))),
       onError: (e) => reject(e),
@@ -217,6 +217,8 @@ export async function dockerInstall(log: Log): Promise<void> {
   // Production needs an https address: until Caddy (or another proxy) publishes one, the stack runs in development.
   env = guardProduction('docker', env, log);
   await files.write(`${STACK_DIR}/.env`, env.endsWith('\n') ? env : env + '\n');
+  // compose.yaml mounts ./secrets; made here so Docker does not create it as root.
+  await run('secrets-init', log);
   await run('compose-pull', log);
   await run('compose-up', log);
 }
@@ -314,4 +316,35 @@ export function upstream(mode: Mode, env: string | null): Upstream {
   const host = i > 0 ? addr.slice(0, i).replace(/^\[|\]$/g, '') : '127.0.0.1';
   const port = Number(addr.slice(i + 1)) || 8080;
   return { host: host || '127.0.0.1', port, container: '', containerPort: port, network: '' };
+}
+
+// Archive credentials (Storage page of Ervisio Logs). One file per destination; the page never reads one back.
+export const SECRETS_DIR: Record<Mode, string> = { docker: `${STACK_DIR}/secrets`, standalone: '/etc/ervisio-logs/secrets' };
+const STAGING: Record<Mode, string> = { docker: `${STACK_DIR}/.secret-incoming`, standalone: '/etc/ervisio-logs/.secret-incoming' };
+const cmdFor = (mode: Mode, c: 'init' | 'install' | 'list') => (mode === 'docker' ? `secrets-${c}` : `standalone-secrets-${c}`);
+
+/** The file names the backend accepts as secret_file, minus names that start with a dot. */
+export const validSecretName = (n: string) => /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/.test(n);
+
+/** Names of the credential files, or [] when the folder does not exist yet. */
+export async function listSecrets(mode: Mode): Promise<string[]> {
+  const r = await getSdk().api.exec(cmdFor(mode, 'list')).catch(() => null);
+  if (!r || r.exitCode !== 0) return [];
+  return r.stdout.split('\n').map((l) => l.trim()).filter(validSecretName).sort();
+}
+
+/**
+ * Writes one credential file: the value goes to a staging file inside the closed stack or config folder, then a root
+ * command installs it with the owner and mode the app needs, and the staging file is removed. The value is never logged.
+ */
+export async function writeSecret(mode: Mode, name: string, value: string, log: Log): Promise<void> {
+  if (!validSecretName(name)) throw new Error(getSdk().t('sec.badName'));
+  const staging = STAGING[mode];
+  await run(cmdFor(mode, 'init'), log);
+  await getSdk().files.write(staging, value.endsWith('\n') ? value : value + '\n');
+  try {
+    await run(cmdFor(mode, 'install'), log, [`${SECRETS_DIR[mode]}/${name}`]);
+  } finally {
+    await getSdk().files.remove(staging).catch(() => log(`could not remove ${staging}; delete it by hand`));
+  }
 }

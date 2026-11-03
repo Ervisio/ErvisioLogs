@@ -499,12 +499,15 @@
       "baseDir": "Cartella sul server",
       "hostKey": "Chiave pubblica dell'host",
       "root": "Percorso assoluto della cartella",
-      "secret": "File delle credenziali"
+      "secret": "File delle credenziali",
+      "auth": "Accesso con"
     },
     "namePlaceholder": "Archivio esterno",
+    "auth": { "key": "Chiave SSH", "password": "Password" },
     "secretHint": {
       "s3": "Un file JSON nella cartella dei segreti con access_key e secret_key. Ervisio Logs non fa mai passare le credenziali dal browser.",
-      "sftp": "Un file JSON nella cartella dei segreti con password o private_key. Ervisio Logs non fa mai passare le credenziali dal browser."
+      "sftp": "Un file nella cartella dei segreti con la chiave privata non cifrata. Ervisio Logs non fa mai passare le credenziali dal browser.",
+      "sftpPassword": "Un file nella cartella dei segreti con la sola password. Ervisio Logs non fa mai passare le credenziali dal browser."
     },
     "nameRequired": "Dai un nome alla destinazione.",
     "addButton": "Aggiungi destinazione",
