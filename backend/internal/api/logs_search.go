@@ -35,6 +35,12 @@ var attrSegment = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 // logsReader authorises reading the logs of a project: a session member with logs:read, or an
 // API token with logs:read bound to that project. projectID may be Nil for tokens.
 func (a *API) logsReader(w http.ResponseWriter, r *http.Request, projectID uuid.UUID) (store.Project, bool) {
+	return a.logsAccess(w, r, projectID, auth.LogsRead)
+}
+
+// logsAccess resolves the project a request reads logs from and checks perm: the token scope, or
+// the user's workspace role.
+func (a *API) logsAccess(w http.ResponseWriter, r *http.Request, projectID uuid.UUID, perm string) (store.Project, bool) {
 	if a.Logs == nil {
 		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "log search is not available on this instance")
 		return store.Project{}, false
@@ -42,8 +48,8 @@ func (a *API) logsReader(w http.ResponseWriter, r *http.Request, projectID uuid.
 	p := principalOf(r)
 	switch {
 	case p.token != nil:
-		if !hasScope(p.token, auth.LogsRead) {
-			httpx.WriteProblem(w, r, http.StatusForbidden, "missing permission "+auth.LogsRead)
+		if !hasScope(p.token, perm) {
+			httpx.WriteProblem(w, r, http.StatusForbidden, "missing permission "+perm)
 			return store.Project{}, false
 		}
 		if projectID != uuid.Nil && projectID != p.token.ProjectID {
@@ -61,7 +67,7 @@ func (a *API) logsReader(w http.ResponseWriter, r *http.Request, projectID uuid.
 			a.storeError(w, r, err)
 			return store.Project{}, false
 		}
-		if _, ok := a.workspaceAccess(w, r, p.user, proj.WorkspaceID, auth.LogsRead); !ok {
+		if _, ok := a.workspaceAccess(w, r, p.user, proj.WorkspaceID, perm); !ok {
 			return store.Project{}, false
 		}
 		return proj, true

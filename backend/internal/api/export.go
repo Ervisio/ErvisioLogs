@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
-	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 )
 
 const (
@@ -49,16 +48,9 @@ func (a *API) exportLogs(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "format must be ndjson or csv")
 		return
 	}
-	proj, ok := a.logsReader(w, r, req.ProjectID)
+	// logs:export is enough on its own: an export-only token needs no logs:read.
+	proj, ok := a.logsAccess(w, r, req.ProjectID, auth.LogsExport)
 	if !ok {
-		return
-	}
-	if p := principalOf(r); p.token != nil {
-		if !hasScope(p.token, auth.LogsExport) {
-			httpx.WriteProblem(w, r, http.StatusForbidden, "missing permission "+auth.LogsExport)
-			return
-		}
-	} else if _, ok := a.workspaceAccess(w, r, p.user, proj.WorkspaceID, auth.LogsExport); !ok {
 		return
 	}
 	cat, err := a.projectCatalog(r.Context(), proj.WorkspaceID, proj.ID)

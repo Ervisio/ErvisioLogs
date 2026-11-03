@@ -228,10 +228,15 @@ func (a *API) updateSavedQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name  string      `json:"name"`
-		Query savedFilter `json:"query"`
+		ProjectID uuid.UUID   `json:"project_id"`
+		Name      string      `json:"name"`
+		Query     savedFilter `json:"query"`
 	}
 	if !decode(w, r, &req) {
+		return
+	}
+	if req.ProjectID != uuid.Nil && req.ProjectID != sq.ProjectID {
+		invalid(w, r, "a saved query cannot move to another project")
 		return
 	}
 	name, ok := trimmedName(w, r, req.Name)

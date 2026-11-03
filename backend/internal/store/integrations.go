@@ -222,7 +222,7 @@ func (s *Store) RuleByID(ctx context.Context, id uuid.UUID) (AlertRule, error) {
 // state goes back to ok, so a new threshold does not inherit an old firing.
 func (s *Store) UpdateRule(ctx context.Context, workspaceID, id uuid.UUID, r RuleSpec) (AlertRule, error) {
 	return scanRule(s.pool.QueryRow(ctx, `UPDATE alert_rules SET name=$3, query=$4, window_seconds=$5, threshold=$6,
-		interval_seconds=$7, channel_ids=$8, enabled=$9, state='ok', last_error=NULL, next_eval_at=now(), updated_at=now()
+		interval_seconds=$7, channel_ids=$8, enabled=$9, last_error=NULL, next_eval_at=now(), updated_at=now()
 		WHERE workspace_id=$1 AND id=$2 RETURNING `+ruleCols,
 		workspaceID, id, r.Name, r.Query, r.WindowSeconds, r.Threshold, r.IntervalSeconds, r.ChannelIDs, r.Enabled))
 }
