@@ -18,7 +18,8 @@ build toolchain on the target host.
   - `ervisio-logs-<v>-linux-<arch>.tar.gz`: binary, systemd unit, env example, `install.sh`, `uninstall.sh`, README.
   - `ervisio-logs-<v>-docker.tar.gz`: `deploy/compose.yaml` with `build:` removed and the image pinned to
     `ghcr.io/ervisio/ervisio-logs:<v>`, plus `.env.example`, `scripts/gen-env.sh` and a README.
-  - `ervisio-logs-<v>-ervisio-plugin.tar.gz`: the Ervisio plugin, stamped with the same version (ADR 0012).
+  - `ervisio-logs-<v>.tar.gz` and `.sha256`: the Ervisio plugin, stamped with the same version (ADR 0012), as a
+    reproducible archive in the `Ervisio/plugins` registry format; `ervisio-logs-<v>-ervisio-plugin.tar.gz` is a copy.
   - `SHA256SUMS` for all of them.
 - The script fails if a `build:` line is left in the Docker bundle, so the bundle can never build from source.
 
@@ -52,7 +53,8 @@ build toolchain on the target host.
 - The plugin and the app share a version: upgrading the plugin is how a plugin user upgrades the app.
 
 ## Not yet verified
-- A full `scripts/release.sh` run and a tag-triggered workflow run.
+- The registry asset names from `scripts/release.sh` (added after 0.1.0; for 0.1.0 they were uploaded by hand). The
+  tag-triggered workflow ran for v0.1.0 and published the image and the other packages.
 - `install.sh`, the unit's sandboxing (above all `SystemCallFilter` and `MemoryDenyWriteExecute` with the Go runtime)
   and `uninstall.sh` on a real Debian/Ubuntu/RHEL host.
 - The Docker bundle started from the published image.

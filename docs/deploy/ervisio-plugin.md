@@ -11,9 +11,13 @@ Design and limits: ADR 0012. The plugin has **not** been loaded in a real Ervisi
 
 ## Install the plugin
 
-Download `ervisio-logs-<version>-ervisio-plugin.tar.gz` from the release page and install it in Ervisio under
-Plugins › Install, from its https address or from a path on the server. The package is not signed by the Ervisio
-team yet, so Ervisio refuses it unless `plugins.allow_unsigned` is on in the Ervisio config, or developer mode is on.
+Once the Ervisio team has listed it, install the signed plugin from Plugins › Browse (search "Ervisio Logs"). The
+registry signs each version with the team key after a maintainer merges its registration PR on `Ervisio/plugins`.
+
+Before that, or for a version not listed yet, download `ervisio-logs-<version>.tar.gz` from the release page and
+install it under Plugins › Install, from its https address or from a path on the server. That copy is unsigned, so
+Ervisio refuses it unless `plugins.allow_unsigned` is on in the Ervisio config, or developer mode is on.
+`ervisio-logs-<version>-ervisio-plugin.tar.gz` holds the same bytes under the first release's name.
 
 Ervisio unpacks it into `/var/lib/ervisio/plugins/ervisio-logs`. The standalone commands run
 `/var/lib/ervisio/plugins/ervisio-logs/bin/standalone.sh`, so standalone mode only works from that folder. A checkout

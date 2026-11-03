@@ -3,9 +3,9 @@
 Self-hosted, API-first, multi-tenant log management. Runs standalone (systemd), as a Docker Compose stack, or from
 an Ervisio plugin that installs either of the two.
 
-Status: **P0 to P3 tested and merged. P4 to P7 implemented, not tested** (the owner asked not to run tests for now).
-Archives, retention, alerts, webhooks, export, the TypeScript SDK, the FiveM resource, release packaging and the
-Ervisio plugin exist in code; none of them has been tried end to end, and nothing has been released yet. See
+Status: **v0.1.0 released.** CI passes the unit, integration, browser end-to-end and smoke tests. No package has
+been installed on a real host yet, the Ervisio plugin has not been loaded in Ervisio, and its marketplace listing
+waits for review in Ervisio/plugins#35. See
 [`ervisio-logs-spec/implementation/PROGRESS.md`](ervisio-logs-spec/implementation/PROGRESS.md).
 
 ## Deploy

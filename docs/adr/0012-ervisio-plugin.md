@@ -75,8 +75,11 @@ The owner stops or removes it from the page first. Neither mode deletes volumes,
 - Standalone install needs outbound HTTPS from the server to github.com.
 - The standalone commands run `/var/lib/ervisio/plugins/ervisio-logs/bin/standalone.sh`: a dev-mode plugin loaded
   from another folder can show the page but cannot install standalone (and has no release anyway).
-- Marketplace listing needs a PR to `Ervisio/plugins` and the Ervisio team's signature. Until then the owner installs
-  the `.tar.gz` with `plugins.allow_unsigned` or in developer mode.
+- Marketplace listing goes through the `Ervisio/plugins` registry: its `register` workflow reads the latest stable
+  release, checks the package with `plugin-sign` (0.6.2 validated the 0.1.0 manifest) and opens a PR; after a
+  maintainer merges it, `publish` signs the package with the team key and adds it to the catalog. 0.1.0 is
+  registered in Ervisio/plugins#35, not merged yet. Until a version is listed, the owner installs the `.tar.gz`
+  with `plugins.allow_unsigned` or in developer mode.
 
 ## Tests required before Accepted
 On a real Ervisio 0.6.x host: install the plugin package, run Docker mode end to end and see the stack in the Docker
