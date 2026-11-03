@@ -18,6 +18,12 @@ backend/internal/webui/dist/*
 .vscode/
 .variant-studio/
 *.tsbuildinfo
+# Archive contract test keys (scripts/archive-test.sh)
+.archive-test/
+# Dev archive cache, shared with the dev ClickHouse (deploy/compose.dev.yaml)
+.dev/
 # Playwright
 web/test-results/
 web/playwright-report/
+# Release artifacts (scripts/release.sh)
+dist/

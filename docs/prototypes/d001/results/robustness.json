@@ -1,0 +1,37 @@
+{
+ "truncated": {
+  "clickhouse": "error: The table structure cannot be extracted from a Parquet format file. Error: std::exception. Code: 1001, type: parquet::ParquetInvalidOrCorruptedFileException, e.what() = Invalid: Parquet magic bytes no",
+  "clickhouse_alive": true,
+  "duckdb": "error: _duckdb.InvalidInputException: Invalid Input Error: No magic bytes found at end of file '/cache/0193a000-0000-7000-8000-000000000002/20261101/bad/truncated.parquet'",
+  "datafusion": "error: Exception: DataFusion error: Parquet error: Parquet error: Invalid Parquet file. Corrupt footer",
+  "seconds": 0.38
+ },
+ "garbage": {
+  "clickhouse": "error: The table structure cannot be extracted from a Parquet format file. Error: std::exception. Code: 1001, type: parquet::ParquetInvalidOrCorruptedFileException, e.what() = Invalid: Parquet magic bytes no",
+  "clickhouse_alive": true,
+  "duckdb": "error: _duckdb.InvalidInputException: Invalid Input Error: No magic bytes found at end of file '/cache/0193a000-0000-7000-8000-000000000002/20261101/bad/garbage.parquet'",
+  "datafusion": "error: Exception: DataFusion error: Parquet error: Parquet error: Invalid Parquet file. Corrupt footer",
+  "seconds": 0.37
+ },
+ "footer_lies": {
+  "clickhouse": "error: The table structure cannot be extracted from a Parquet format file. Error: std::exception. Code: 1001, type: parquet::ParquetInvalidOrCorruptedFileException, e.what() = Invalid: Parquet file size is 9",
+  "clickhouse_alive": true,
+  "duckdb": "error: _duckdb.InvalidInputException: Invalid Input Error: Footer length error in file '/cache/0193a000-0000-7000-8000-000000000002/20261101/bad/footer_lies.parquet'",
+  "datafusion": "error: pyo3_runtime.PanicException: range start must not be greater than end: 18446744073670266028 <= 524280",
+  "seconds": 0.39
+ },
+ "empty": {
+  "clickhouse": "error: The table structure cannot be extracted from a Parquet format file. Error: The table structure cannot be extracted from a Parquet format file: the file is empty. You can specify the structure manually",
+  "clickhouse_alive": true,
+  "duckdb": "error: _duckdb.InvalidInputException: Invalid Input Error: File '/cache/0193a000-0000-7000-8000-000000000002/20261101/bad/empty.parquet' too small to be a Parquet file",
+  "datafusion": "error: ValueError: Schema error: No field named project_id.",
+  "seconds": 0.4
+ },
+ "other_project": {
+  "clickhouse": "rows: [(0,)]",
+  "clickhouse_alive": true,
+  "duckdb": "rows: [(0,)]",
+  "datafusion": "rows: [{'count(*)': 0}]",
+  "seconds": 0.38
+ }
+}

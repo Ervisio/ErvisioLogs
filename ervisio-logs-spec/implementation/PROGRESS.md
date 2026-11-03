@@ -1,18 +1,18 @@
 # Progress tracker
 
-Status: **P0 complete except the D001/D005 prototypes. P1 backend committed. P1 frontend, P2 and P3 implemented and tested, uncommitted on `feat/p2-ingest` (2026-11-03). P4, P5 and P7 not started; P6 blocked.**
+Status: **P0 to P3 merged into `main` (PR #1). P4 to P7 implemented on `feat/p4-archive`, uncommitted, not tested: the owner asked not to run tests or CI (2026-11-03). Static checks only.**
 Repository: https://github.com/Ervisio/ErvisioLogs (private).
 
 | Phase | Status | Evidence |
 |---|---|---|
 | P0 Discovery/foundation | **Done except the D001/D002/D005 prototypes**, see open items | commits `675ad91`, `cd294a1`, ADRs in `docs/adr/`; test runs below |
 | P1 Tenant/auth | **Backend done, frontend uncommitted, tested against the real API.** Real Google, Cognito and Discord never tested | commits `6a1c837`, `009ef1b`; P1 section below; web section below |
-| P2 Ingestion/hot queries | **Implemented and tested, uncommitted.** DoD met except a measured capacity figure (P7) | P2 section below; ADRs 0003, 0006, 0007 |
-| P3 UI | **Implemented and tested, uncommitted.** Explorer, live tail, event detail, first-event wizard, API tokens, Users. Wizard, tokens and Users not design-approved | P3 section below; `ervisio-logs-spec/design/UI_DECISIONS.md` |
-| P4 Tiered archives | Not started | — |
-| P5 Integrations | Not started | — |
-| P6 Ervisio plugin | Blocked: contract partly discovered, see ADR 0001 | `docs/adr/0001-*.md` |
-| P7 Scale/hardening | Not started | — |
+| P2 Ingestion/hot queries | **Implemented and tested, merged (PR #1).** DoD met except a measured capacity figure (P7) | P2 section below; ADRs 0003, 0006, 0007 |
+| P3 UI | **Implemented and tested, merged (PR #1).** Explorer, live tail, event detail, first-event wizard, API tokens, Users. Wizard, tokens and Users not design-approved | P3 section below; `ervisio-logs-spec/design/UI_DECISIONS.md` |
+| P4 Tiered archives | **Implemented, uncommitted. Final tree not tested** (owner asked to stop running tests) | P4 section below; ADRs 0004, 0008, 0009 |
+| P5 Integrations | **Implemented, uncommitted, not tested.** OTLP not validated; FiveM never run in game | P5 section below; ADR 0010 |
+| P6 Ervisio plugin | **Implemented, uncommitted, never loaded in Ervisio** | P6 section below; ADRs 0001, 0012 |
+| P7 Scale/hardening | **Packaging and release implemented, never run.** Capacity, load and restore tests not done | P7 section below; ADR 0011 |
 
 ## P0 delivered
 
@@ -38,6 +38,71 @@ checks only Postgres from the host), Makefile, CI workflow, `.env.example`, `gen
 
 Not run in P0: Playwright, browser rendering check of the React shell (design reviewed only as Variant Studio mockups).
 CI now runs `go test -race`, integration tests and the smoke test on GitHub Actions (ubuntu-latest, x64).
+
+## P5 to P7 delivered (uncommitted on `feat/p4-archive`, 2026-11-03, Windows 11). Nothing below was run.
+
+Checks that did run: `go build ./...` and `go vet ./...` (also `GOOS=linux GOARCH=arm64 go build`), `tsc` and `eslint`
+on `web/` and `sdk/typescript/`, `redocly lint api/openapi.yaml`, `bash -n` on every script, `node --check` on the
+plugin's `index.js`, and the plugin stamping step of `release.sh` on a scratch copy. No unit, integration, e2e, Lua or
+SDK test was executed; none of them should be read as passing.
+
+**P5 (ADR 0010).** Saved queries; threshold alert rules with an evaluator under a Postgres advisory lock; webhook
+channels (Ervisio signed JSON, Slack, Discord) with SSRF filtering on the dialled address; NDJSON and CSV export with a
+row cap and trailers; OTLP/HTTP `/v1/logs` receiver (JSON and protobuf). UI pages Alerts and Channels follow the
+approved design system (no new Variant Studio round). TypeScript SDK `@ervisio/logs` in `sdk/typescript`. FiveM
+resource in `integrations/fivem`, syntax-checked only. Tests written: `internal/api/integrations_test.go`,
+`internal/notify/webhook_test.go`, `internal/api/integrations_integration_test.go`, SDK vitest specs,
+`integrations/fivem/tests/queue_spec.lua`.
+Not done: OTLP against a real exporter and the Collector (the UI does not mention OTLP), FiveM in game (human
+operator), webhook delivery to real Slack and Discord.
+
+**P6 (ADR 0012, ADR 0001 revised).** Ervisio plugin in `integrations/ervisio-plugin`: one page, Docker mode (stack in
+`/opt/stacks/ervisio-logs`, same argv as plugin-docker) or standalone mode (release tarball checked by SHA-256, then
+`install.sh`). No SSO (Ervisio offers none), no data deletion on any path. Guide `docs/deploy/ervisio-plugin.md`.
+Not done: loading it in Ervisio, unlock flow, stack visibility in plugin-docker, both installs, upgrade, removal.
+Marketplace listing needs the Ervisio team's signature.
+
+**P7 (ADR 0011).** Multi-arch Dockerfile, `scripts/release.sh` (standalone tarballs, Docker bundle, plugin package,
+SHA256SUMS), tag workflow `.github/workflows/release.yml` (draft release), systemd unit with hardening,
+`install.sh`/`uninstall.sh`, deploy guides, `docs/security.md`, `docs/releases/0.1.0.md`.
+Not done: a release build, a workflow run, an install on a real host, a measured capacity figure, load and soak tests,
+backup and restore drill, shared live-tail bus for several instances.
+
+**Commit note.** Files were written on Windows: when committing, set the exec bit with
+`git update-index --chmod=+x` on `scripts/release.sh`, `deploy/standalone/install.sh`,
+`deploy/standalone/uninstall.sh` and `integrations/ervisio-plugin/bin/standalone.sh`.
+
+## P4 delivered (uncommitted on `feat/p4-archive`, 2026-11-03, Windows 11, Go 1.27.3, ClickHouse 25.8)
+
+- Archive providers: local folder, S3-compatible (checksum stored with the object, server-side copy on promote) and
+  SFTP (temporary name, re-read for SHA-256, rename, pinned host key). Credentials come from files in the secrets
+  folder, never from PostgreSQL or the browser.
+- Catalog in PostgreSQL (migration 0003): providers, segments with the full state machine, retention policies per
+  instance, workspace, project and stream. ClickHouse migration 0003 adds `inserted_at` as the coverage marker.
+- Archiver loop: generations per stream-day cut on the ClickHouse clock, Parquet export, upload, verify, promote,
+  catalog, retries with backoff, FAILED after max attempts, clock-going-back guard.
+- Local retention eviction and global expiry (tombstones), disk budget with high and low watermarks, 503 on ingest
+  when over the cap with nothing evictable (ADR 0004, ADR 0009).
+- Search reads evicted segments through a verified local cache with `file()` and an explicit schema; `partial: true`
+  when a segment is unavailable (ADR 0008).
+- Orphan cleanup once a day per process (ADR 0008).
+- Admin API (`/api/v1/admin/storage`, `/api/v1/admin/retention`) and the web Storage page (usage meter, project
+  retention, destinations, add destination, server default). en/it strings.
+- `make archive-test` runs the S3 and SFTP contract suite against throwaway SeaweedFS and OpenSSH containers;
+  `make test-integration` now also runs the orphan tests.
+
+Tests: integration tests exist for the store, the archiver (crash at each state, retries, eviction, expiry, budget),
+the provider contract, orphan cleanup, the admin API and search after eviction, plus 4 web tests for the Storage page.
+They ran during development, but **the final tree was not tested**: on 2026-11-03 the owner asked to stop running tests
+and CI. Before merging, run `make lint test test-integration archive-test`.
+
+Limits:
+- D004/D005 benchmark (`docs/prototypes/d004/`) stopped before writing results. ADRs 0004 and 0009 are unmeasured.
+- Over-capacity flag lives in process memory (one API instance only).
+- Cache race: a segment evicted from the cache during a search gives a 503; retry succeeds.
+- No compaction of small late generations; no size split of a very busy stream-day.
+- D008 (archive encryption) and D009 (replicas) not built.
+- Storage page not design-approved through Variant Studio.
 
 ## P3 delivered (uncommitted, 2026-11-03, Windows 11, Node 24, Docker)
 
@@ -161,7 +226,8 @@ Limits:
 - Nothing was deployed anywhere; only local Docker and GitHub Actions were used.
 
 ## Next
-1. Commit `web/` on the owner's request. Move the end-to-end script into the repo as a Playwright suite. Run a Variant Studio round for project and workspace creation.
-2. Write the README auth section and the auth ADR, then settle the owner's open decisions and provider credentials.
-3. P3: Explorer table on `/logs/search`, Live Tail view on `/logs/tail`, token management, onboarding wizard, Playwright suite in CI.
-4. Before P4: D001 and D005 prototypes, D004 partitioning check.
+1. Run the whole test suite (unit, integration, e2e, SDK, Lua specs) once the owner allows it, and fix what fails.
+2. Commit P4 to P7 on the owner's request and open the PR.
+3. Tag a pre-release, check the workflow output, install each package on a test host, load the plugin in Ervisio.
+4. Validate OTLP with a real exporter; FiveM in game by the human operator.
+5. Capacity measurement, restore drill, owner approval of the Proposed ADRs.

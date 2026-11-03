@@ -31,6 +31,10 @@ x-app-env: &app-env
   ERVISIO_LOGS_SPOOL_MAX_BYTES: ${ERVISIO_LOGS_SPOOL_MAX_BYTES:-1073741824}
   ERVISIO_LOGS_INGEST_MAX_FUTURE_SKEW: ${ERVISIO_LOGS_INGEST_MAX_FUTURE_SKEW:-5m}
   ERVISIO_LOGS_INGEST_MAX_PAST_AGE: ${ERVISIO_LOGS_INGEST_MAX_PAST_AGE:-168h}
+  ERVISIO_LOGS_ALERTS_INTERVAL: ${ERVISIO_LOGS_ALERTS_INTERVAL:-30s}
+  ERVISIO_LOGS_ALERTS_HISTORY_RETENTION: ${ERVISIO_LOGS_ALERTS_HISTORY_RETENTION:-720h}
+  ERVISIO_LOGS_WEBHOOK_ALLOW_PRIVATE: ${ERVISIO_LOGS_WEBHOOK_ALLOW_PRIVATE:-false}
+  ERVISIO_LOGS_EXPORT_MAX_ROWS: ${ERVISIO_LOGS_EXPORT_MAX_ROWS:-1000000}
   ERVISIO_LOGS_METRICS_TOKEN: ${ERVISIO_LOGS_METRICS_TOKEN:-}
 
 x-hardening: &hardening
@@ -66,7 +70,11 @@ services:
       CLICKHOUSE_USER: ervisio_logs
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run scripts/gen-env.sh}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "0"
-    volumes: [ch-data:/var/lib/clickhouse]
+    # The archive cache, read-only: ClickHouse reads Parquet segments from it with file() and
+    # never writes there. The app is the only writer (ADR 0008).
+    volumes:
+      - ch-data:/var/lib/clickhouse
+      - cache:/var/lib/clickhouse/user_files/ervisio-archive:ro
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
     healthcheck:
@@ -81,7 +89,7 @@ services:
   # One-shot migration job. The app reports "not ready" until it has completed.
   migrate:
     build: { context: .., dockerfile: Dockerfile }
-    image: ervisio-logs:dev
+    image: ${ERVISIO_LOGS_IMAGE:-ervisio-logs:dev}
     command: ["migrate", "up"]
     environment: *app-env
     # The image HEALTHCHECK probes the HTTP server, which this one-shot job never starts.
@@ -96,7 +104,7 @@ services:
 
   app:
     <<: *hardening
-    image: ervisio-logs:dev
+    image: ${ERVISIO_LOGS_IMAGE:-ervisio-logs:dev}
     command: ["serve"]
     environment:
       <<: *app-env

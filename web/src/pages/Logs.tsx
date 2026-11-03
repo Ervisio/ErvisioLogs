@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Copy, Pause, Play, Search, X } from 'lucide-react';
 import type { ShellContext } from '../components/Shell';
-import { api, ApiError, tailUrl, type LogItem, type Project, type SearchResult } from '../lib/api';
+import { api, ApiError, tailUrl, type ExportRequest, type LogItem, type Project, type SavedFilter, type SearchResult } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/cn';
-import { parseQuery } from '../lib/query';
+import { formatQuery, parseQuery } from '../lib/query';
+import LogViews from '../components/LogViews';
 import FirstEvent from './FirstEvent';
 
 const RANGES = [
@@ -202,6 +203,31 @@ export default function Logs({ project, live: startLive }: { project: Project; l
     setRange(value);
   };
 
+  const navigate = useNavigate();
+  const filter: SavedFilter = {
+    query: parsed.text || undefined,
+    filters: parsed.filters.length ? parsed.filters : undefined,
+    levels: levels.length ? levels : undefined,
+    streams: streamName ? [streamName] : undefined,
+  };
+  const applyView = (view: SavedFilter) => {
+    const text = formatQuery(view.query ?? '', view.filters ?? []);
+    setInput(text);
+    setApplied(text);
+    setLevels(view.levels ?? []);
+    const known = RANGES.find((r) => r.key === view.range);
+    if (known) pickRange(known.key);
+    const target = view.streams?.length ? streams.find((s) => s.name === view.streams![0]) : undefined;
+    if (target?.id !== streamId) navigate(target ? `/projects/${project.id}/streams/${target.id}` : `/projects/${project.id}`);
+  };
+  const exportRequest = (format: ExportRequest['format']): ExportRequest => ({
+    ...filter,
+    project_id: project.id,
+    from: new Date(Date.now() - RANGES.find((r) => r.key === range)!.ms).toISOString(),
+    environments: envName ? [envName] : undefined,
+    format,
+  });
+
   // Live rows can repeat an event the search already returned.
   const seen = new Set(liveItems.map((i) => i.id));
   const shown = liveItems.length ? [...liveItems, ...items.filter((i) => !seen.has(i.id))] : items;
@@ -304,6 +330,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
             </option>
           ))}
         </select>
+        {!startLive && <LogViews project={project} current={{ ...filter, range }} onApply={applyView} exportRequest={exportRequest} />}
       </div>
 
       {result?.status === 'ready' && result.partial && (

@@ -86,6 +86,7 @@ func newEnv(t *testing.T, mutate func(*config.Auth), providers map[string]oauth.
 	root := chi.NewRouter()
 	root.Use(httpx.RequestIDMiddleware)
 	root.Route("/api/v1", e.api.Routes)
+	e.api.OTLPRoutes(root)
 	e.srv = httptest.NewServer(root)
 	t.Cleanup(e.srv.Close)
 	e.exec = func(q string, args ...any) error { _, err := pool.Exec(ctx, q, args...); return err }

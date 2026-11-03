@@ -26,6 +26,10 @@ tags:
     description: "Projects, environments and streams."
   - name: logs
     description: "Ingestion, search and live tail."
+  - name: queries
+    description: Saved searches.
+  - name: alerts
+    description: "Alert rules and notification channels."
   - name: tokens
   - name: audit
   - name: admin
@@ -1172,7 +1176,7 @@ paths:
       tags: [logs]
       operationId: searchLogs
       summary: "Search events (logs:read)"
-      description: "Newest first. The time range defaults to the last 24 hours and spans at most 31 days. Pass `next_cursor` back as `cursor` for the next page. `include_total` adds the number of matching events and a count per level over the whole range, not only the page. API tokens may omit `project_id`; sessions must send it. Only the hot tier is searched in this version."
+      description: "Newest first. The time range defaults to the last 24 hours and spans at most 31 days. Pass `next_cursor` back as `cursor` for the next page. `include_total` adds the number of matching events and a count per level over the whole range, not only the page. API tokens may omit `project_id`; sessions must send it."
       security:
         - sessionCookie: []
         - bearerToken: []
@@ -1588,6 +1592,999 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
           $ref: "#/components/responses/Invalid"
+  /api/v1/admin/storage:
+    get:
+      tags: [admin]
+      operationId: adminGetStorage
+      summary: Archive providers, segment totals and cache usage
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Storage overview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageOverview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/storage/providers:
+    post:
+      tags: [admin]
+      operationId: adminCreateProvider
+      summary: Add an archive provider
+      description: "The server opens the provider and runs its health check. Invalid settings answer 422; a failed health check still creates the provider with status `error`. Secrets stay in files under the secrets directory and never travel through the API."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderRequest"
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageProvider"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/admin/storage/providers/{id}:
+    put:
+      tags: [admin]
+      operationId: adminUpdateProvider
+      summary: Change an archive provider
+      description: "The type never changes. The config of a provider that holds segments cannot change (409); the secret file can, to rotate credentials."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Provider id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderRequest"
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageProvider"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [admin]
+      operationId: adminDeleteProvider
+      summary: Remove an archive provider
+      description: A provider that still holds segments cannot be removed (409).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Provider id.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/storage/providers/{id}/test:
+    post:
+      tags: [admin]
+      operationId: adminTestProvider
+      summary: Run the provider health check again
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Provider id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The provider with its new status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageProvider"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/storage/active:
+    put:
+      tags: [admin]
+      operationId: adminSetActiveProvider
+      summary: Choose the provider that receives new segments
+      description: "The provider must pass its health check (422 otherwise). `provider_id: null` stops archiving; hot data then stays until global retention."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider_id]
+              properties:
+                provider_id:
+                  type: [string, "null"]
+                  format: uuid
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Active provider set.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/admin/retention:
+    get:
+      tags: [admin]
+      operationId: adminListRetention
+      summary: List retention policies
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Policies.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RetentionPolicy"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/retention/{scopeType}/{scopeId}:
+    put:
+      tags: [admin]
+      operationId: adminPutRetention
+      summary: Set the retention policy of a scope
+      description: "The instance policy needs every field. Overrides set only ages, inherited field by field (stream > project > workspace > instance)."
+      parameters:
+        - name: scopeType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [instance, workspace, project, stream]
+        - name: scopeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: "Id of the workspace, project or stream. The instance policy uses the nil UUID."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                local_age_hours:
+                  type: integer
+                  minimum: 1
+                global_age_hours:
+                  type: integer
+                  minimum: 1
+                cache_max_bytes:
+                  type: integer
+                  minimum: 1048576
+                high_pct:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                low_pct:
+                  type: integer
+                  minimum: 1
+                  maximum: 99
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The stored policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [admin]
+      operationId: adminDeleteRetention
+      summary: Remove a retention override
+      description: The instance policy cannot be removed (422).
+      parameters:
+        - name: scopeType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [instance, workspace, project, stream]
+        - name: scopeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: "Id of the workspace, project or stream. The instance policy uses the nil UUID."
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Removed; the scope inherits again.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/logs/export:
+    post:
+      tags: [logs]
+      operationId: exportLogs
+      summary: "Export matching events (logs:export)"
+      description: "Streams every event matching the filter, newest first, as NDJSON (default) or CSV, up to the instance cap (ERVISIO_LOGS_EXPORT_MAX_ROWS). `limit` and `cursor` are rejected. When the cap cuts the export short the `X-Export-Truncated: true` trailer is sent; when the stream fails midway the `X-Export-Error` trailer is sent. CSV cells that start with = + - @ tab or CR get a leading quote. Every export is audited as `logs.export`."
+      security:
+        - sessionCookie: []
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportRequest"
+      responses:
+        "200":
+          description: The events, streamed.
+          headers:
+            X-Searched-Tiers:
+              schema:
+                type: string
+            X-Search-Partial:
+              schema:
+                type: string
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: "#/components/schemas/LogItem"
+            text/csv:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/queries:
+    get:
+      tags: [queries]
+      operationId: listSavedQueries
+      summary: "List saved queries of a project"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Saved queries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SavedQuery"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    post:
+      tags: [queries]
+      operationId: createSavedQuery
+      summary: "Save a query"
+      description: "The filter is validated against the project: named streams and environments must exist."
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedQueryRequest"
+      responses:
+        "201":
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedQuery"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/queries/{id}:
+    get:
+      tags: [queries]
+      operationId: getSavedQuery
+      summary: "Get a saved query"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The saved query.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedQuery"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [queries]
+      operationId: updateSavedQuery
+      summary: "Replace a saved query"
+      description: "Only its creator or a member with projects:write may change it. The project cannot change."
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedQueryRequest"
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedQuery"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [queries]
+      operationId: deleteSavedQuery
+      summary: "Delete a saved query"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/notification-channels:
+    get:
+      tags: [alerts]
+      operationId: listChannels
+      summary: "List notification channels of a workspace"
+      description: "Any member may list. URLs are shown redacted (`url_hint`)."
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: workspace_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Channels.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/NotificationChannel"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    post:
+      tags: [alerts]
+      operationId: createChannel
+      summary: "Create a webhook channel (alerts:manage)"
+      description: "The URL must be https and, unless the instance allows it, must not resolve to a private address. For the `ervisio` format the response carries the signing secret once."
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelCreateRequest"
+      responses:
+        "201":
+          description: Created. `secret` is present for the ervisio format only.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannel"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: Alerts are not available on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/notification-channels/{id}:
+    get:
+      tags: [alerts]
+      operationId: getChannel
+      summary: "Get a channel"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannel"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [alerts]
+      operationId: updateChannel
+      summary: "Change a channel (alerts:manage)"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelUpdateRequest"
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannel"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: Alerts are not available on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+    delete:
+      tags: [alerts]
+      operationId: deleteChannel
+      summary: "Delete a channel (alerts:manage)"
+      description: "Rules that named it stop sending to it."
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/notification-channels/{id}/test:
+    post:
+      tags: [alerts]
+      operationId: testChannel
+      summary: "Send a test notification (alerts:manage)"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The outcome of the delivery.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryOutcome"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: Alerts are not available on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/notification-channels/{id}/rotate-secret:
+    post:
+      tags: [alerts]
+      operationId: rotateChannelSecret
+      summary: "Rotate the signing secret (alerts:manage)"
+      description: "The old secret stops working at once. The response carries the new secret once."
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationChannel"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: Alerts are not available on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/alerts:
+    get:
+      tags: [alerts]
+      operationId: listRules
+      summary: "List alert rules of a project"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Rules.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AlertRule"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    post:
+      tags: [alerts]
+      operationId: createRule
+      summary: "Create an alert rule (alerts:manage)"
+      description: "The rule fires when more than `threshold` events match the filter over the last `window_seconds` (60 to 86400), evaluated every `interval_seconds` (30 to 86400, default 60). Only the hot tier is counted."
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertRuleRequest"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: Alerts are not available on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/alerts/{id}:
+    get:
+      tags: [alerts]
+      operationId: getRule
+      summary: "Get an alert rule"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The rule.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [alerts]
+      operationId: updateRule
+      summary: "Replace an alert rule (alerts:manage)"
+      description: "The project cannot change."
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertRuleRequest"
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: Alerts are not available on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+    delete:
+      tags: [alerts]
+      operationId: deleteRule
+      summary: "Delete an alert rule (alerts:manage)"
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/alerts/{id}/events:
+    get:
+      tags: [alerts]
+      operationId: listRuleEvents
+      summary: "List state changes of a rule"
+      description: "Newest first, kept for ERVISIO_LOGS_ALERTS_HISTORY_RETENTION."
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: History.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AlertEvent"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/logs:
+    post:
+      tags: [logs]
+      operationId: otlpLogs
+      summary: "OTLP/HTTP log ingest (logs:ingest, not yet validated)"
+      description: "Accepts an OTLP ExportLogsServiceRequest as application/x-protobuf or application/json, optionally gzip encoded, with at most 1000 log records. ADR 0010 describes the mapping. Interoperability with OpenTelemetry collectors has not been validated yet. Error bodies are problem JSON, not google.rpc.Status."
+      security:
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/x-protobuf:
+            schema:
+              type: string
+              format: binary
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: "Records accepted; `partialSuccess` reports rejected records."
+          content:
+            application/x-protobuf:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedEncoding"
+        "503":
+          $ref: "#/components/responses/IngestUnavailable"
 components:
   securitySchemes:
     metricsToken:
@@ -2176,3 +3173,471 @@ components:
           type: string
           description: "Send as `X-CSRF-Token` on every POST, PATCH and DELETE made with the session cookie."
       additionalProperties: false
+    ProviderRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        type:
+          type: string
+          enum: [s3, sftp, local]
+        config:
+          type: object
+          description: "Non-secret settings of the provider type (endpoint, bucket, host, path...). Unknown fields are refused."
+        secret_file:
+          type: [string, "null"]
+          description: File name inside the secrets directory that holds the credentials.
+      additionalProperties: false
+    StorageProvider:
+      type: object
+      required: [id, name, type, config, secret_file, active, status, last_error, last_checked_at, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [s3, sftp, local]
+        config:
+          type: object
+        secret_file:
+          type: [string, "null"]
+        active:
+          type: boolean
+        status:
+          type: string
+          enum: [unknown, ok, error]
+        last_error:
+          type: [string, "null"]
+        last_checked_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    StorageOverview:
+      type: object
+      required: [providers, segments, archiver_enabled]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StorageProvider"
+        segments:
+          type: object
+          description: Segment count and bytes by state.
+          additionalProperties:
+            type: object
+            required: [count, bytes]
+            properties:
+              count:
+                type: integer
+              bytes:
+                type: integer
+            additionalProperties: false
+        archiver_enabled:
+          type: boolean
+        usage:
+          type: object
+          description: Present when the archiver runs and ClickHouse answers.
+          required: [hot_bytes, cache_bytes, max_bytes, high_pct, low_pct, over_capacity]
+          properties:
+            hot_bytes:
+              type: integer
+            cache_bytes:
+              type: integer
+            max_bytes:
+              type: integer
+            high_pct:
+              type: integer
+            low_pct:
+              type: integer
+            over_capacity:
+              type: boolean
+          additionalProperties: false
+      additionalProperties: false
+    RetentionPolicy:
+      type: object
+      required: [scope_type, scope_id, local_age_hours, global_age_hours, updated_by, updated_at]
+      properties:
+        scope_type:
+          type: string
+          enum: [instance, workspace, project, stream]
+        scope_id:
+          type: string
+          format: uuid
+        local_age_hours:
+          type: [integer, "null"]
+        global_age_hours:
+          type: [integer, "null"]
+        cache_max_bytes:
+          type: integer
+        high_pct:
+          type: integer
+        low_pct:
+          type: integer
+        updated_by:
+          type: [string, "null"]
+          format: uuid
+        updated_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ExportRequest:
+      description: "A SearchRequest without `limit`, `cursor` and `include_total`, plus the output format."
+      type: object
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        query:
+          type: string
+        severity_min:
+          type: integer
+          minimum: 0
+          maximum: 255
+        levels:
+          type: array
+          items:
+            type: string
+        streams:
+          type: array
+          items:
+            type: string
+        environments:
+          type: array
+          items:
+            type: string
+        events:
+          type: array
+          items:
+            type: string
+        services:
+          type: array
+          items:
+            type: string
+        trace_id:
+          type: string
+        filters:
+          type: array
+          items:
+            type: object
+        format:
+          type: string
+          enum: [ndjson, csv]
+          default: ndjson
+      additionalProperties: false
+    SavedFilter:
+      description: "The filter fields of a SearchRequest. `range` is a relative window such as `15m`, `24h` or `7d` (at most 31 days); alert rules ignore it and use their own window."
+      type: object
+      properties:
+        range:
+          type: string
+        query:
+          type: string
+        severity_min:
+          type: integer
+          minimum: 0
+          maximum: 255
+        levels:
+          type: array
+          items:
+            type: string
+        streams:
+          type: array
+          items:
+            type: string
+        environments:
+          type: array
+          items:
+            type: string
+        events:
+          type: array
+          items:
+            type: string
+        services:
+          type: array
+          items:
+            type: string
+        trace_id:
+          type: string
+        filters:
+          type: array
+          items:
+            type: object
+            required: [field, op]
+            properties:
+              field:
+                type: string
+              op:
+                type: string
+                enum: [eq, neq, contains, exists, gt, gte, lt, lte]
+              value:
+                type: string
+            additionalProperties: false
+      additionalProperties: false
+    SavedQueryRequest:
+      type: object
+      required: [project_id, name, query]
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        query:
+          $ref: "#/components/schemas/SavedFilter"
+      additionalProperties: false
+    SavedQuery:
+      type: object
+      required: [id, workspace_id, project_id, name, query, created_by, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        query:
+          $ref: "#/components/schemas/SavedFilter"
+        created_by:
+          type: [string, "null"]
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ChannelCreateRequest:
+      type: object
+      required: [workspace_id, name, url]
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        type:
+          type: string
+          enum: [webhook]
+          default: webhook
+        format:
+          type: string
+          enum: [ervisio, slack, discord]
+          default: ervisio
+          description: "`ervisio` sends the signed JSON payload of ADR 0010; `slack` and `discord` send a text message their incoming webhooks accept."
+        url:
+          type: string
+          format: uri
+      additionalProperties: false
+    ChannelUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        format:
+          type: string
+          enum: [ervisio, slack, discord]
+        url:
+          type: string
+          format: uri
+        enabled:
+          type: boolean
+      additionalProperties: false
+    NotificationChannel:
+      type: object
+      required: [id, workspace_id, name, type, format, enabled, url_hint, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [webhook]
+        format:
+          type: string
+          enum: [ervisio, slack, discord]
+        enabled:
+          type: boolean
+        url_hint:
+          type: string
+          description: Scheme and host of the URL; the path and query are never shown.
+        secret:
+          type: string
+          description: "Signing secret. Present only when a channel of the ervisio format is created or its secret rotated."
+        last_status:
+          type: [string, "null"]
+        last_error:
+          type: [string, "null"]
+        last_sent_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DeliveryOutcome:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: string
+    AlertRuleRequest:
+      type: object
+      required: [project_id, name, query, window_seconds, threshold]
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        query:
+          $ref: "#/components/schemas/SavedFilter"
+        window_seconds:
+          type: integer
+          minimum: 60
+          maximum: 86400
+        threshold:
+          type: integer
+          minimum: 0
+        interval_seconds:
+          type: integer
+          minimum: 30
+          maximum: 86400
+          default: 60
+        channel_ids:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            format: uuid
+        enabled:
+          type: boolean
+          default: true
+      additionalProperties: false
+    AlertRule:
+      type: object
+      required: [id, workspace_id, project_id, name, query, window_seconds, threshold, interval_seconds, channel_ids, enabled, state, next_eval_at, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        query:
+          $ref: "#/components/schemas/SavedFilter"
+        window_seconds:
+          type: integer
+        threshold:
+          type: integer
+        interval_seconds:
+          type: integer
+        channel_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        enabled:
+          type: boolean
+        state:
+          type: string
+          enum: [ok, firing, error]
+        last_value:
+          type: [integer, "null"]
+        last_error:
+          type: [string, "null"]
+        last_evaluated_at:
+          type: [string, "null"]
+          format: date-time
+        next_eval_at:
+          type: string
+          format: date-time
+        created_by:
+          type: [string, "null"]
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AlertEvent:
+      type: object
+      required: [id, workspace_id, rule_id, status, deliveries, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        rule_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [firing, resolved, error]
+        value:
+          type: [integer, "null"]
+        detail:
+          type: [string, "null"]
+        deliveries:
+          type: array
+          items:
+            type: object
+            required: [channel_id, ok]
+            properties:
+              channel_id:
+                type: string
+                format: uuid
+              ok:
+                type: boolean
+              error:
+                type: string
+        created_at:
+          type: string
+          format: date-time

@@ -64,6 +64,116 @@ export type SearchResult = {
   searched_tiers: string[];
   partial: boolean;
 };
+export type ProviderType = 's3' | 'sftp' | 'local';
+export type StorageProvider = {
+  id: string;
+  name: string;
+  type: ProviderType;
+  config: Record<string, unknown>;
+  secret_file: string | null;
+  active: boolean;
+  status: 'unknown' | 'ok' | 'error';
+  last_error: string | null;
+  last_checked_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type StorageUsage = {
+  hot_bytes: number;
+  cache_bytes: number;
+  max_bytes: number;
+  high_pct: number;
+  low_pct: number;
+  over_capacity: boolean;
+};
+export type StorageOverview = {
+  providers: StorageProvider[] | null;
+  segments: Record<string, { count: number; bytes: number }>;
+  archiver_enabled: boolean;
+  usage?: StorageUsage;
+};
+export type ScopeType = 'instance' | 'workspace' | 'project' | 'stream';
+export type RetentionPolicy = {
+  scope_type: ScopeType;
+  scope_id: string;
+  local_age_hours: number | null;
+  global_age_hours: number | null;
+  cache_max_bytes?: number;
+  high_pct?: number;
+  low_pct?: number;
+  updated_by: string | null;
+  updated_at: string;
+};
+export type RetentionInput = Partial<Pick<RetentionPolicy, 'local_age_hours' | 'global_age_hours' | 'cache_max_bytes' | 'high_pct' | 'low_pct'>>;
+export type ProviderInput = { name: string; type?: ProviderType; config: Record<string, unknown>; secret_file: string | null };
+export const INSTANCE_SCOPE = '00000000-0000-0000-0000-000000000000';
+
+export type SavedFilter = {
+  range?: string;
+  query?: string;
+  levels?: string[];
+  streams?: string[];
+  environments?: string[];
+  filters?: AttrFilter[];
+};
+export type SavedQuery = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  name: string;
+  query: SavedFilter;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type ChannelFormat = 'ervisio' | 'slack' | 'discord';
+export type NotificationChannel = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  type: 'webhook';
+  format: ChannelFormat;
+  enabled: boolean;
+  url_hint: string;
+  secret?: string;
+  last_status: string | null;
+  last_error: string | null;
+  last_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type AlertRuleInput = {
+  project_id: string;
+  name: string;
+  query: SavedFilter;
+  window_seconds: number;
+  threshold: number;
+  interval_seconds?: number;
+  channel_ids?: string[];
+  enabled?: boolean;
+};
+export type AlertRule = Required<AlertRuleInput> & {
+  id: string;
+  workspace_id: string;
+  state: 'ok' | 'firing' | 'error';
+  last_value: number | null;
+  last_error: string | null;
+  last_evaluated_at: string | null;
+  next_eval_at: string;
+  created_at: string;
+  updated_at: string;
+};
+export type AlertEvent = {
+  id: string;
+  rule_id: string;
+  status: 'firing' | 'resolved' | 'error';
+  value: number | null;
+  detail: string | null;
+  deliveries: { channel_id: string; ok: boolean; error?: string }[];
+  created_at: string;
+};
+export type ExportRequest = Omit<SearchRequest, 'limit' | 'cursor' | 'include_total'> & { format: 'ndjson' | 'csv' };
+
 export type Session = { user: User; workspaces: Workspace[]; csrf_token: string };
 export type Providers = {
   local: boolean;
@@ -144,6 +254,49 @@ export const api = {
     request<void>('PATCH', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`, { role }),
   removeMember: (workspaceId: string, userId: string) =>
     request<void>('DELETE', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`),
+  storage: (signal?: AbortSignal) => request<StorageOverview>('GET', '/admin/storage', undefined, signal),
+  createProvider: (body: ProviderInput) => request<StorageProvider>('POST', '/admin/storage/providers', body),
+  updateProvider: (id: string, body: ProviderInput) =>
+    request<StorageProvider>('PUT', `/admin/storage/providers/${encodeURIComponent(id)}`, body),
+  deleteProvider: (id: string) => request<void>('DELETE', `/admin/storage/providers/${encodeURIComponent(id)}`),
+  testProvider: (id: string) => request<StorageProvider>('POST', `/admin/storage/providers/${encodeURIComponent(id)}/test`),
+  setActiveProvider: (id: string | null) => request<void>('PUT', '/admin/storage/active', { provider_id: id }),
+  retention: (signal?: AbortSignal) => list<RetentionPolicy>('/admin/retention', signal),
+  putRetention: (scope: ScopeType, id: string, body: RetentionInput) =>
+    request<RetentionPolicy>('PUT', `/admin/retention/${scope}/${encodeURIComponent(id)}`, body),
+  deleteRetention: (scope: ScopeType, id: string) =>
+    request<void>('DELETE', `/admin/retention/${scope}/${encodeURIComponent(id)}`),
+  savedQueries: (projectId: string, signal?: AbortSignal) =>
+    list<SavedQuery>(`/queries?project_id=${encodeURIComponent(projectId)}`, signal),
+  createSavedQuery: (body: { project_id: string; name: string; query: SavedFilter }) => request<SavedQuery>('POST', '/queries', body),
+  deleteSavedQuery: (id: string) => request<void>('DELETE', `/queries/${encodeURIComponent(id)}`),
+  channels: (workspaceId: string, signal?: AbortSignal) =>
+    list<NotificationChannel>(`/notification-channels?workspace_id=${encodeURIComponent(workspaceId)}`, signal),
+  createChannel: (body: { workspace_id: string; name: string; format: ChannelFormat; url: string }) =>
+    request<NotificationChannel>('POST', '/notification-channels', body),
+  updateChannel: (id: string, body: { name?: string; format?: ChannelFormat; url?: string; enabled?: boolean }) =>
+    request<NotificationChannel>('PATCH', `/notification-channels/${encodeURIComponent(id)}`, body),
+  deleteChannel: (id: string) => request<void>('DELETE', `/notification-channels/${encodeURIComponent(id)}`),
+  testChannel: (id: string) => request<{ ok: boolean; error?: string }>('POST', `/notification-channels/${encodeURIComponent(id)}/test`),
+  rotateChannelSecret: (id: string) =>
+    request<NotificationChannel>('POST', `/notification-channels/${encodeURIComponent(id)}/rotate-secret`),
+  alertRules: (projectId: string, signal?: AbortSignal) =>
+    list<AlertRule>(`/alerts?project_id=${encodeURIComponent(projectId)}`, signal),
+  createAlertRule: (body: AlertRuleInput) => request<AlertRule>('POST', '/alerts', body),
+  updateAlertRule: (id: string, body: AlertRuleInput) => request<AlertRule>('PUT', `/alerts/${encodeURIComponent(id)}`, body),
+  deleteAlertRule: (id: string) => request<void>('DELETE', `/alerts/${encodeURIComponent(id)}`),
+  alertEvents: (id: string, signal?: AbortSignal) => list<AlertEvent>(`/alerts/${encodeURIComponent(id)}/events?limit=50`, signal),
+  /** Downloads the export as a Blob. Browsers do not expose HTTP trailers, so truncation is not reported here. */
+  exportLogs: async (body: ExportRequest): Promise<Blob> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+    const res = await fetch('/api/v1/logs/export', { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify(body) });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { detail?: string } | null;
+      throw new ApiError(res.status, data?.detail ?? res.statusText, null);
+    }
+    return res.blob();
+  },
 };
 
 /** URL of the live tail. EventSource sends the session cookie; GET needs no CSRF header. */

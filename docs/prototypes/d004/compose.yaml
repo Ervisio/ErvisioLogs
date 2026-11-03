@@ -1,0 +1,25 @@
+# D004/D005 prototype: retention partitioning and cache accounting in ClickHouse. Started only by run.sh.
+# Nothing is published to the host. The password comes from the env file run.sh generates.
+name: ervlogs-d004
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8-alpine@sha256:87e0a5b72f5465b18eacca7c76850e7ff551c9795c50e451f5646299e5e24146
+    environment:
+      CLICKHOUSE_USER: bench
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run run.sh}
+    volumes: [ch-data:/var/lib/clickhouse]
+    ulimits: { nofile: { soft: 262144, hard: 262144 } }
+
+  bench:
+    build: .
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      PROJECTS: ${PROJECTS:-24}
+      DAYS: ${DAYS:-4}
+      ROWS_PER_PROJECT_DAY: ${ROWS_PER_PROJECT_DAY:-200000}
+    # Read-only view of the ClickHouse data directory, so disk use is measured with du, not taken from ClickHouse.
+    volumes: [ch-data:/ch:ro, ./results:/results]
+    depends_on: [clickhouse]
+
+volumes:
+  ch-data:

@@ -15,12 +15,14 @@ import (
 	"time"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/api"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/archive"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/db"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/ingest"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/migrate"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/server"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/version"
@@ -175,8 +177,10 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if d := cfg.Auth.Discord; d.Enabled() {
 		providers["discord"] = oauth.NewDiscord(d.ClientID, d.ClientSecret, oauth.RedirectURL(cfg.Auth.PublicURL, "discord"))
 	}
-	apiHandlers := api.New(store.New(pool), auth.NewHasher(auth.DefaultParams, 4), cfg.Auth, providers, log)
+	st := store.New(pool)
+	apiHandlers := api.New(st, auth.NewHasher(auth.DefaultParams, 4), cfg.Auth, providers, log)
 	apiHandlers.TrustProxy = cfg.Auth.TrustProxy
+	apiHandlers.Storage = &api.Storage{SecretsDir: cfg.Archive.SecretsDir}
 	// The setup code is only meaningful once the schema exists; before `migrate up` the query fails and
 	// the code is created on the next start.
 	if err := apiHandlers.EnsureSetupCode(ctx); err != nil {
@@ -207,6 +211,30 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}
 	}()
 	defer func() { stopWriter(); <-writerDone }()
+
+	// Archiver (ADR 0008): one pass every Interval; across replicas a Postgres lock keeps one
+	// pass at a time. Interval 0 leaves archiving to another process.
+	if cfg.Archive.Interval > 0 {
+		arch := &archive.Archiver{Store: st, CH: ch, Cfg: cfg.Archive, Log: log.With("component", "archiver"),
+			HTTP: archive.NewCHHTTP(cfg.ClickHouse.HTTPURL, cfg.ClickHouse.Database, cfg.ClickHouse.User, cfg.ClickHouse.Password)}
+		apiHandlers.Logs.OverCapacity = arch.OverCapacity
+		apiHandlers.Logs.Archive = arch
+		apiHandlers.Storage.Archiver = arch
+		actx, stopArchiver := context.WithCancel(context.Background())
+		archiverDone := make(chan struct{})
+		go func() { defer close(archiverDone); arch.Run(actx) }()
+		defer func() { stopArchiver(); <-archiverDone }()
+	}
+
+	// Alerts (ADR 0010): rules are evaluated every Interval by one replica at a time.
+	apiHandlers.Integrations = &api.Integrations{Notify: notify.NewClient(cfg.Alerts.WebhookAllowPrivate),
+		WebhookAllowPrivate: cfg.Alerts.WebhookAllowPrivate, ExportMaxRows: cfg.ExportMaxRows}
+	if cfg.Alerts.Interval > 0 {
+		alctx, stopAlerts := context.WithCancel(context.Background())
+		alertsDone := make(chan struct{})
+		go func() { defer close(alertsDone); apiHandlers.RunAlerts(alctx, cfg.Alerts.Interval, cfg.Alerts.HistoryRetention) }()
+		defer func() { stopAlerts(); <-alertsDone }()
+	}
 
 	srv := server.NewHTTPServer(cfg.HTTPAddr, server.NewRouter(server.Options{
 		Log: log, Health: health, API: apiHandlers, UI: webui.Handler(), MaxBodyBytes: cfg.MaxBodyBytes,
