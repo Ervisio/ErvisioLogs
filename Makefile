@@ -4,7 +4,7 @@ COMPOSE_DEV := $(COMPOSE) -f deploy/compose.dev.yaml
 REDOCLY_VERSION := 2.72.1
 
 .DEFAULT_GOAL := help
-.PHONY: help env up down logs dev-up dev-down build lint test test-backend test-web test-integration smoke openapi-lint ci
+.PHONY: help env up down logs dev-up dev-down build lint test test-backend test-web test-integration smoke e2e openapi-lint ci
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -41,7 +41,7 @@ test: test-backend test-web ## All unit tests
 
 # DESTRUCTIVE: both packages wipe the local dev databases and share them, hence -p 1.
 # -v plus the grep turns any skipped test into a failure: this target must never be a false green.
-test-integration: env ## API and migration tests against real PostgreSQL + ClickHouse (dev stack must be up; wipes it)
+test-integration: env ## API, ingest and migration tests against real PostgreSQL + ClickHouse (dev stack must be up; wipes it)
 	@set -euo pipefail; set -a; . ./.env; set +a; \
 	log="$$(mktemp)"; trap 'rm -f "$$log"' EXIT; \
 	ERVISIO_LOGS_ENV=development \
@@ -51,11 +51,14 @@ test-integration: env ## API and migration tests against real PostgreSQL + Click
 	ERVISIO_LOGS_CLICKHOUSE_PASSWORD="$$CLICKHOUSE_PASSWORD" \
 	ERVISIO_LOGS_SECRET_KEY="$$ERVISIO_LOGS_SECRET_KEY" \
 	ERVISIO_LOGS_PUBLIC_URL="$$ERVISIO_LOGS_PUBLIC_URL" \
-	  go -C backend test -v -tags integration -count=1 -p 1 ./internal/api/ ./internal/migrate/ 2>&1 | tee "$$log"; \
+	  go -C backend test -v -tags integration -count=1 -p 1 ./internal/api/ ./internal/ingest/ ./internal/migrate/ 2>&1 | tee "$$log"; \
 	if grep -Eq -- '--- SKIP|no test files' "$$log"; then echo "test-integration: skipped tests are not allowed" >&2; exit 1; fi
 
 smoke: ## Full end-to-end smoke test in an isolated Compose project
 	scripts/smoke.sh
+
+e2e: ## Browser tests (Playwright) against a fresh stack in an isolated Compose project
+	scripts/e2e.sh
 
 openapi-lint: ## Lint api/openapi.yaml
 	npx --yes @redocly/cli@$(REDOCLY_VERSION) lint api/openapi.yaml
