@@ -3,13 +3,31 @@
     "name": "Ervisio Logs"
   },
   "nav": {
-    "overview": "Overview",
+    "menu": "Open navigation",
+    "closeMenu": "Close navigation",
+    "primary": "Projects",
+    "sections": "Project sections",
+    "allProjects": "All projects",
+    "environment": "Environment",
+    "streams": "Streams",
+    "toggleStreams": "Show or hide streams",
     "explorer": "Log Explorer",
-    "tail": "Live Tail",
+    "live": "Live",
+    "dashboards": "Dashboards",
+    "alerts": "Alerts",
+    "integrations": "Integrations",
+    "storage": "Storage",
+    "usage": "Usage",
+    "audit": "Audit",
     "settings": "Settings",
-    "soon": "Not available yet",
+    "tokens": "API tokens",
+    "users": "Users",
     "collapse": "Collapse",
-    "expand": "Expand"
+    "expand": "Expand",
+    "soon": "Not available yet",
+    "status": "System status",
+    "loadFailed": "Could not load this project.",
+    "allEnvironments": "All"
   },
   "theme": {
     "light": "Light",
@@ -17,10 +35,6 @@
     "toggle": "Switch theme"
   },
   "language": "Language",
-  "overview": {
-    "title": "Overview",
-    "intro": "Events, errors and ingestion rate will appear here once log ingestion ships."
-  },
   "status": {
     "title": "System status",
     "loading": "Checking services…",
@@ -34,9 +48,379 @@
       "clickhouse": "ClickHouse",
       "migrations_postgres": "PostgreSQL migrations",
       "migrations_clickhouse": "ClickHouse migrations"
+    },
+    "intro": "Services this server depends on."
+  },
+  "common": {
+    "retry": "Try again",
+    "working": "Working…"
+  },
+  "account": {
+    "open": "Account",
+    "signOut": "Sign out",
+    "signOutFailed": "Sign out failed. Try again.",
+    "workspace": "Workspace"
+  },
+  "palette": {
+    "open": "Commands",
+    "title": "Command palette",
+    "placeholder": "Search projects, streams and commands",
+    "empty": "No matches.",
+    "projects": "Projects",
+    "streams": "Streams",
+    "sections": "Sections",
+    "actions": "Actions",
+    "hintMove": "Up and down to move",
+    "hintOpen": "Enter to open",
+    "hintClose": "Esc to close"
+  },
+  "explorer": {
+    "allStreams": "All streams",
+    "events_one": "{{n}} event",
+    "events_other": "{{n}} events",
+    "errors_one": "{{n}} error",
+    "errors_other": "{{n}} errors",
+    "search": "Search",
+    "searchPlaceholder": "Search messages, or filter with key=value",
+    "searchHint": "Filter with key=value, key!=value, key~text, key>n or has:key. Other words match the message.",
+    "clear": "Clear search",
+    "levels": "Levels",
+    "range": "Time range",
+    "ranges": {
+      "15m": "Last 15 minutes",
+      "1h": "Last hour",
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days"
+    },
+    "partial": "Some storage did not answer, so these results may be incomplete.",
+    "loading": "Searching…",
+    "failed": "The search failed. Check your connection and try again.",
+    "noMatchTitle": "No events match",
+    "noMatchText": "Widen the time range, clear a level or change the search.",
+    "caption": "Log events, newest first",
+    "col": {
+      "time": "Time",
+      "level": "Level",
+      "stream": "Stream",
+      "resource": "Source",
+      "event": "Event",
+      "message": "Message",
+      "source": "Tier"
+    },
+    "open": "Open event from {{time}}",
+    "tier": {
+      "live": "Live",
+      "hot": "Hot",
+      "unknown": "Unknown"
+    },
+    "shownOf": "Showing {{shown}} of {{total}}",
+    "shown": "Showing {{shown}}",
+    "moreFailed": "Could not load more events.",
+    "more": "Load more",
+    "narrow": "You reached the page limit. Narrow the search to see older events."
+  },
+  "section": {
+    "soonText": "This section is not available in this version."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "text": "This address does not match a page or a project you can open.",
+    "action": "Go to all projects"
+  },
+  "projects": {
+    "title": "All projects",
+    "loading": "Loading projects…",
+    "loadFailed": "Could not load projects.",
+    "none": "This workspace has no projects yet.",
+    "createWorkspaceTitle": "Create your workspace",
+    "createWorkspaceText": "A workspace holds your projects and the people who can see them.",
+    "workspaceName": "Workspace name",
+    "createWorkspace": "Create workspace",
+    "creatingWorkspace": "Creating workspace",
+    "createProjectTitle": "Create a project",
+    "projectName": "Project name",
+    "createProject": "Create project",
+    "creatingProject": "Creating project",
+    "projectHint": "New projects start with a production environment and a default stream.",
+    "nameRequired": "Enter a name.",
+    "nameTooLong": "Use 100 characters at most.",
+    "forbidden": "Your role in this workspace cannot do this. Ask an owner or an admin.",
+    "conflict": "That name is already in use. Choose another.",
+    "failed": "That did not work. Try again."
+  },
+  "login": {
+    "loading": "Loading…",
+    "or": "or",
+    "continueWith": "Continue with {{provider}}",
+    "unreachableTitle": "The server does not answer",
+    "unreachableText": "Check that Ervisio Logs is running, then try again.",
+    "title": {
+      "login": "Sign in",
+      "register": "Create an account",
+      "setup": "Create the first administrator"
+    },
+    "busy": {
+      "login": "Signing in",
+      "register": "Creating account",
+      "setup": "Creating administrator"
+    },
+    "idle": {
+      "login": "Sign in",
+      "register": "Create account",
+      "setup": "Create administrator"
+    },
+    "noAccount": "No account yet?",
+    "createAccount": "Create an account",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "closedText": "Registration is closed. Ask an administrator to create your account.",
+    "backToSignIn": "Back to sign in",
+    "field": {
+      "login": "Email or username",
+      "email": "Email",
+      "username": "Username",
+      "password": "Password",
+      "setup_code": "Setup code"
+    },
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "hint": {
+      "username": "3 to 32 characters: lowercase letters, digits, . _ -",
+      "password": "At least 10 characters, different from email and username."
+    },
+    "invalid": {
+      "loginRequired": "Enter your email or username.",
+      "loginLong": "Use 320 characters at most.",
+      "setupRequired": "Paste the setup code.",
+      "emailRequired": "Enter your email.",
+      "emailInvalid": "Invalid email. Example: name@domain.com",
+      "usernameRequired": "Enter a username.",
+      "usernameLength": "Use 3 to 32 characters.",
+      "usernameStart": "Start with a letter or a digit.",
+      "usernameChars": "Use only lowercase letters, digits, dot, dash and underscore.",
+      "passwordLoginRequired": "Enter your password.",
+      "passwordRequired": "Enter a password.",
+      "passwordShort_one": "Too short: {{count}} more character.",
+      "passwordShort_other": "Too short: {{count}} more characters.",
+      "passwordLong": "Too long: 128 bytes at most.",
+      "passwordSame": "Must differ from email and username."
+    },
+    "setup": {
+      "where": "The server writes the setup code to its logs at startup.",
+      "find": "Find this line and copy the value of setup_code:",
+      "compose": "With Docker Compose:"
+    },
+    "wait": {
+      "seconds_one": "{{count}} second",
+      "seconds_other": "{{count}} seconds",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "later": "a few minutes"
+    },
+    "problem": {
+      "login": {
+        "400": "Invalid request. Reload the page and try again.",
+        "401": "Wrong email, username or password. Check them and try again.",
+        "403": "Request refused. Reload the page and try again.",
+        "413": "Too much data. Shorten the fields and try again.",
+        "429": "Too many attempts. Try again in {{wait}}.",
+        "503": "The server is busy. Try again shortly."
+      },
+      "register": {
+        "400": "Invalid request. Reload the page and try again.",
+        "403": "Registration is closed. Ask an administrator to create your account.",
+        "409": "Email or username already in use. Sign in, or choose others.",
+        "413": "Too much data. Shorten the fields and try again.",
+        "422": "The server rejected this data. Check the fields and try again.",
+        "429": "Too many attempts. Try again in {{wait}}.",
+        "503": "The server is busy. Try again shortly."
+      },
+      "setup": {
+        "400": "Invalid request. Reload the page and try again.",
+        "403": "Setup code wrong or already used. Copy the latest code from the server logs.",
+        "409": "Email or username already in use. Choose others.",
+        "413": "Too much data. Shorten the fields and try again.",
+        "422": "The server rejected this data. Check the fields and try again.",
+        "429": "Too many attempts. Try again in {{wait}}.",
+        "503": "The server is busy. Try again shortly."
+      }
+    },
+    "fallbackText": "Try again. If this continues, tell whoever runs the server.",
+    "errorCode": "Code: {{code}}",
+    "action": {
+      "login": "Sign in with email and password",
+      "setup": "Create the first administrator"
+    },
+    "error": {
+      "fallback": {
+        "title": "Sign in failed",
+        "text": "Try again. If this continues, tell whoever runs the server."
+      },
+      "provider_denied": {
+        "title": "Sign in cancelled",
+        "text": "The provider did not grant access. Try again, or use email and password."
+      },
+      "invalid_request": {
+        "title": "Incomplete response from the provider",
+        "text": "The response is missing data. Try again from the provider button."
+      },
+      "invalid_state": {
+        "title": "Invalid sign in request",
+        "text": "The request expired or started in another browser. Try again from this browser."
+      },
+      "exchange_failed": {
+        "title": "The provider did not complete sign in",
+        "text": "Try again shortly. If this continues, use email and password or tell an administrator."
+      },
+      "email_unverified": {
+        "title": "Email not verified",
+        "text": "The provider does not confirm your email. Verify it in your provider account, then try again."
+      },
+      "email_in_use": {
+        "title": "This email already has an account",
+        "text": "The account has a password and the email is not verified, so the provider cannot link to it. Sign in with email and password."
+      },
+      "identity_conflict": {
+        "title": "Provider linked to another profile",
+        "text": "Your account already uses another profile from this provider. Sign in with that profile, or with email and password."
+      },
+      "registration_closed": {
+        "title": "Registration is closed",
+        "text": "No account uses this email and new users are not accepted. Ask an administrator to create your account."
+      },
+      "setup_required": {
+        "title": "The first administrator is missing",
+        "text": "You create the first account with the setup code, not with a provider."
+      },
+      "account_disabled": {
+        "title": "Account disabled",
+        "text": "Ask an administrator to reactivate it."
+      },
+      "server_error": {
+        "title": "Server error",
+        "text": "Sign in failed. Try again shortly. If this continues, tell whoever runs the server."
+      }
     }
   },
-  "search": {
-    "placeholder": "Search or run a command"
+  "live": {
+    "at": "Live, last event {{time}}",
+    "on": "Live",
+    "connecting": "Connecting…",
+    "noFilters": "Live view does not support key=value filters. Remove them to go live.",
+    "pause": "Pause",
+    "start": "Go live",
+    "waitingTitle": "Waiting for events",
+    "waitingText": "New events that match these filters appear here as they arrive."
+  },
+  "detail": {
+    "time": "Time",
+    "received": "Received",
+    "environment": "Environment",
+    "service": "Service",
+    "host": "Host",
+    "trace": "Trace",
+    "title": "Event details",
+    "copy": "Copy JSON",
+    "copied": "Copied",
+    "close": "Close",
+    "attributes": "Attributes"
+  },
+  "first": {
+    "title": "Send the first event to {{project}}",
+    "text": "Connect a server in three steps. It takes about a minute.",
+    "step1": "Create an ingest token",
+    "step1Text": "Your server sends events with this token. It can only write logs to this project.",
+    "createToken": "Create token",
+    "tokenReady": "Token created.",
+    "manageTokens": "Manage tokens",
+    "step2": "Send an event",
+    "step2Text": "Run this from your server, or send a test event from here.",
+    "copy": "Copy",
+    "tokenOnce": "Copy the token now. You will not see it again after you leave this page.",
+    "sendTest": "Send a test event",
+    "step3": "See it arrive",
+    "waiting": "Waiting for the first event…",
+    "tokenName": "First server",
+    "testMessage": "Test event from the setup page",
+    "forbidden": "You need permission to manage tokens. Ask a project admin.",
+    "tokenFailed": "Could not create the token. Try again.",
+    "sendFailed": "The test event was not accepted. Try again or use the command above."
+  },
+  "tokens": {
+    "intro": "Servers and scripts use API tokens to send or read logs. Each token belongs to this project.",
+    "createdTitle": "Token {{name}} created",
+    "createdText": "Copy it now. You will not see it again.",
+    "done": "I copied it",
+    "active": "Active tokens",
+    "loading": "Loading tokens…",
+    "forbidden": "You need permission to manage tokens. Ask a project admin.",
+    "loadFailed": "Could not load tokens.",
+    "none": "No active tokens.",
+    "created": "Created {{date}}",
+    "used": "last used {{date}}",
+    "neverUsed": "never used",
+    "expires": "expires {{date}}",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke {{name}}? Anything using it stops working.",
+    "revokeFailed": "Could not revoke the token.",
+    "revokedCount_one": "{{count}} revoked token",
+    "revokedCount_other": "{{count}} revoked tokens",
+    "revokedOn": "revoked {{date}}",
+    "new": "New token",
+    "name": "Name",
+    "namePlaceholder": "Production server",
+    "scopes": "Permissions",
+    "scope": {
+      "ingest": "send logs",
+      "read": "search and read logs",
+      "export": "export logs"
+    },
+    "nameRequired": "Enter a name.",
+    "scopeRequired": "Pick at least one permission.",
+    "create": "Create token",
+    "createFailed": "Could not create the token."
+  },
+  "users": {
+    "intro": "These people can open {{workspace}} and every project in it. A role sets what each person can do.",
+    "members": "Members",
+    "loading": "Loading members…",
+    "loadFailed": "Could not load members.",
+    "forbidden": "You need permission to manage members. Ask a workspace owner or admin.",
+    "you": "(you)",
+    "joined": "Joined {{date}}",
+    "roleOf": "Role of {{name}}",
+    "leave": "Leave workspace",
+    "remove": "Remove",
+    "removeOne": "Remove {{name}}",
+    "removeConfirm": "Remove {{name}} from {{workspace}}?",
+    "roleFailed": "Could not change the role.",
+    "removeFailed": "Could not remove the member.",
+    "lastOwner": "A workspace needs at least one owner. Make someone else owner first.",
+    "add": "Add a member",
+    "email": "Email",
+    "emailHint": "The person needs an account on this instance already.",
+    "emailInvalid": "Enter a valid email address.",
+    "roleLabel": "Role",
+    "addButton": "Add member",
+    "added": "{{name}} joined as {{role}}.",
+    "noAccount": "No account uses this email. Ask an instance admin to create it first.",
+    "already": "This person is already a member.",
+    "addFailed": "Could not add the member.",
+    "rolesTitle": "What each role can do",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "developer": "Developer",
+      "analyst": "Analyst",
+      "viewer": "Viewer"
+    },
+    "roleText": {
+      "owner": "Everything, including workspace settings and granting the owner role.",
+      "admin": "Manage members, tokens, storage and alerts. Read, export and delete logs.",
+      "developer": "Create projects and tokens, set up alerts, read and export logs.",
+      "analyst": "Search, read and export logs.",
+      "viewer": "Search and read logs."
+    }
   }
 }

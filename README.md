@@ -2,8 +2,9 @@
 
 Self-hosted, API-first, multi-tenant log management. Standalone first, optional Ervisio plugin later.
 
-Status: **P0 complete, P1 backend complete, P1 frontend not started.** The API handles accounts, sign-in, workspaces,
-RBAC, API tokens and audit. The web app is still the P0 shell, and the service cannot ingest or search logs yet. See
+Status: **P0 to P3 implemented; P4 to P7 not started.** You can create the first administrator, a workspace and a
+project, issue an API token, send events over HTTP and find them in the Log Explorer or the live tail. Archives,
+retention, SDKs, alerts and the Ervisio plugin do not exist yet. See
 [`ervisio-logs-spec/implementation/PROGRESS.md`](ervisio-logs-spec/implementation/PROGRESS.md).
 
 ## Quick start
@@ -17,6 +18,24 @@ make down
 ```
 
 `make smoke` runs the full end-to-end check in an isolated Compose project and removes it afterwards.
+`make e2e` (or `scripts/e2e.sh`) does the same with a browser: it starts a fresh stack with random secrets, runs the
+Playwright suite in `web/e2e/` (first administrator, project, token, ingest, search, phone layout, dark theme) and
+removes the stack. Pass Playwright arguments through, for example `scripts/e2e.sh --headed`.
+
+## First run and sign-in
+
+The first person to open the app enters the setup code and becomes the instance administrator; afterwards the code does
+nothing. Set it with `ERVISIO_LOGS_SETUP_CODE`, or leave it unset and read the generated one from the app log
+(`make logs`). Self-registration stays off unless
+you set `ERVISIO_LOGS_OPEN_REGISTRATION=true`. Google, AWS Cognito and Discord sign-in turn on when you set their client id and
+secret (see `.env.example`); they have not been tested against the real providers yet.
+
+Members belong to a workspace. Owners and admins add people by email under Settings, Users; the person needs an
+account first. Servers send events with an API token (`evl_...`) created under Settings, API tokens:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/ingest   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"   -d '{"level":"info","event":"player.joined","message":"ada joined","attributes":{"user":"ada"}}'
+```
 
 ## Layout
 

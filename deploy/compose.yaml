@@ -28,6 +28,10 @@ x-app-env: &app-env
   ERVISIO_LOGS_COGNITO_ISSUER: ${ERVISIO_LOGS_COGNITO_ISSUER:-}
   ERVISIO_LOGS_DISCORD_CLIENT_ID: ${ERVISIO_LOGS_DISCORD_CLIENT_ID:-}
   ERVISIO_LOGS_DISCORD_CLIENT_SECRET: ${ERVISIO_LOGS_DISCORD_CLIENT_SECRET:-}
+  ERVISIO_LOGS_SPOOL_MAX_BYTES: ${ERVISIO_LOGS_SPOOL_MAX_BYTES:-1073741824}
+  ERVISIO_LOGS_INGEST_MAX_FUTURE_SKEW: ${ERVISIO_LOGS_INGEST_MAX_FUTURE_SKEW:-5m}
+  ERVISIO_LOGS_INGEST_MAX_PAST_AGE: ${ERVISIO_LOGS_INGEST_MAX_PAST_AGE:-168h}
+  ERVISIO_LOGS_METRICS_TOKEN: ${ERVISIO_LOGS_METRICS_TOKEN:-}
 
 x-hardening: &hardening
   security_opt: ["no-new-privileges:true"]
@@ -104,9 +108,9 @@ services:
       migrate: { condition: service_completed_successfully }
     read_only: true
     tmpfs: ["/tmp:size=16m"]
-    # Dedicated volumes for the durable spool (P2) and archive cache (P4) are declared now so
-    # their disk budgets stay independent from the databases; nothing writes to them yet. The image
-    # owns these paths as the non-root user, which Docker copies onto a volume when it is first created.
+    # The spool holds acknowledged events until ClickHouse has them: losing this volume loses
+    # those events. The cache volume is for the archive tier (P4). The image owns these paths as
+    # the non-root user, which Docker copies onto a volume when it is first created.
     volumes:
       - spool:/var/lib/ervisio-logs/spool
       - cache:/var/lib/ervisio-logs/cache

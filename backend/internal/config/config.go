@@ -81,6 +81,21 @@ type Config struct {
 	Postgres     Postgres
 	ClickHouse   ClickHouse
 	Auth         Auth
+	Ingest       Ingest
+}
+
+// Ingest holds the durable spool (WAL) and ingest limits.
+type Ingest struct {
+	// SpoolDir holds the WAL. Give it its own volume: its budget is independent of the databases.
+	SpoolDir string
+	// SpoolMaxBytes is the WAL disk budget. When full, ingest answers 503.
+	SpoolMaxBytes int64
+	// MaxFutureSkew and MaxPastAge bound event timestamps (provisional until D007).
+	MaxFutureSkew time.Duration
+	MaxPastAge    time.Duration
+	// MetricsToken, when set, protects /metrics with a bearer token. Unset: /metrics is served only
+	// in development.
+	MetricsToken string
 }
 
 // Load reads the configuration using os.Getenv / os.ReadFile and validates it.
@@ -134,7 +149,18 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 			Discord: OAuthProvider{ClientID: get("DISCORD_CLIENT_ID", ""), ClientSecret: secret("DISCORD_CLIENT_SECRET")},
 		},
 	}
+	c.Ingest.SpoolDir = get("SPOOL_DIR", "/var/lib/ervisio-logs/spool")
+	c.Ingest.MetricsToken = secret("METRICS_TOKEN")
 	var perr error
+	if c.Ingest.SpoolMaxBytes, perr = strconv.ParseInt(get("SPOOL_MAX_BYTES", "1073741824"), 10, 64); perr != nil || c.Ingest.SpoolMaxBytes < 1<<20 {
+		errs = append(errs, fmt.Errorf("%sSPOOL_MAX_BYTES must be an integer of at least 1048576", prefix))
+	}
+	if c.Ingest.MaxFutureSkew, perr = time.ParseDuration(get("INGEST_MAX_FUTURE_SKEW", "5m")); perr != nil || c.Ingest.MaxFutureSkew < 0 {
+		errs = append(errs, fmt.Errorf("%sINGEST_MAX_FUTURE_SKEW must be a non-negative duration", prefix))
+	}
+	if c.Ingest.MaxPastAge, perr = time.ParseDuration(get("INGEST_MAX_PAST_AGE", "168h")); perr != nil || c.Ingest.MaxPastAge <= 0 {
+		errs = append(errs, fmt.Errorf("%sINGEST_MAX_PAST_AGE must be a positive duration", prefix))
+	}
 	if c.Auth.OpenRegistration, perr = strconv.ParseBool(get("OPEN_REGISTRATION", "false")); perr != nil {
 		errs = append(errs, fmt.Errorf("%sOPEN_REGISTRATION must be a boolean", prefix))
 	}
@@ -237,5 +263,7 @@ func (c Config) Redacted() map[string]any {
 		"oauth_google": c.Auth.Google.Enabled(), "oauth_cognito": c.Auth.Cognito.Enabled(), "oauth_discord": c.Auth.Discord.Enabled(),
 		"postgres_host": host, "clickhouse_addr": c.ClickHouse.Addr,
 		"clickhouse_database": c.ClickHouse.Database, "clickhouse_tls": c.ClickHouse.TLS,
+		"spool_dir": c.Ingest.SpoolDir, "spool_max_bytes": c.Ingest.SpoolMaxBytes,
+		"metrics_protected": c.Ingest.MetricsToken != "",
 	}
 }

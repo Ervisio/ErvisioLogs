@@ -48,6 +48,11 @@ type API struct {
 	Log       *slog.Logger
 	// TrustProxy makes the client IP come from the last X-Forwarded-For entry (set by your reverse proxy).
 	TrustProxy bool
+	// Logs enables ingest, search and tail. Nil in tests that do not need them.
+	Logs *Logs
+
+	catalog   catalog
+	tailCount atomic.Int64
 
 	setupMu   sync.Mutex
 	setupCode string
@@ -151,6 +156,11 @@ func (a *API) Routes(r chi.Router) {
 	r.Get("/projects/{id}/streams", a.listStreams)
 	r.Post("/projects/{id}/streams", a.createStream)
 	r.Delete("/projects/{id}/streams/{streamId}", a.deleteStream)
+
+	r.Post("/ingest", a.ingestOne)
+	r.Post("/ingest/batch", a.ingestBatch)
+	r.Post("/logs/search", a.searchLogs)
+	r.Get("/logs/tail", a.tailLogs)
 
 	r.Get("/tokens", a.listTokens)
 	r.Post("/tokens", a.createToken)
