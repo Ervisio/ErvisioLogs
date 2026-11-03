@@ -1,0 +1,1 @@
+ALTER TABLE events RESET SETTING non_replicated_deduplication_window;

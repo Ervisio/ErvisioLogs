@@ -1,8 +1,8 @@
 openapi: "3.1.0"
 info:
   title: Ervisio Logs API
-  version: "0.2.0"
-  summary: "Phase P1: authentication, tenancy, RBAC, API tokens, audit. Ingestion and search arrive in P2."
+  version: "0.3.0"
+  summary: "Authentication, tenancy, RBAC, API tokens, audit, ingestion, search and live tail."
   description: |
     Base path for feature routes is `/api/v1`. Errors use RFC 7807 `application/problem+json` and carry the `request_id` also returned in `X-Request-ID`.
 
@@ -24,6 +24,8 @@ tags:
   - name: members
   - name: projects
     description: "Projects, environments and streams."
+  - name: logs
+    description: "Ingestion, search and live tail."
   - name: tokens
   - name: audit
   - name: admin
@@ -63,6 +65,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Readiness"
+  /metrics:
+    get:
+      tags: [health]
+      operationId: getMetrics
+      summary: Prometheus metrics
+      description: "Prometheus text format: WAL size and backlog, ClickHouse insert counters and lag, open live tail connections. When `ERVISIO_LOGS_METRICS_TOKEN` is set, send it as `Authorization: Bearer <token>`. Without a token the route answers only in development and returns 404 in production."
+      security:
+        - metricsToken: []
+        - {}
+      responses:
+        "200":
+          description: Metrics.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/auth/providers:
     get:
       tags: [auth]
@@ -1051,6 +1073,224 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/ingest:
+    post:
+      tags: [logs]
+      operationId: ingestEvent
+      summary: "Ingest one event (API token with logs:ingest)"
+      description: "Accepts one event. The 202 answer arrives only after the event is fsynced to the instance's write-ahead log; ClickHouse receives it within seconds. Send `Content-Encoding: gzip` to compress the body. Browser sessions cannot ingest."
+      security:
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InEvent"
+      responses:
+        "202":
+          description: Durably queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedEncoding"
+        "422":
+          description: "The event was rejected; `errors` says why."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+        "503":
+          $ref: "#/components/responses/IngestUnavailable"
+  /api/v1/ingest/batch:
+    post:
+      tags: [logs]
+      operationId: ingestBatch
+      summary: "Ingest up to 1000 events (API token with logs:ingest)"
+      description: "Valid events are accepted and invalid ones rejected one by one: a 202 can carry `rejected > 0`. `stream` and `environment` at the top level are defaults for events that omit them. All accepted events of one request are stored together or not at all."
+      security:
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                stream:
+                  type: string
+                environment:
+                  type: string
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 1000
+                  items:
+                    $ref: "#/components/schemas/InEvent"
+              additionalProperties: false
+      responses:
+        "202":
+          description: "Durably queued. Check `rejected` and `errors`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedEncoding"
+        "422":
+          description: "No event was accepted (`IngestResult`), or the batch is empty or holds more than 1000 events (problem)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestResult"
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          $ref: "#/components/responses/IngestUnavailable"
+  /api/v1/logs/search:
+    post:
+      tags: [logs]
+      operationId: searchLogs
+      summary: "Search events (logs:read)"
+      description: "Newest first. The time range defaults to the last 24 hours and spans at most 31 days. Pass `next_cursor` back as `cursor` for the next page. `include_total` adds the number of matching events and a count per level over the whole range, not only the page. API tokens may omit `project_id`; sessions must send it. Only the hot tier is searched in this version."
+      security:
+        - sessionCookie: []
+        - bearerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: A page of events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: ClickHouse is unavailable or search is not configured.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "504":
+          description: The query ran longer than 30 seconds. Narrow the time range or the filters.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/logs/tail:
+    get:
+      tags: [logs]
+      operationId: tailLogs
+      summary: "Live tail as Server-Sent Events (logs:read)"
+      description: |
+        Streams events as this instance writes them to ClickHouse. Frames:
+        - `event: log` with `id` (resume cursor) and a `LogItem` as `data`;
+        - `event: reset` when `Last-Event-ID` is older than the instance's memory (10000 events): the client missed events and should reload with a search;
+        - `event: overflow` before the server closes a client that fell behind; reconnect with `Last-Event-ID`;
+        - a `: heartbeat` comment every 15 seconds.
+        With several API instances a connection sees only events written by its own instance.
+      security:
+        - sessionCookie: []
+        - bearerToken: []
+      parameters:
+        - name: project_id
+          in: query
+          description: Required with a session; optional with an API token.
+          schema:
+            type: string
+            format: uuid
+        - name: streams
+          in: query
+          description: Comma-separated stream names.
+          schema:
+            type: string
+        - name: environments
+          in: query
+          description: Comma-separated environment names.
+          schema:
+            type: string
+        - name: levels
+          in: query
+          description: Comma-separated levels.
+          schema:
+            type: string
+        - name: events
+          in: query
+          description: Comma-separated event names.
+          schema:
+            type: string
+        - name: severity_min
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 255
+        - name: query
+          in: query
+          description: Case-insensitive substring of the message.
+          schema:
+            type: string
+        - name: Last-Event-ID
+          in: header
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: "Too many open live tail connections (Retry-After: 10), or tail is not configured."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/tokens:
     get:
       tags: [tokens]
@@ -1150,7 +1390,7 @@ paths:
       tags: [tokens]
       operationId: getCurrentToken
       summary: Describe the API token used for this call
-      description: "Send `Authorization: Bearer evl_...`. `scopes` are the effective ones, reduced to what the creator's current role allows. Fails with 401 once the token is revoked or expired, while its creator is disabled or no longer a member of the workspace, or when no scope remains. Ingestion and search (later phases) authenticate the same way."
+      description: "Send `Authorization: Bearer evl_...`. `scopes` are the effective ones, reduced to what the creator's current role allows. Fails with 401 once the token is revoked or expired, while its creator is disabled or no longer a member of the workspace, or when no scope remains. Ingestion, search and live tail authenticate the same way."
       security:
         - bearerToken: []
       responses:
@@ -1350,6 +1590,10 @@ paths:
           $ref: "#/components/responses/Invalid"
 components:
   securitySchemes:
+    metricsToken:
+      type: http
+      scheme: bearer
+      description: "The value of ERVISIO_LOGS_METRICS_TOKEN."
     bearerToken:
       type: http
       scheme: bearer
@@ -1424,7 +1668,228 @@ components:
           description: Seconds to wait.
           schema:
             type: integer
+    UnsupportedEncoding:
+      description: "Content-Encoding is neither gzip nor absent."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    IngestUnavailable:
+      description: "The ingest queue is full or the disk failed. Nothing was acknowledged; retry after Retry-After seconds."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
   schemas:
+    InEvent:
+      type: object
+      description: "Unknown fields are rejected. Attribute keys match `^[A-Za-z0-9_-]+$` (no dots), nest at most 8 levels and total at most 64 KiB."
+      properties:
+        id:
+          type: string
+          maxLength: 128
+          description: "Idempotency key; generated when absent. Resending the same id does not create a duplicate in search results."
+        stream:
+          type: string
+          description: "Stream name; default `default`."
+        environment:
+          type: string
+          description: "Environment name; default from the batch."
+        timestamp:
+          type: string
+          format: date-time
+          description: "RFC 3339; default the time of arrival. Stored with millisecond precision."
+        level:
+          type: string
+          description: "TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL, any case; default INFO. WARNING folds to WARN and CRITICAL to FATAL."
+        event:
+          type: string
+          maxLength: 128
+        message:
+          type: string
+          maxLength: 32768
+        service:
+          type: string
+          maxLength: 256
+        host:
+          type: string
+          maxLength: 256
+        resource:
+          type: string
+          maxLength: 256
+        trace_id:
+          type: string
+        span_id:
+          type: string
+        attributes:
+          type: object
+      additionalProperties: false
+    IngestResult:
+      type: object
+      required: [request_id, accepted, rejected, status, errors]
+      properties:
+        request_id:
+          type: string
+        accepted:
+          type: integer
+        rejected:
+          type: integer
+        status:
+          type: string
+          enum: [durably_queued, rejected]
+        errors:
+          type: array
+          items:
+            type: object
+            required: [index, reason]
+            properties:
+              index:
+                type: integer
+                description: Position of the event in the request.
+              reason:
+                type: string
+      additionalProperties: false
+    SearchRequest:
+      type: object
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        query:
+          type: string
+          description: Case-insensitive substring of the message.
+        severity_min:
+          type: integer
+          minimum: 0
+          maximum: 255
+        levels:
+          type: array
+          items:
+            type: string
+        streams:
+          type: array
+          items:
+            type: string
+        environments:
+          type: array
+          items:
+            type: string
+        events:
+          type: array
+          items:
+            type: string
+        services:
+          type: array
+          items:
+            type: string
+        trace_id:
+          type: string
+        filters:
+          type: array
+          items:
+            type: object
+            required: [field, op]
+            properties:
+              field:
+                type: string
+                description: "Attribute path with dots between keys, for example `player.license`."
+              op:
+                type: string
+                enum: [eq, neq, contains, exists, gt, gte, lt, lte]
+              value:
+                type: string
+            additionalProperties: false
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 100
+        cursor:
+          type: string
+        include_total:
+          type: boolean
+      additionalProperties: false
+    LogItem:
+      type: object
+      required: [id, timestamp, ingested_at, level, severity_number, event, message, stream, environment, service, host, resource, trace_id, span_id, attributes]
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        ingested_at:
+          type: string
+          format: date-time
+        level:
+          type: string
+        severity_number:
+          type: integer
+        event:
+          type: string
+        message:
+          type: string
+        stream:
+          type: string
+        environment:
+          type: string
+        service:
+          type: string
+        host:
+          type: string
+        resource:
+          type: string
+        trace_id:
+          type: string
+        span_id:
+          type: string
+        attributes:
+          type: object
+    SearchResult:
+      type: object
+      required: [items, next_cursor, execution_stats, searched_tiers, partial]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogItem"
+        next_cursor:
+          type: [string, "null"]
+        total:
+          type: integer
+          description: Present when include_total was true.
+        level_counts:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Present when include_total was true.
+        execution_stats:
+          type: object
+          properties:
+            elapsed_ms:
+              type: integer
+            rows_read:
+              type: integer
+            bytes_read:
+              type: integer
+        searched_tiers:
+          type: array
+          items:
+            type: string
+            enum: [hot]
+        partial:
+          type: boolean
     Liveness:
       type: object
       required: [status, version]

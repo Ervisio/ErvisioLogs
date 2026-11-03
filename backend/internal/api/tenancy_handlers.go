@@ -523,6 +523,7 @@ func (a *API) createEnvironment(w http.ResponseWriter, r *http.Request) {
 		a.storeError(w, r, err)
 		return
 	}
+	a.forgetCatalog(p.ID)
 	a.audit(r, &p.WorkspaceID, "environment.create", "environment", e.ID.String(), nil)
 	httpx.WriteJSON(w, http.StatusCreated, e)
 }
@@ -540,6 +541,7 @@ func (a *API) deleteEnvironment(w http.ResponseWriter, r *http.Request) {
 		a.storeError(w, r, err)
 		return
 	}
+	a.forgetCatalog(p.ID)
 	a.audit(r, &p.WorkspaceID, "environment.delete", "environment", envID.String(), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -577,6 +579,7 @@ func (a *API) createStream(w http.ResponseWriter, r *http.Request) {
 		a.storeError(w, r, err)
 		return
 	}
+	a.forgetCatalog(p.ID)
 	a.audit(r, &p.WorkspaceID, "stream.create", "stream", s.ID.String(), nil)
 	httpx.WriteJSON(w, http.StatusCreated, s)
 }
@@ -594,6 +597,7 @@ func (a *API) deleteStream(w http.ResponseWriter, r *http.Request) {
 		a.storeError(w, r, err)
 		return
 	}
+	a.forgetCatalog(p.ID)
 	a.audit(r, &p.WorkspaceID, "stream.delete", "stream", sid.String(), nil)
 	w.WriteHeader(http.StatusNoContent)
 }

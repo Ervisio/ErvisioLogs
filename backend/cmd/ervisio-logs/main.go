@@ -18,11 +18,13 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/db"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/ingest"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/migrate"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/server"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/version"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/wal"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/webui"
 	"github.com/Ervisio/ErvisioLogs/backend/migrations"
 )
@@ -181,11 +183,36 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		log.Warn("could not check for first-run setup (migrations pending?)", "error", err)
 	}
 
+	// Ingest: accepted batches go to the WAL first; the writer moves them to ClickHouse.
+	if err := os.MkdirAll(cfg.Ingest.SpoolDir, 0o700); err != nil {
+		return fmt.Errorf("spool directory: %w", err)
+	}
+	spool, err := wal.Open(wal.Options{Dir: cfg.Ingest.SpoolDir, MaxBytes: cfg.Ingest.SpoolMaxBytes})
+	if err != nil {
+		return fmt.Errorf("open spool: %w", err)
+	}
+	defer spool.Close()
+	hub := ingest.NewHub(10000)
+	writer := &ingest.Writer{Log: spool, CH: ch, Dir: cfg.Ingest.SpoolDir, Hub: hub, Logger: log}
+	apiHandlers.Logs = &api.Logs{WAL: spool, CH: ch, Hub: hub, Writer: writer,
+		Validator: ingest.Validator{MaxFutureSkew: cfg.Ingest.MaxFutureSkew, MaxPastAge: cfg.Ingest.MaxPastAge, Now: time.Now}}
+
+	errc := make(chan error, 2)
+	wctx, stopWriter := context.WithCancel(context.Background())
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		if err := writer.Run(wctx); err != nil {
+			errc <- fmt.Errorf("ingest writer: %w", err)
+		}
+	}()
+	defer func() { stopWriter(); <-writerDone }()
+
 	srv := server.NewHTTPServer(cfg.HTTPAddr, server.NewRouter(server.Options{
 		Log: log, Health: health, API: apiHandlers, UI: webui.Handler(), MaxBodyBytes: cfg.MaxBodyBytes,
+		Metrics: apiHandlers.MetricsHandler(cfg.Ingest.MetricsToken, cfg.Env == config.EnvDevelopment),
 	}))
 
-	errc := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", cfg.HTTPAddr)
 		errc <- srv.ListenAndServe()

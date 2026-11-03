@@ -20,6 +20,7 @@ type Options struct {
 	API          *apipkg.API  // feature routes under /api/v1; may be nil in tests
 	UI           http.Handler // served for non-API paths; may be nil
 	MaxBodyBytes int64
+	Metrics      http.Handler // Prometheus text at /metrics; nil answers 404
 }
 
 // NewRouter builds the HTTP handler. API routes live under /api/v1; probes are at the root.
@@ -29,6 +30,13 @@ func NewRouter(o Options) http.Handler {
 
 	r.Get("/healthz", o.Health.Live)
 	r.Get("/readyz", o.Health.Ready)
+	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
+		if o.Metrics == nil {
+			httpx.WriteProblem(w, req, http.StatusNotFound, "not found")
+			return
+		}
+		o.Metrics.ServeHTTP(w, req)
+	})
 
 	r.Route("/api/v1", func(api chi.Router) {
 		if o.API != nil {
