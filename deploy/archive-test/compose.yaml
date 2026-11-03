@@ -1,0 +1,19 @@
+# Remote providers for the archive contract tests: an S3-compatible server and an SFTP server.
+# Started only by scripts/archive-test.sh, in its own Compose project, published on loopback only.
+# Keys and credentials are generated per run into ${KEYS_DIR}; nothing here is a real credential.
+name: ervlogs-archive-test
+services:
+  s3:
+    image: chrislusf/seaweedfs:latest@sha256:c2658820e763294a9e9de7b36c81e59b879e3459148351aee4e31a126ca64860
+    command: server -dir=/data -ip=s3 -s3 -s3.port=8333 -s3.config=/keys/s3.json -volume.max=0
+    volumes: ["${KEYS_DIR:?run scripts/archive-test.sh}:/keys:ro"]
+    ports: ["127.0.0.1:${ARCHIVE_TEST_S3_PORT:-18333}:8333"]
+
+  sftp:
+    image: atmoz/sftp:alpine@sha256:43dd1c023cf1bae487127d4b54660b0aee6e94c188a6599be36fb89ba115f961
+    # user "archive", key auth only, writable directory "upload".
+    command: archive::1001::upload
+    volumes:
+      - "${KEYS_DIR:?run scripts/archive-test.sh}:/keys:ro"
+      - ./sftp-keys.sh:/etc/sftp.d/keys.sh:ro
+    ports: ["127.0.0.1:${ARCHIVE_TEST_SFTP_PORT:-12222}:22"]

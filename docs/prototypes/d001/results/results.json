@@ -1,0 +1,1477 @@
+{
+ "meta": {
+  "events": 10000000,
+  "runs": 3,
+  "latency_ms": 25.0,
+  "clickhouse": "25.8.33.6",
+  "clickhouse_settings": {
+   "use_query_cache": 0,
+   "use_query_condition_cache": 0,
+   "schema_inference_use_cache_for_s3": 0,
+   "schema_inference_use_cache_for_file": 0,
+   "use_cache_for_count_from_files": 0,
+   "enable_filesystem_cache": 0,
+   "use_page_cache_for_disks_without_file_cache": 0
+  },
+  "python_baseline_mb": {
+   "duckdb": 55.1,
+   "datafusion": 101.3
+  },
+  "segments": {
+   "day": {
+    "files": 1,
+    "mb": 237.4
+   },
+   "hour": {
+    "files": 24,
+    "mb": 239.2
+   },
+   "5min": {
+    "files": 288,
+    "mb": 260.1
+   }
+  }
+ },
+ "results": [
+  {
+   "layout": "day",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.322,
+   "wall_s_runs": [
+    0.341,
+    0.312,
+    0.322
+   ],
+   "peak_mem_mb": 72.1,
+   "requests": 10,
+   "mb_read": 15.063,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 1.244,
+   "wall_s_runs": [
+    1.27,
+    1.244,
+    1.242
+   ],
+   "peak_mem_mb": 89.2,
+   "requests": 12,
+   "mb_read": 7.462,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.379,
+   "wall_s_runs": [
+    0.393,
+    0.371,
+    0.379
+   ],
+   "peak_mem_mb": 136.1,
+   "requests": 8,
+   "mb_read": 8.202,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.062,
+   "wall_s_runs": [
+    0.073,
+    0.062,
+    0.054
+   ],
+   "peak_mem_mb": 80.5,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.079,
+   "total_s": 2.141
+  },
+  {
+   "layout": "day",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.137,
+   "wall_s_runs": [
+    0.138,
+    0.13,
+    0.137
+   ],
+   "peak_mem_mb": 81.8,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.079,
+   "total_s": 2.216
+  },
+  {
+   "layout": "day",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.202,
+   "wall_s_runs": [
+    0.202,
+    0.211,
+    0.191
+   ],
+   "peak_mem_mb": 124.4,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.079,
+   "total_s": 2.281
+  },
+  {
+   "layout": "day",
+   "query": "q2_attr",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 1.948,
+   "wall_s_runs": [
+    2.022,
+    1.946,
+    1.948
+   ],
+   "peak_mem_mb": 553.9,
+   "requests": 57,
+   "mb_read": 243.186,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q2_attr",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 2.387,
+   "wall_s_runs": [
+    2.42,
+    2.341,
+    2.387
+   ],
+   "peak_mem_mb": 715.0,
+   "requests": 202,
+   "mb_read": 166.182,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q2_attr",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.696,
+   "wall_s_runs": [
+    0.696,
+    0.683,
+    0.712
+   ],
+   "peak_mem_mb": 390.9,
+   "requests": 191,
+   "mb_read": 118.355,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q2_attr",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.503,
+   "wall_s_runs": [
+    0.503,
+    0.506,
+    0.501
+   ],
+   "peak_mem_mb": 376.8,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.154,
+   "total_s": 2.657
+  },
+  {
+   "layout": "day",
+   "query": "q2_attr",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.465,
+   "wall_s_runs": [
+    0.465,
+    0.421,
+    0.592
+   ],
+   "peak_mem_mb": 624.1,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.154,
+   "total_s": 2.619
+  },
+  {
+   "layout": "day",
+   "query": "q2_attr",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.329,
+   "wall_s_runs": [
+    0.36,
+    0.329,
+    0.273
+   ],
+   "peak_mem_mb": 454.8,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.154,
+   "total_s": 2.483
+  },
+  {
+   "layout": "day",
+   "query": "q3_levels",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.594,
+   "wall_s_runs": [
+    1.128,
+    0.594,
+    0.593
+   ],
+   "peak_mem_mb": 205.1,
+   "requests": 57,
+   "mb_read": 151.493,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q3_levels",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 2.289,
+   "wall_s_runs": [
+    2.289,
+    2.296,
+    2.275
+   ],
+   "peak_mem_mb": 86.2,
+   "requests": 102,
+   "mb_read": 3.571,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q3_levels",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.774,
+   "wall_s_runs": [
+    0.767,
+    0.821,
+    0.774
+   ],
+   "peak_mem_mb": 164.3,
+   "requests": 103,
+   "mb_read": 3.42,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q3_levels",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.1,
+   "wall_s_runs": [
+    0.105,
+    0.095,
+    0.1
+   ],
+   "peak_mem_mb": 235.7,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.017,
+   "total_s": 2.117
+  },
+  {
+   "layout": "day",
+   "query": "q3_levels",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.1,
+   "wall_s_runs": [
+    0.101,
+    0.1,
+    0.097
+   ],
+   "peak_mem_mb": 86.2,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.017,
+   "total_s": 2.117
+  },
+  {
+   "layout": "day",
+   "query": "q3_levels",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.18,
+   "wall_s_runs": [
+    0.192,
+    0.173,
+    0.18
+   ],
+   "peak_mem_mb": 178.4,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.017,
+   "total_s": 2.197
+  },
+  {
+   "layout": "day",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.28,
+   "wall_s_runs": [
+    0.289,
+    0.277,
+    0.28
+   ],
+   "peak_mem_mb": 39.3,
+   "requests": 10,
+   "mb_read": 12.41,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 0.211,
+   "wall_s_runs": [
+    0.237,
+    0.209,
+    0.211
+   ],
+   "peak_mem_mb": 86.5,
+   "requests": 7,
+   "mb_read": 2.665,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.312,
+   "wall_s_runs": [
+    0.309,
+    0.315,
+    0.312
+   ],
+   "peak_mem_mb": 117.8,
+   "requests": 6,
+   "mb_read": 1.955,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "day",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.03,
+   "wall_s_runs": [
+    0.03,
+    0.03,
+    0.027
+   ],
+   "peak_mem_mb": 57.1,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.016,
+   "total_s": 2.046
+  },
+  {
+   "layout": "day",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.099,
+   "wall_s_runs": [
+    0.099,
+    0.127,
+    0.097
+   ],
+   "peak_mem_mb": 87.2,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.016,
+   "total_s": 2.115
+  },
+  {
+   "layout": "day",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 237.4,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.16,
+   "wall_s_runs": [
+    0.16,
+    0.174,
+    0.152
+   ],
+   "peak_mem_mb": 106.3,
+   "requests": null,
+   "mb_read": 237.4,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.016,
+   "total_s": 2.176
+  },
+  {
+   "layout": "hour",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.287,
+   "wall_s_runs": [
+    0.29,
+    0.287,
+    0.283
+   ],
+   "peak_mem_mb": 43.7,
+   "requests": 9,
+   "mb_read": 13.058,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 1.275,
+   "wall_s_runs": [
+    1.275,
+    1.273,
+    1.302
+   ],
+   "peak_mem_mb": 87.2,
+   "requests": 12,
+   "mb_read": 6.053,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.278,
+   "wall_s_runs": [
+    0.289,
+    0.278,
+    0.267
+   ],
+   "peak_mem_mb": 167.0,
+   "requests": 8,
+   "mb_read": 6.945,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.039,
+   "wall_s_runs": [
+    0.045,
+    0.039,
+    0.035
+   ],
+   "peak_mem_mb": 77.1,
+   "requests": null,
+   "mb_read": 10.0,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.116,
+   "total_s": 0.155
+  },
+  {
+   "layout": "hour",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.115,
+   "wall_s_runs": [
+    0.115,
+    0.12,
+    0.114
+   ],
+   "peak_mem_mb": 87.2,
+   "requests": null,
+   "mb_read": 10.0,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.116,
+   "total_s": 0.231
+  },
+  {
+   "layout": "hour",
+   "query": "q1_needle",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.154,
+   "wall_s_runs": [
+    0.17,
+    0.154,
+    0.151
+   ],
+   "peak_mem_mb": 150.7,
+   "requests": null,
+   "mb_read": 10.0,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.116,
+   "total_s": 0.27
+  },
+  {
+   "layout": "hour",
+   "query": "q2_attr",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.927,
+   "wall_s_runs": [
+    0.907,
+    1.152,
+    0.927
+   ],
+   "peak_mem_mb": 283.4,
+   "requests": 147,
+   "mb_read": 335.714,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q2_attr",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 3.647,
+   "wall_s_runs": [
+    2.84,
+    3.843,
+    3.647
+   ],
+   "peak_mem_mb": 614.4,
+   "requests": 287,
+   "mb_read": 129.879,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q2_attr",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 1.97,
+   "wall_s_runs": [
+    1.899,
+    1.97,
+    1.991
+   ],
+   "peak_mem_mb": 501.1,
+   "requests": 288,
+   "mb_read": 144.115,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q2_attr",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.532,
+   "wall_s_runs": [
+    0.532,
+    0.515,
+    0.547
+   ],
+   "peak_mem_mb": 365.1,
+   "requests": null,
+   "mb_read": 239.2,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.868,
+   "total_s": 3.4
+  },
+  {
+   "layout": "hour",
+   "query": "q2_attr",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.466,
+   "wall_s_runs": [
+    0.549,
+    0.465,
+    0.466
+   ],
+   "peak_mem_mb": 582.9,
+   "requests": null,
+   "mb_read": 239.2,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.868,
+   "total_s": 3.334
+  },
+  {
+   "layout": "hour",
+   "query": "q2_attr",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.369,
+   "wall_s_runs": [
+    0.378,
+    0.369,
+    0.337
+   ],
+   "peak_mem_mb": 524.0,
+   "requests": null,
+   "mb_read": 239.2,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.868,
+   "total_s": 3.237
+  },
+  {
+   "layout": "hour",
+   "query": "q3_levels",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.81,
+   "wall_s_runs": [
+    0.839,
+    0.809,
+    0.81
+   ],
+   "peak_mem_mb": 164.7,
+   "requests": 147,
+   "mb_read": 228.25,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q3_levels",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 2.944,
+   "wall_s_runs": [
+    2.944,
+    3.563,
+    2.586
+   ],
+   "peak_mem_mb": 93.9,
+   "requests": 288,
+   "mb_read": 4.357,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q3_levels",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 1.807,
+   "wall_s_runs": [
+    1.799,
+    1.807,
+    1.887
+   ],
+   "peak_mem_mb": 234.9,
+   "requests": 192,
+   "mb_read": 15.481,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q3_levels",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.106,
+   "wall_s_runs": [
+    0.109,
+    0.103,
+    0.106
+   ],
+   "peak_mem_mb": 229.7,
+   "requests": null,
+   "mb_read": 239.2,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.911,
+   "total_s": 3.017
+  },
+  {
+   "layout": "hour",
+   "query": "q3_levels",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.116,
+   "wall_s_runs": [
+    0.12,
+    0.116,
+    0.098
+   ],
+   "peak_mem_mb": 94.1,
+   "requests": null,
+   "mb_read": 239.2,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.911,
+   "total_s": 3.027
+  },
+  {
+   "layout": "hour",
+   "query": "q3_levels",
+   "files": 24,
+   "planned_mb": 239.2,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.246,
+   "wall_s_runs": [
+    0.244,
+    0.282,
+    0.246
+   ],
+   "peak_mem_mb": 247.6,
+   "requests": null,
+   "mb_read": 239.2,
+   "correct": true,
+   "errors": [],
+   "download_s": 2.911,
+   "total_s": 3.157
+  },
+  {
+   "layout": "hour",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.278,
+   "wall_s_runs": [
+    0.292,
+    0.276,
+    0.278
+   ],
+   "peak_mem_mb": 25.2,
+   "requests": 9,
+   "mb_read": 10.117,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 0.245,
+   "wall_s_runs": [
+    0.246,
+    0.245,
+    0.24
+   ],
+   "peak_mem_mb": 94.1,
+   "requests": 7,
+   "mb_read": 2.035,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.269,
+   "wall_s_runs": [
+    0.278,
+    0.269,
+    0.269
+   ],
+   "peak_mem_mb": 130.2,
+   "requests": 8,
+   "mb_read": 2.517,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "hour",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.024,
+   "wall_s_runs": [
+    0.026,
+    0.023,
+    0.024
+   ],
+   "peak_mem_mb": 48.6,
+   "requests": null,
+   "mb_read": 10.0,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.123,
+   "total_s": 0.147
+  },
+  {
+   "layout": "hour",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.111,
+   "wall_s_runs": [
+    0.111,
+    0.103,
+    0.113
+   ],
+   "peak_mem_mb": 94.1,
+   "requests": null,
+   "mb_read": 10.0,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.123,
+   "total_s": 0.234
+  },
+  {
+   "layout": "hour",
+   "query": "q4_page",
+   "files": 1,
+   "planned_mb": 10.0,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.154,
+   "wall_s_runs": [
+    0.197,
+    0.15,
+    0.154
+   ],
+   "peak_mem_mb": 128.9,
+   "requests": null,
+   "mb_read": 10.0,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.123,
+   "total_s": 0.277
+  },
+  {
+   "layout": "5min",
+   "query": "q1_needle",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.164,
+   "wall_s_runs": [
+    0.666,
+    0.164,
+    0.154
+   ],
+   "peak_mem_mb": 105.1,
+   "requests": 26,
+   "mb_read": 11.736,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q1_needle",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 1.257,
+   "wall_s_runs": [
+    1.257,
+    1.264,
+    1.25
+   ],
+   "peak_mem_mb": 108.6,
+   "requests": 24,
+   "mb_read": 10.834,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q1_needle",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.969,
+   "wall_s_runs": [
+    0.972,
+    0.969,
+    0.961
+   ],
+   "peak_mem_mb": 267.6,
+   "requests": 48,
+   "mb_read": 13.249,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q1_needle",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.034,
+   "wall_s_runs": [
+    0.035,
+    0.034,
+    0.034
+   ],
+   "peak_mem_mb": 112.4,
+   "requests": null,
+   "mb_read": 10.8,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.579,
+   "total_s": 0.613
+  },
+  {
+   "layout": "5min",
+   "query": "q1_needle",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.105,
+   "wall_s_runs": [
+    0.105,
+    0.105,
+    0.124
+   ],
+   "peak_mem_mb": 94.2,
+   "requests": null,
+   "mb_read": 10.8,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.579,
+   "total_s": 0.684
+  },
+  {
+   "layout": "5min",
+   "query": "q1_needle",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.173,
+   "wall_s_runs": [
+    0.184,
+    0.171,
+    0.173
+   ],
+   "peak_mem_mb": 249.1,
+   "requests": null,
+   "mb_read": 10.8,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.579,
+   "total_s": 0.752
+  },
+  {
+   "layout": "5min",
+   "query": "q2_attr",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 1.002,
+   "wall_s_runs": [
+    1.07,
+    1.002,
+    0.984
+   ],
+   "peak_mem_mb": 136.3,
+   "requests": 578,
+   "mb_read": 260.942,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q2_attr",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 3.493,
+   "wall_s_runs": [
+    4.878,
+    3.493,
+    2.622
+   ],
+   "peak_mem_mb": 690.9,
+   "requests": 576,
+   "mb_read": 260.051,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q2_attr",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 17.87,
+   "wall_s_runs": [
+    17.733,
+    18.216,
+    17.87
+   ],
+   "peak_mem_mb": 919.9,
+   "requests": 1152,
+   "mb_read": 409.846,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q2_attr",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.604,
+   "wall_s_runs": [
+    0.651,
+    0.604,
+    0.547
+   ],
+   "peak_mem_mb": 166.7,
+   "requests": null,
+   "mb_read": 260.1,
+   "correct": true,
+   "errors": [],
+   "download_s": 14.014,
+   "total_s": 14.618
+  },
+  {
+   "layout": "5min",
+   "query": "q2_attr",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.506,
+   "wall_s_runs": [
+    0.506,
+    0.568,
+    0.469
+   ],
+   "peak_mem_mb": 449.7,
+   "requests": null,
+   "mb_read": 260.1,
+   "correct": true,
+   "errors": [],
+   "download_s": 14.014,
+   "total_s": 14.52
+  },
+  {
+   "layout": "5min",
+   "query": "q2_attr",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.909,
+   "wall_s_runs": [
+    0.991,
+    0.909,
+    0.908
+   ],
+   "peak_mem_mb": 793.9,
+   "requests": null,
+   "mb_read": 260.1,
+   "correct": true,
+   "errors": [],
+   "download_s": 14.014,
+   "total_s": 14.923
+  },
+  {
+   "layout": "5min",
+   "query": "q3_levels",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.76,
+   "wall_s_runs": [
+    0.923,
+    0.743,
+    0.76
+   ],
+   "peak_mem_mb": 184.4,
+   "requests": 578,
+   "mb_read": 260.942,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q3_levels",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 2.652,
+   "wall_s_runs": [
+    2.356,
+    2.652,
+    2.99
+   ],
+   "peak_mem_mb": 347.4,
+   "requests": 576,
+   "mb_read": 260.051,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q3_levels",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 17.471,
+   "wall_s_runs": [
+    17.462,
+    17.471,
+    17.561
+   ],
+   "peak_mem_mb": 693.0,
+   "requests": 1152,
+   "mb_read": 153.914,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q3_levels",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.1,
+   "wall_s_runs": [
+    0.1,
+    0.112,
+    0.097
+   ],
+   "peak_mem_mb": 183.1,
+   "requests": null,
+   "mb_read": 260.1,
+   "correct": true,
+   "errors": [],
+   "download_s": 14.061,
+   "total_s": 14.161
+  },
+  {
+   "layout": "5min",
+   "query": "q3_levels",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.2,
+   "wall_s_runs": [
+    0.2,
+    0.173,
+    0.214
+   ],
+   "peak_mem_mb": 123.3,
+   "requests": null,
+   "mb_read": 260.1,
+   "correct": true,
+   "errors": [],
+   "download_s": 14.061,
+   "total_s": 14.261
+  },
+  {
+   "layout": "5min",
+   "query": "q3_levels",
+   "files": 288,
+   "planned_mb": 260.1,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.932,
+   "wall_s_runs": [
+    0.932,
+    0.923,
+    1.068
+   ],
+   "peak_mem_mb": 748.6,
+   "requests": null,
+   "mb_read": 260.1,
+   "correct": true,
+   "errors": [],
+   "download_s": 14.061,
+   "total_s": 14.993
+  },
+  {
+   "layout": "5min",
+   "query": "q4_page",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "clickhouse",
+   "source": "s3",
+   "wall_s": 0.143,
+   "wall_s_runs": [
+    0.664,
+    0.143,
+    0.141
+   ],
+   "peak_mem_mb": 29.9,
+   "requests": 26,
+   "mb_read": 11.736,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q4_page",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "duckdb",
+   "source": "s3",
+   "wall_s": 1.261,
+   "wall_s_runs": [
+    1.264,
+    1.26,
+    1.261
+   ],
+   "peak_mem_mb": 123.3,
+   "requests": 24,
+   "mb_read": 10.834,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q4_page",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "datafusion",
+   "source": "s3",
+   "wall_s": 0.906,
+   "wall_s_runs": [
+    0.942,
+    0.906,
+    0.893
+   ],
+   "peak_mem_mb": 224.4,
+   "requests": 48,
+   "mb_read": 8.45,
+   "correct": true,
+   "errors": []
+  },
+  {
+   "layout": "5min",
+   "query": "q4_page",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "clickhouse",
+   "source": "sftp",
+   "wall_s": 0.017,
+   "wall_s_runs": [
+    0.019,
+    0.017,
+    0.013
+   ],
+   "peak_mem_mb": 49.3,
+   "requests": null,
+   "mb_read": 10.8,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.583,
+   "total_s": 0.6
+  },
+  {
+   "layout": "5min",
+   "query": "q4_page",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "duckdb",
+   "source": "sftp",
+   "wall_s": 0.092,
+   "wall_s_runs": [
+    0.092,
+    0.09,
+    0.093
+   ],
+   "peak_mem_mb": 123.3,
+   "requests": null,
+   "mb_read": 10.8,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.583,
+   "total_s": 0.675
+  },
+  {
+   "layout": "5min",
+   "query": "q4_page",
+   "files": 12,
+   "planned_mb": 10.8,
+   "engine": "datafusion",
+   "source": "sftp",
+   "wall_s": 0.147,
+   "wall_s_runs": [
+    0.15,
+    0.146,
+    0.147
+   ],
+   "peak_mem_mb": 216.6,
+   "requests": null,
+   "mb_read": 10.8,
+   "correct": true,
+   "errors": [],
+   "download_s": 0.583,
+   "total_s": 0.73
+  }
+ ]
+}

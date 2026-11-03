@@ -30,13 +30,31 @@ type Postgres struct {
 	DSN string
 }
 
-// ClickHouse holds ClickHouse hot-store settings (native protocol).
+// ClickHouse holds ClickHouse hot-store settings. Queries use the native protocol; the archiver
+// exports Parquet over HTTPURL, since the native protocol has no output formats.
 type ClickHouse struct {
 	Addr     string
+	HTTPURL  string
 	Database string
 	User     string
 	Password string
 	TLS      bool
+}
+
+// Archive holds the local side of the archive tier (ADR 0008). Provider settings live in the
+// database; their secrets are files in SecretsDir.
+type Archive struct {
+	// CacheDir holds staged exports and downloaded segments. ClickHouse must see the same
+	// directory, read-only, at user_files/<ClickHousePath>.
+	CacheDir       string
+	ClickHousePath string
+	SecretsDir     string
+	// Interval between archiver passes. Zero disables the archiver in this process.
+	Interval time.Duration
+	// Grace is how long after a UTC day ends before it is archived.
+	Grace time.Duration
+	// LateInterval is the shortest time between two generations of one stream-day.
+	LateInterval time.Duration
 }
 
 // OAuthProvider holds one external identity provider's credentials. Empty ClientID means disabled.
@@ -82,6 +100,21 @@ type Config struct {
 	ClickHouse   ClickHouse
 	Auth         Auth
 	Ingest       Ingest
+	Archive      Archive
+	Alerts       Alerts
+	// ExportMaxRows caps the rows of one export (ADR 0010).
+	ExportMaxRows int
+}
+
+// Alerts configures the alert evaluator and webhook delivery (ADR 0010).
+type Alerts struct {
+	// Interval between evaluator passes; 0 leaves evaluation to another process.
+	Interval time.Duration
+	// WebhookAllowPrivate lets webhooks reach loopback, private and link-local addresses and plain
+	// http. Off by default: a rule author could otherwise probe the server's own network.
+	WebhookAllowPrivate bool
+	// HistoryRetention bounds how long alert state changes are kept.
+	HistoryRetention time.Duration
 }
 
 // Ingest holds the durable spool (WAL) and ingest limits.
@@ -150,6 +183,10 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 		},
 	}
 	c.Ingest.SpoolDir = get("SPOOL_DIR", "/var/lib/ervisio-logs/spool")
+	c.ClickHouse.HTTPURL = strings.TrimRight(get("CLICKHOUSE_HTTP_URL", ""), "/")
+	c.Archive.CacheDir = get("ARCHIVE_CACHE_DIR", "/var/lib/ervisio-logs/cache")
+	c.Archive.ClickHousePath = strings.Trim(get("ARCHIVE_CLICKHOUSE_PATH", "ervisio-archive"), "/")
+	c.Archive.SecretsDir = get("ARCHIVE_SECRETS_DIR", "")
 	c.Ingest.MetricsToken = secret("METRICS_TOKEN")
 	var perr error
 	if c.Ingest.SpoolMaxBytes, perr = strconv.ParseInt(get("SPOOL_MAX_BYTES", "1073741824"), 10, 64); perr != nil || c.Ingest.SpoolMaxBytes < 1<<20 {
@@ -160,6 +197,27 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	}
 	if c.Ingest.MaxPastAge, perr = time.ParseDuration(get("INGEST_MAX_PAST_AGE", "168h")); perr != nil || c.Ingest.MaxPastAge <= 0 {
 		errs = append(errs, fmt.Errorf("%sINGEST_MAX_PAST_AGE must be a positive duration", prefix))
+	}
+	for _, d := range []struct {
+		name, def string
+		dst       *time.Duration
+		min       time.Duration
+	}{
+		{"ARCHIVE_INTERVAL", "5m", &c.Archive.Interval, 0},
+		{"ARCHIVE_GRACE", "1h", &c.Archive.Grace, 0},
+		{"ARCHIVE_LATE_INTERVAL", "6h", &c.Archive.LateInterval, 0},
+		{"ALERTS_INTERVAL", "30s", &c.Alerts.Interval, 0},
+		{"ALERTS_HISTORY_RETENTION", "720h", &c.Alerts.HistoryRetention, time.Hour},
+	} {
+		if *d.dst, perr = time.ParseDuration(get(d.name, d.def)); perr != nil || *d.dst < d.min {
+			errs = append(errs, fmt.Errorf("%s%s must be a non-negative duration", prefix, d.name))
+		}
+	}
+	if c.Alerts.WebhookAllowPrivate, perr = strconv.ParseBool(get("WEBHOOK_ALLOW_PRIVATE", "false")); perr != nil {
+		errs = append(errs, fmt.Errorf("%sWEBHOOK_ALLOW_PRIVATE must be a boolean", prefix))
+	}
+	if c.ExportMaxRows, perr = strconv.Atoi(get("EXPORT_MAX_ROWS", "1000000")); perr != nil || c.ExportMaxRows < 1 || c.ExportMaxRows > 50000000 {
+		errs = append(errs, fmt.Errorf("%sEXPORT_MAX_ROWS must be an integer between 1 and 50000000", prefix))
 	}
 	if c.Auth.OpenRegistration, perr = strconv.ParseBool(get("OPEN_REGISTRATION", "false")); perr != nil {
 		errs = append(errs, fmt.Errorf("%sOPEN_REGISTRATION must be a boolean", prefix))
@@ -187,6 +245,16 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 		}
 	}
 
+	if c.ClickHouse.HTTPURL == "" {
+		// Same host as the native address, on the default HTTP(S) port.
+		host, _, _ := strings.Cut(c.ClickHouse.Addr, ":")
+		if c.ClickHouse.TLS {
+			c.ClickHouse.HTTPURL = "https://" + host + ":8443"
+		} else {
+			c.ClickHouse.HTTPURL = "http://" + host + ":8123"
+		}
+	}
+
 	errs = append(errs, c.validate()...)
 	return c, errors.Join(errs...)
 }
@@ -206,6 +274,12 @@ func (c Config) validate() []error {
 	}
 	if !strings.Contains(c.ClickHouse.Addr, ":") {
 		errs = append(errs, fmt.Errorf("%sCLICKHOUSE_ADDR must be host:port", prefix))
+	}
+	if u, err := url.Parse(c.ClickHouse.HTTPURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+		errs = append(errs, fmt.Errorf("%sCLICKHOUSE_HTTP_URL must be an http(s)://host:port URL without credentials", prefix))
+	}
+	if c.Archive.ClickHousePath == "" || strings.Contains(c.Archive.ClickHousePath, "..") || strings.ContainsAny(c.Archive.ClickHousePath, "'\\") {
+		errs = append(errs, fmt.Errorf("%sARCHIVE_CLICKHOUSE_PATH must be a plain relative path", prefix))
 	}
 	errs = append(errs, c.validateAuth()...)
 	if c.Env == EnvProduction {
@@ -265,5 +339,7 @@ func (c Config) Redacted() map[string]any {
 		"clickhouse_database": c.ClickHouse.Database, "clickhouse_tls": c.ClickHouse.TLS,
 		"spool_dir": c.Ingest.SpoolDir, "spool_max_bytes": c.Ingest.SpoolMaxBytes,
 		"metrics_protected": c.Ingest.MetricsToken != "",
+		"alerts_interval":   c.Alerts.Interval.String(), "webhook_allow_private": c.Alerts.WebhookAllowPrivate,
+		"export_max_rows": c.ExportMaxRows,
 	}
 }

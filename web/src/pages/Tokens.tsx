@@ -163,7 +163,7 @@ export default function Tokens({ project }: { project: Project }) {
   );
 }
 
-function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text }: { text: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   return (

@@ -37,3 +37,13 @@ export function parseQuery(input: string): ParsedQuery {
   }
   return { text: text.join(' '), filters };
 }
+
+const SYMBOL: Record<string, string> = Object.fromEntries(Object.entries(OPS).map(([sym, op]) => [op, sym]));
+const quote = (v: string) => (/[\s"]/.test(v) ? `"${v.replace(/"/g, '')}"` : v);
+
+/** The inverse of parseQuery: the search box text for a saved filter. */
+export function formatQuery(text: string | undefined, filters: AttrFilter[] | undefined): string {
+  const parts = (filters ?? []).map((f) => (f.op === 'exists' ? `has:${f.field}` : `${f.field}${SYMBOL[f.op] ?? '='}${quote(f.value ?? '')}`));
+  if (text) parts.push(text);
+  return parts.join(' ');
+}

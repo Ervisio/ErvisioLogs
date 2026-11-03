@@ -16,6 +16,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
 
+	"github.com/Ervisio/ErvisioLogs/backend/internal/archive"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/ingest"
@@ -33,6 +34,16 @@ type Logs struct {
 	Validator ingest.Validator
 	// MaxTailSubscribers caps open live-tail connections on this instance (default 500).
 	MaxTailSubscribers int
+	// OverCapacity, when set, reports that storage is above its cap with nothing left to evict
+	// (ADR 0004). Ingest then answers 503 instead of accepting data it cannot keep.
+	OverCapacity func() bool
+	// Archive, when set, adds evicted archive segments to searches (ADR 0008).
+	Archive ArchiveReader
+}
+
+// ArchiveReader lists the cached archive segments a search must read.
+type ArchiveReader interface {
+	ReadSources(ctx context.Context, ws, proj uuid.UUID, streams []uuid.UUID, from, to time.Time) ([]archive.ReadSource, int, error)
 }
 
 // maxDecodedIngest caps a gzip-decoded ingest body; the compressed size is capped by the router.
@@ -128,6 +139,11 @@ func (a *API) ingestToken(w http.ResponseWriter, r *http.Request) (*store.APITok
 	}
 	if !hasScope(t, auth.LogsIngest) {
 		httpx.WriteProblem(w, r, http.StatusForbidden, "missing permission "+auth.LogsIngest)
+		return nil, false
+	}
+	if a.Logs.OverCapacity != nil && a.Logs.OverCapacity() {
+		w.Header().Set("Retry-After", "60")
+		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "storage is full: raise the cache budget or shorten retention")
 		return nil, false
 	}
 	return t, true
@@ -233,16 +249,50 @@ func (a *API) ingestBatch(w http.ResponseWriter, r *http.Request) {
 // acceptEvents validates the events, appends the valid ones to the WAL as one record and answers
 // 202 only after the WAL reports the record durable.
 func (a *API) acceptEvents(w http.ResponseWriter, r *http.Request, t *store.APIToken, in []ingest.InEvent, defStream, defEnv string) {
+	res, f := a.queueEvents(r, t, in, defStream, defEnv)
+	if f != nil {
+		f.write(w, r)
+		return
+	}
+	if res.Accepted == 0 {
+		httpx.WriteJSON(w, http.StatusUnprocessableEntity, res)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusAccepted, res)
+}
+
+// ingestFailure is an answer that is not an ingest result: the WAL refused the record or the
+// catalog could not be read. A nil status means the client went away and nothing is written.
+type ingestFailure struct {
+	status     int
+	msg        string
+	retryAfter string
+	err        error // internal error, logged
+}
+
+func (f *ingestFailure) write(w http.ResponseWriter, r *http.Request) {
+	if f.status == 0 {
+		return
+	}
+	if f.retryAfter != "" {
+		w.Header().Set("Retry-After", f.retryAfter)
+	}
+	httpx.WriteProblem(w, r, f.status, f.msg)
+}
+
+// queueEvents validates in and appends the accepted events to the WAL. res.Accepted == 0 means
+// every event was rejected and nothing was written.
+func (a *API) queueEvents(r *http.Request, t *store.APIToken, in []ingest.InEvent, defStream, defEnv string) (ingestResult, *ingestFailure) {
+	res := ingestResult{RequestID: httpx.RequestID(r.Context()), Errors: []ingest.Rejection{}}
 	cat, err := a.projectCatalog(r.Context(), t.WorkspaceID, t.ProjectID)
 	if err != nil {
-		a.internalError(w, r, err)
-		return
+		a.Log.Error("request failed", "request_id", res.RequestID, "path", r.URL.Path, "error", err)
+		return res, &ingestFailure{status: http.StatusInternalServerError, msg: "internal error"}
 	}
 	v := a.Logs.Validator
 	if v.Now == nil {
 		v.Now = a.now
 	}
-	res := ingestResult{RequestID: httpx.RequestID(r.Context()), Errors: []ingest.Rejection{}}
 	accepted := make([]ingest.Event, 0, len(in))
 	for i, ev := range in {
 		e, err := v.Normalize(ev, defStream, defEnv, cat, t.WorkspaceID, t.ProjectID)
@@ -255,30 +305,27 @@ func (a *API) acceptEvents(w http.ResponseWriter, r *http.Request, t *store.APIT
 	res.Accepted, res.Rejected = len(accepted), len(res.Errors)
 	if len(accepted) == 0 {
 		res.Status = "rejected"
-		httpx.WriteJSON(w, http.StatusUnprocessableEntity, res)
-		return
+		return res, nil
 	}
 	rec, err := ingest.EncodeRecord(accepted)
 	if err != nil {
-		a.internalError(w, r, err)
-		return
+		a.Log.Error("request failed", "request_id", res.RequestID, "path", r.URL.Path, "error", err)
+		return res, &ingestFailure{status: http.StatusInternalServerError, msg: "internal error"}
 	}
 	if _, err := a.Logs.WAL.Append(r.Context(), rec); err != nil {
 		switch {
 		case errors.Is(err, wal.ErrFull):
-			w.Header().Set("Retry-After", "5")
-			httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "the ingest queue is full, retry later")
+			return res, &ingestFailure{status: http.StatusServiceUnavailable, msg: "the ingest queue is full, retry later", retryAfter: "5"}
 		case errors.Is(err, wal.ErrTooLarge):
-			httpx.WriteProblem(w, r, http.StatusRequestEntityTooLarge, "batch too large")
+			return res, &ingestFailure{status: http.StatusRequestEntityTooLarge, msg: "batch too large"}
 		case errors.Is(err, context.Canceled):
 			// The client went away; nothing was acknowledged. The record may still be stored.
+			return res, &ingestFailure{}
 		default:
 			a.Log.Error("wal append failed", "request_id", res.RequestID, "error", err)
-			w.Header().Set("Retry-After", "5")
-			httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "ingestion is temporarily unavailable")
+			return res, &ingestFailure{status: http.StatusServiceUnavailable, msg: "ingestion is temporarily unavailable", retryAfter: "5"}
 		}
-		return
 	}
 	res.Status = "durably_queued"
-	httpx.WriteJSON(w, http.StatusAccepted, res)
+	return res, nil
 }

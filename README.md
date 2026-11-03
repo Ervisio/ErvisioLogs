@@ -1,11 +1,24 @@
 # Ervisio Logs
 
-Self-hosted, API-first, multi-tenant log management. Standalone first, optional Ervisio plugin later.
+Self-hosted, API-first, multi-tenant log management. Runs standalone (systemd), as a Docker Compose stack, or from
+an Ervisio plugin that installs either of the two.
 
-Status: **P0 to P3 implemented; P4 to P7 not started.** You can create the first administrator, a workspace and a
-project, issue an API token, send events over HTTP and find them in the Log Explorer or the live tail. Archives,
-retention, SDKs, alerts and the Ervisio plugin do not exist yet. See
+Status: **P0 to P3 tested and merged. P4 to P7 implemented, not tested** (the owner asked not to run tests for now).
+Archives, retention, alerts, webhooks, export, the TypeScript SDK, the FiveM resource, release packaging and the
+Ervisio plugin exist in code; none of them has been tried end to end, and nothing has been released yet. See
 [`ervisio-logs-spec/implementation/PROGRESS.md`](ervisio-logs-spec/implementation/PROGRESS.md).
+
+## Deploy
+
+| Mode | Guide |
+|---|---|
+| Standalone (systemd, you provide PostgreSQL and ClickHouse) | [`docs/deploy/standalone.md`](docs/deploy/standalone.md) |
+| Docker Compose (app and databases) | [`docs/deploy/docker.md`](docs/deploy/docker.md) |
+| Ervisio plugin (picks one of the two) | [`docs/deploy/ervisio-plugin.md`](docs/deploy/ervisio-plugin.md) |
+
+`VERSION=x.y.z scripts/release.sh` builds all packages into `dist/x.y.z/`; a `v*` tag runs the same in
+`.github/workflows/release.yml` and opens a draft release. Before exposing an instance, go through
+[`docs/security.md`](docs/security.md).
 
 ## Quick start
 
@@ -44,7 +57,10 @@ curl -X POST http://localhost:8080/api/v1/ingest   -H "Authorization: Bearer $TO
 | `backend/` | Go service (`chi`, `pgx`, `clickhouse-go`), migrations in `backend/migrations/` |
 | `web/` | React, TypeScript, Vite, Tailwind v4 |
 | `api/openapi.yaml` | OpenAPI 3.1, checked against the real routes by a Go test |
-| `deploy/` | `compose.yaml` and the development overlay |
+| `deploy/` | `compose.yaml`, the development overlay, the systemd unit and installer (`deploy/standalone/`) |
+| `sdk/typescript/` | `@ervisio/logs` ingest client |
+| `integrations/` | FiveM resource, Ervisio plugin |
+| `scripts/` | `gen-env.sh`, `release.sh`, test helpers |
 | `docs/adr/` | Architecture decision records |
 | `ervisio-logs-spec/` | The development kit (source of truth) |
 
@@ -69,7 +85,7 @@ The server never migrates on its own. `ervisio-logs migrate up` (the Compose `mi
 `/readyz` stays at 503 while a migration is pending. `ervisio-logs migrate down --store postgres|clickhouse [-n N]`
 reverts one store at a time; `--store` is mandatory because the stores have independent histories.
 
-## Security notes for P0
+## Security notes
 
 - Databases are not published to the host in the base Compose file; the app listens on loopback only. Put a TLS
   reverse proxy in front for anything else.

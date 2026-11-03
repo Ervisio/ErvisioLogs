@@ -1,0 +1,47 @@
+# Release on a v* tag (ADR 0011): multi-arch image to GHCR, then the tarballs (standalone, Docker bundle, Ervisio plugin) and SHA256SUMS
+# attached to a GitHub release. Never run yet. Uses only the CLIs on the runner (docker buildx, gh) and the
+# actions already pinned in ci.yml, so no new third-party action enters the supply chain.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  packages: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/ervisio-logs
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
+      - name: Version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "tag $GITHUB_REF_NAME is not semver" >&2; exit 1; }
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+      - name: Image
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker buildx create --use --name release
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            --build-arg VERSION="$VERSION" --build-arg COMMIT="$(git rev-parse --short=12 HEAD)" \
+            --label org.opencontainers.image.source="https://github.com/${{ github.repository }}" \
+            --label org.opencontainers.image.version="$VERSION" \
+            -t "$IMAGE:$VERSION" --push .
+      - name: Artifacts
+        run: scripts/release.sh
+      - name: GitHub release
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
+            --title "Ervisio Logs $VERSION" --notes-file "docs/releases/$VERSION.md" \
+            dist/"$VERSION"/*

@@ -38,6 +38,11 @@ func NewRouter(o Options) http.Handler {
 		o.Metrics.ServeHTTP(w, req)
 	})
 
+	// OTLP/HTTP exporters post to <endpoint>/v1/logs (ADR 0010).
+	if o.API != nil {
+		o.API.OTLPRoutes(r)
+	}
+
 	r.Route("/api/v1", func(api chi.Router) {
 		if o.API != nil {
 			o.API.Routes(api)

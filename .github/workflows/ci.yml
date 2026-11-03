@@ -43,6 +43,8 @@ jobs:
         with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
       # Throwaway databases started from Compose, so their digests have one source of truth.
       - run: scripts/gen-env.sh
+      # Created by the runner user first: Docker would create the bind source as root, and the tests write there.
+      - run: mkdir -p .dev/archive-cache
       - run: docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.dev.yaml up -d --wait --wait-timeout 180 postgres clickhouse
       - run: make test-integration
       - if: failure()

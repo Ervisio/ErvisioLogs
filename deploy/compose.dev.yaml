@@ -7,3 +7,10 @@ services:
     ports:
       - "127.0.0.1:${DEV_CLICKHOUSE_HTTP_PORT:-8123}:8123"
       - "127.0.0.1:${DEV_CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    # A host directory instead of the cache volume, so an archiver running on the host (the
+    # integration tests) shares it with ClickHouse.
+    volumes:
+      - ${DEV_ARCHIVE_CACHE_DIR:-../.dev/archive-cache}:/var/lib/clickhouse/user_files/ervisio-archive:ro
+  app:
+    volumes:
+      - ${DEV_ARCHIVE_CACHE_DIR:-../.dev/archive-cache}:/var/lib/ervisio-logs/cache

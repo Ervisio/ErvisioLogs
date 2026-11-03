@@ -1,0 +1,55 @@
+# D001 prototype: remote Parquet query engines. Started only by run.sh, in its own Compose project.
+# Nothing is published to the host. Credentials come from the env file run.sh generates.
+name: ervlogs-d001
+services:
+  s3:
+    image: chrislusf/seaweedfs:latest
+    command: server -dir=/data -ip=s3 -s3 -s3.port=8333 -s3.config=/keys/s3.json -volume.max=0
+    volumes: [s3-data:/data, keys:/keys:ro]
+    depends_on:
+      keys: { condition: service_completed_successfully }
+
+  sftp:
+    image: atmoz/sftp:alpine
+    # user "archive", key auth only, writable directory "upload".
+    command: archive::1001::upload
+    volumes:
+      - keys:/keys:ro
+      - ./sftp-keys.sh:/etc/sftp.d/keys.sh:ro
+    depends_on:
+      keys: { condition: service_completed_successfully }
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8-alpine@sha256:87e0a5b72f5465b18eacca7c76850e7ff551c9795c50e451f5646299e5e24146
+    environment:
+      CLICKHOUSE_USER: bench
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run run.sh}
+    volumes: [cache:/var/lib/clickhouse/user_files/cache]
+    ulimits: { nofile: { soft: 262144, hard: 262144 } }
+
+  # One-shot: S3 credentials, SSH client key and SFTP host key, all random per run.
+  keys:
+    build: .
+    command: python keygen.py
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run run.sh}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?run run.sh}
+    volumes: [keys:/keys]
+
+  bench:
+    build: .
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      EVENTS: ${EVENTS:-10000000}
+      LATENCY_MS: ${LATENCY_MS:-25}
+      RUNS: ${RUNS:-3}
+    volumes: [keys:/keys:ro, data:/data, cache:/cache, ./results:/results]
+    depends_on: [s3, sftp, clickhouse]
+
+volumes:
+  s3-data:
+  keys:
+  data:
+  cache:

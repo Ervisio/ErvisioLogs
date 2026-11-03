@@ -1,0 +1,48 @@
+{
+  "name": "@ervisio/logs",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Ervisio Logs ingest API: batching, retries, bounded queue.",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "npm run clean && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node scripts/postbuild.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "keywords": [
+    "logs",
+    "logging",
+    "ervisio",
+    "ingest"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "~5.9.3",
+    "vitest": "^2.1.0"
+  }
+}

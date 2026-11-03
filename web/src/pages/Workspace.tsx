@@ -6,7 +6,10 @@ import type { ShellContext } from '../components/Shell';
 import { api, ApiError, type Project } from '../lib/api';
 import { initials, useTenancy } from '../lib/tenancy';
 import { SECTIONS } from '../lib/sections';
+import Alerts from './Alerts';
+import Channels from './Channels';
 import Logs from './Logs';
+import StoragePage from './Storage';
 import Tokens from './Tokens';
 import Users from './Users';
 
@@ -118,7 +121,10 @@ export function SectionPage() {
   const def = SECTIONS.find((s) => s.key === section);
   if (found.state === 'missing' || !def || def.key === 'explorer') return <NotFound />;
   if (def.key === 'live') return <Logs key={`${found.project.id}:live`} project={found.project} live />;
+  if (def.key === 'storage') return <StoragePage key={found.project.id} project={found.project} />;
   if (def.key === 'tokens') return <Tokens key={found.project.id} project={found.project} />;
+  if (def.key === 'alerts' && workspace) return <Alerts key={found.project.id} project={found.project} workspace={workspace} />;
+  if (def.key === 'integrations' && workspace) return <Channels key={workspace.id} workspace={workspace} />;
   if (def.key === 'users' && workspace) return <Users key={workspace.id} workspace={workspace} />;
   const Icon = def.icon;
   return (

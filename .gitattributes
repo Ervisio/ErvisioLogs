@@ -1,0 +1,2 @@
+# Shell scripts run on Linux hosts and inside release packages: keep LF on every checkout.
+*.sh text eol=lf

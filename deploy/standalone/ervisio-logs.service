@@ -1,0 +1,62 @@
+# Ervisio Logs as a systemd service (standalone install, ADR 0011).
+# Installed by deploy/standalone/install.sh to /etc/systemd/system/ervisio-logs.service.
+# Not tried on a real host yet: review it before production use.
+
+[Unit]
+Description=Ervisio Logs
+Documentation=https://github.com/Ervisio/ErvisioLogs
+Wants=network-online.target
+# Ordering only: PostgreSQL and ClickHouse may run on other hosts.
+After=network-online.target postgresql.service clickhouse-server.service
+
+[Service]
+Type=simple
+User=ervisio-logs
+Group=ervisio-logs
+EnvironmentFile=/etc/ervisio-logs/ervisio-logs.env
+# Refuses to start on a bad configuration, then applies pending migrations (idempotent).
+ExecStartPre=/usr/local/bin/ervisio-logs config-check
+ExecStartPre=/usr/local/bin/ervisio-logs migrate up
+ExecStart=/usr/local/bin/ervisio-logs serve
+Restart=on-failure
+RestartSec=5s
+# The server drains within ERVISIO_LOGS_SHUTDOWN_TIMEOUT (20s by default).
+TimeoutStopSec=40s
+LimitNOFILE=65536
+
+# /var/lib/ervisio-logs/spool holds acknowledged events until ClickHouse has them; /var/lib/ervisio-logs/cache
+# is the archive cache. StateDirectory creates both, owned by the service user, and keeps them on uninstall.
+StateDirectory=ervisio-logs ervisio-logs/spool ervisio-logs/cache
+StateDirectoryMode=0750
+# The archive cache can instead live inside ClickHouse's user_files (see the env file); "-" ignores it when absent.
+ReadWritePaths=-/var/lib/clickhouse/user_files/ervisio-archive
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

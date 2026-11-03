@@ -1,0 +1,7 @@
+duckdb==2.0.0
+datafusion==55.0.0
+pyarrow==26.0.0
+numpy
+paramiko==5.1.0
+boto3
+clickhouse-connect

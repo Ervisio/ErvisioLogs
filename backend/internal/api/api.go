@@ -50,6 +50,10 @@ type API struct {
 	TrustProxy bool
 	// Logs enables ingest, search and tail. Nil in tests that do not need them.
 	Logs *Logs
+	// Storage configures the archive administration endpoints. Nil leaves usage and provider tests out.
+	Storage *Storage
+	// Integrations enables alerts, notification channels and export limits (ADR 0010).
+	Integrations *Integrations
 
 	catalog   catalog
 	tailCount atomic.Int64
@@ -171,6 +175,35 @@ func (a *API) Routes(r chi.Router) {
 	r.Post("/admin/users", a.adminCreateUser)
 	r.Patch("/admin/users/{id}", a.adminUpdateUser)
 	r.Get("/admin/audit", a.adminListAudit)
+	r.Get("/admin/storage", a.adminGetStorage)
+	r.Post("/admin/storage/providers", a.adminCreateProvider)
+	r.Put("/admin/storage/providers/{id}", a.adminUpdateProvider)
+	r.Delete("/admin/storage/providers/{id}", a.adminDeleteProvider)
+	r.Post("/admin/storage/providers/{id}/test", a.adminTestProvider)
+	r.Put("/admin/storage/active", a.adminSetActiveProvider)
+	r.Get("/admin/retention", a.adminListRetention)
+	r.Put("/admin/retention/{scopeType}/{scopeId}", a.adminPutRetention)
+	r.Delete("/admin/retention/{scopeType}/{scopeId}", a.adminDeleteRetention)
+
+	r.Post("/logs/export", a.exportLogs)
+	r.Get("/queries", a.listSavedQueries)
+	r.Post("/queries", a.createSavedQuery)
+	r.Get("/queries/{id}", a.getSavedQuery)
+	r.Put("/queries/{id}", a.updateSavedQuery)
+	r.Delete("/queries/{id}", a.deleteSavedQuery)
+	r.Get("/notification-channels", a.listChannels)
+	r.Post("/notification-channels", a.createChannel)
+	r.Get("/notification-channels/{id}", a.getChannel)
+	r.Patch("/notification-channels/{id}", a.updateChannel)
+	r.Delete("/notification-channels/{id}", a.deleteChannel)
+	r.Post("/notification-channels/{id}/test", a.testChannel)
+	r.Post("/notification-channels/{id}/rotate-secret", a.rotateChannelSecret)
+	r.Get("/alerts", a.listRules)
+	r.Post("/alerts", a.createRule)
+	r.Get("/alerts/{id}", a.getRule)
+	r.Put("/alerts/{id}", a.updateRule)
+	r.Delete("/alerts/{id}", a.deleteRule)
+	r.Get("/alerts/{id}/events", a.listRuleEvents)
 }
 
 // ---------- principal ----------

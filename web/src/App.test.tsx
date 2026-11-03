@@ -202,8 +202,8 @@ describe('navigation', () => {
 
   test('a section without a backend says so', async () => {
     stubApi(signedIn);
-    renderApp('/projects/p1/alerts');
-    expect(await screen.findByRole('heading', { name: 'Alerts' })).toBeInTheDocument();
+    renderApp('/projects/p1/dashboards');
+    expect(await screen.findByRole('heading', { name: 'Dashboards' })).toBeInTheDocument();
     expect(screen.getByText('Not available yet')).toBeInTheDocument();
   });
 
@@ -594,5 +594,59 @@ describe('workspace members', () => {
     expect(await screen.findByText('bob@example.com')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /^Role of/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add member' })).not.toBeInTheDocument();
+  });
+});
+
+describe('storage', () => {
+  const admin = { ...session, user: { ...user, is_instance_admin: true } };
+  const instance = { scope_type: 'instance', scope_id: '00000000-0000-0000-0000-000000000000', local_age_hours: 168, global_age_hours: 2160, cache_max_bytes: 10 * 1024 ** 3, high_pct: 90, low_pct: 75, updated_by: null, updated_at: '' };
+  const disk = { id: 'pv1', name: 'Disk', type: 'local', config: { root: '/srv/archive' }, secret_file: null, active: true, status: 'ok', last_error: null, last_checked_at: null, created_at: '', updated_at: '' };
+  const overview = {
+    providers: [disk],
+    segments: { CATALOGED: { count: 3, bytes: 3 * 1024 ** 2 } },
+    archiver_enabled: true,
+    usage: { hot_bytes: 6 * 1024 ** 3, cache_bytes: 1024 ** 3, max_bytes: 10 * 1024 ** 3, high_pct: 90, low_pct: 75, over_capacity: false },
+  };
+  const storageRoutes: Routes = {
+    ...signedIn,
+    'GET /auth/me': { body: admin },
+    'GET /admin/storage': { body: overview },
+    'GET /admin/retention': { body: { items: [instance] } },
+  };
+
+  test('a member who is not the instance administrator gets an explanation', async () => {
+    stubApi(signedIn);
+    renderApp('/projects/p1/storage');
+    expect(await screen.findByRole('heading', { name: 'Instance administrators only' })).toBeInTheDocument();
+  });
+
+  test('shows disk use against the cap and the active destination', async () => {
+    stubApi(storageRoutes);
+    renderApp('/projects/p1/storage');
+    expect(await screen.findByRole('img', { name: 'Hot data 6 GB, archive cache 1 GB, cap 10 GB' })).toBeInTheDocument();
+    expect(screen.getByText('New archive segments go to Disk.')).toBeInTheDocument();
+    expect(screen.getByText('3 segments, 3 MB')).toBeInTheDocument();
+    expect(screen.getByLabelText('Days on local disk', { selector: '#st-p-local' })).toHaveAttribute('placeholder', '7');
+  });
+
+  test('a project override sends hours and only the fields filled in', async () => {
+    const calls = stubApi({ ...storageRoutes, 'PUT /admin/retention/project/p1': { body: { ...instance, scope_type: 'project', scope_id: 'p1' } } });
+    renderApp('/projects/p1/storage');
+    await userEvent.type(await screen.findByLabelText('Days before deletion', { selector: '#st-p-global' }), '30');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Save retention' })[0]);
+    await waitFor(() => expect(calls.find((c) => c.key === 'PUT /admin/retention/project/p1')?.body).toEqual({ global_age_hours: 720 }));
+    expect(await screen.findByText('Retention saved.')).toBeInTheDocument();
+  });
+
+  test('adds a folder destination and never sends a secret file for it', async () => {
+    const calls = stubApi({ ...storageRoutes, 'POST /admin/storage/providers': { status: 201, body: { ...disk, id: 'pv2', name: 'Spare', active: false } } });
+    renderApp('/projects/p1/storage');
+    await userEvent.click(await screen.findByText('Folder on this server'));
+    await userEvent.type(screen.getByLabelText('Name'), 'Spare');
+    await userEvent.type(screen.getByLabelText('Absolute folder path'), '/mnt/spare');
+    await userEvent.click(screen.getByRole('button', { name: 'Add destination' }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.key === 'POST /admin/storage/providers')?.body).toEqual({ name: 'Spare', type: 'local', config: { root: '/mnt/spare' }, secret_file: null }),
+    );
   });
 });

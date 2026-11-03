@@ -35,6 +35,12 @@ var attrSegment = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 // logsReader authorises reading the logs of a project: a session member with logs:read, or an
 // API token with logs:read bound to that project. projectID may be Nil for tokens.
 func (a *API) logsReader(w http.ResponseWriter, r *http.Request, projectID uuid.UUID) (store.Project, bool) {
+	return a.logsAccess(w, r, projectID, auth.LogsRead)
+}
+
+// logsAccess resolves the project a request reads logs from and checks perm: the token scope, or
+// the user's workspace role.
+func (a *API) logsAccess(w http.ResponseWriter, r *http.Request, projectID uuid.UUID, perm string) (store.Project, bool) {
 	if a.Logs == nil {
 		httpx.WriteProblem(w, r, http.StatusServiceUnavailable, "log search is not available on this instance")
 		return store.Project{}, false
@@ -42,8 +48,8 @@ func (a *API) logsReader(w http.ResponseWriter, r *http.Request, projectID uuid.
 	p := principalOf(r)
 	switch {
 	case p.token != nil:
-		if !hasScope(p.token, auth.LogsRead) {
-			httpx.WriteProblem(w, r, http.StatusForbidden, "missing permission "+auth.LogsRead)
+		if !hasScope(p.token, perm) {
+			httpx.WriteProblem(w, r, http.StatusForbidden, "missing permission "+perm)
 			return store.Project{}, false
 		}
 		if projectID != uuid.Nil && projectID != p.token.ProjectID {
@@ -61,7 +67,7 @@ func (a *API) logsReader(w http.ResponseWriter, r *http.Request, projectID uuid.
 			a.storeError(w, r, err)
 			return store.Project{}, false
 		}
-		if _, ok := a.workspaceAccess(w, r, p.user, proj.WorkspaceID, auth.LogsRead); !ok {
+		if _, ok := a.workspaceAccess(w, r, p.user, proj.WorkspaceID, perm); !ok {
 			return store.Project{}, false
 		}
 		return proj, true
@@ -139,6 +145,9 @@ type searchResp struct {
 type query struct {
 	where []string
 	args  []any
+	// The range and streams also pick the archive segments to read.
+	from, to time.Time
+	streams  []uuid.UUID
 }
 
 func (q *query) add(cond string, args ...any) {
@@ -188,7 +197,7 @@ func buildSearch(req *searchReq, proj store.Project, cat *catalogEntry, now time
 	if to.Sub(from) > searchMaxRange {
 		return nil, fmt.Errorf("the time range is longer than %d days", int(searchMaxRange.Hours()/24))
 	}
-	q := &query{}
+	q := &query{from: from, to: to}
 	q.add("workspace_id = ?", proj.WorkspaceID)
 	q.add("project_id = ?", proj.ID)
 	q.add("timestamp >= fromUnixTimestamp64Milli(?, 'UTC')", from.UnixMilli())
@@ -202,6 +211,7 @@ func buildSearch(req *searchReq, proj store.Project, cat *catalogEntry, now time
 				return nil, fmt.Errorf("stream %q does not exist in this project", n)
 			}
 			ids = append(ids, id)
+			q.streams = append(q.streams, id)
 		}
 		q.add("stream_id IN ?", clickhouse.GroupSet{Value: ids})
 	}
@@ -301,6 +311,11 @@ const searchCols = `event_id, timestamp, ingested_at, severity_text, severity_nu
 	stream_id, environment_id, source_service, source_host, source_resource, trace_id, span_id,
 	toJSONString(attributes)`
 
+// hotUnionCols are the events columns in the order archive.ReadSource.RemoteSelect returns them.
+const hotUnionCols = `workspace_id, project_id, environment_id, stream_id, event_id, timestamp, ingested_at,
+	severity_number, severity_text, event_name, message, source_service, source_host, source_resource,
+	trace_id, span_id, attributes`
+
 func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 	var req searchReq
 	if !decode(w, r, &req) {
@@ -336,11 +351,17 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	start := time.Now()
 
-	resp := searchResp{Items: []logItem{}, SearchedTiers: []string{"hot"}}
+	resp := searchResp{Items: []logItem{}}
+	source, tiers, partial, err := a.searchSource(r.Context(), proj, q)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	resp.SearchedTiers, resp.Partial = tiers, partial
 	if req.IncludeTotal {
 		// Counted on the filter without the cursor, so the number stays the same while paging.
 		// Duplicates left by a retried insert are counted once.
-		crow, err := a.Logs.CH.Query(ctx, "SELECT severity_text, uniqExact(event_id) FROM events WHERE "+q.sql()+" GROUP BY severity_text", q.args...)
+		crow, err := a.Logs.CH.Query(ctx, "SELECT severity_text, uniqExact(event_id) FROM "+source+" WHERE "+q.sql()+" GROUP BY severity_text", q.args...)
 		if err != nil {
 			a.searchFailed(w, r, err)
 			return
@@ -374,7 +395,7 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		q.add("(timestamp < fromUnixTimestamp64Milli(?, 'UTC') OR (timestamp = fromUnixTimestamp64Milli(?, 'UTC') AND event_id < ?))", c.T, c.T, c.ID)
 	}
-	sql := "SELECT " + searchCols + " FROM events WHERE " + q.sql() +
+	sql := "SELECT " + searchCols + " FROM " + source + " WHERE " + q.sql() +
 		" ORDER BY timestamp DESC, event_id DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(limit+1)
 	rs, err := a.Logs.CH.Query(ctx, sql, q.args...)
 	if err != nil {
@@ -408,6 +429,34 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.ExecutionStats = execStats{ElapsedMs: time.Since(start).Milliseconds(), RowsRead: rows.Load(), BytesRead: bytesRead.Load()}
 	httpx.WriteJSON(w, http.StatusOK, resp)
+}
+
+// searchSource returns the FROM expression for a search: the hot table alone, or the hot table
+// plus the cached archive segments of the range. partial reports segments that could not be read.
+func (a *API) searchSource(ctx context.Context, proj store.Project, q *query) (source string, tiers []string, partial bool, err error) {
+	source, tiers = "events", []string{"hot"}
+	if a.Logs.Archive == nil {
+		return source, tiers, false, nil
+	}
+	srcs, missing, err := a.Logs.Archive.ReadSources(ctx, proj.WorkspaceID, proj.ID, q.streams, q.from, q.to)
+	if err != nil {
+		return "", nil, false, err
+	}
+	if len(srcs) > 0 || missing > 0 {
+		tiers = append(tiers, "archive")
+	}
+	if len(srcs) > 0 {
+		// Evicted segments still read alongside the hot table: a late row or the moment
+		// between marking and deleting leaves copies in both, and LIMIT 1 BY event_id and
+		// uniqExact(event_id) count each event once.
+		parts := make([]string, 0, len(srcs)+1)
+		parts = append(parts, "SELECT "+hotUnionCols+" FROM events")
+		for _, s := range srcs {
+			parts = append(parts, s.RemoteSelect())
+		}
+		source = "(" + strings.Join(parts, " UNION ALL ") + ")"
+	}
+	return source, tiers, missing > 0, nil
 }
 
 func (a *API) searchFailed(w http.ResponseWriter, r *http.Request, err error) {
