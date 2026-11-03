@@ -525,6 +525,12 @@ function RowButton({ danger, ...rest }: { danger?: boolean; disabled?: boolean; 
 
 type FieldDef = { key: string; label: string; placeholder?: string; number?: boolean; check?: boolean; wide?: boolean; options?: { value: string; label: string }[] };
 
+/** A fresh file name for credentials typed in the form: the destination name as a slug, then the time in base 36. */
+function newSecretName(name: string): string {
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'destination';
+  return `${slug}-${Date.now().toString(36)}`;
+}
+
 function AddDestination({ onAdded }: { onAdded: () => void }) {
   const { t } = useTranslation();
   const problem = useProblem();
@@ -532,8 +538,49 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
   const [name, setName] = useState('');
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [secret, setSecret] = useState('');
+  const [mode, setMode] = useState<'enter' | 'server'>('enter');
+  const [accessKey, setAccessKey] = useState('');
+  const [secretKey, setSecretKey] = useState('');
+  const [credential, setCredential] = useState('');
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const [existing, setExisting] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sftpPassword = type === 'sftp' && values.auth === 'password';
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    // Names only; an install without a secrets folder answers 409 and the list stays empty.
+    api.secrets(ctrl.signal).then(setExisting, () => setExisting([]));
+    return () => ctrl.abort();
+  }, []);
+
+  const clearCredentials = () => {
+    setAccessKey('');
+    setSecretKey('');
+    setCredential('');
+    setFileNote(null);
+  };
+
+  const loadFile = async (file: File | undefined) => {
+    setFileNote(null);
+    if (!file) return;
+    if (file.size > 32 * 1024) return setFileNote(t('storage.cred.fileTooBig'));
+    const text = await file.text();
+    if (type === 's3') {
+      try {
+        const v = JSON.parse(text) as { access_key?: unknown; secret_key?: unknown };
+        if (typeof v.access_key !== 'string' || typeof v.secret_key !== 'string') throw new Error('keys');
+        setAccessKey(v.access_key);
+        setSecretKey(v.secret_key);
+      } catch {
+        return setFileNote(t('storage.cred.fileNotS3'));
+      }
+    } else {
+      setCredential(sftpPassword ? text.replace(/\r?\n$/, '') : text);
+    }
+    setFileNote(t('storage.cred.fileLoaded', { name: file.name }));
+  };
 
   const fields: Record<ProviderType, FieldDef[]> = {
     s3: [
@@ -573,13 +620,29 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
         if (typeof v === 'string' && v !== f.options[0].value) config[f.key] = v;
       } else if (typeof v === 'string' && v.trim() !== '') config[f.key] = f.number ? Number(v) : v.trim();
     }
+    let value: string | null = null;
+    if (type !== 'local' && mode === 'enter') {
+      if (type === 's3') {
+        if (!accessKey.trim() || !secretKey.trim()) return setError(t('storage.cred.s3Required'));
+        value = JSON.stringify({ access_key: accessKey.trim(), secret_key: secretKey.trim() });
+      } else {
+        if (!credential.trim()) return setError(t(sftpPassword ? 'storage.cred.passwordRequired' : 'storage.cred.keyRequired'));
+        value = sftpPassword ? credential : credential.trim() + '\n';
+      }
+    }
     setBusy(true);
     setError(null);
     try {
-      const p = await api.createProvider({ name: name.trim(), type, config, secret_file: type === 'local' || !secret.trim() ? null : secret.trim() });
+      let secretFile = type === 'local' || !secret.trim() ? null : secret.trim();
+      if (value !== null) {
+        secretFile = newSecretName(name);
+        await api.putSecret(secretFile, value);
+      }
+      const p = await api.createProvider({ name: name.trim(), type, config, secret_file: secretFile });
       setName('');
       setValues({});
       setSecret('');
+      clearCredentials();
       if (p.status === 'error') setError(t('storage.addedUnhealthy', { name: p.name }));
       onAdded();
     } catch (err) {
@@ -647,7 +710,82 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
           ),
         )}
         {type !== 'local' && (
-          <TextField id="st-a-secret" label={t('storage.f.secret')} value={secret} onChange={setSecret} placeholder={type === 's3' ? 's3-archive.json' : values.auth === 'password' ? 'storagebox-password' : 'storagebox-key'} hint={t(type === 'sftp' && values.auth === 'password' ? 'storage.secretHint.sftpPassword' : `storage.secretHint.${type}`)} wide />
+          <fieldset className="grid gap-3 sm:col-span-2">
+            <legend className="mb-1.5 font-semibold">{t('storage.cred.title')}</legend>
+            <div className="flex flex-wrap gap-2">
+              {(['enter', 'server'] as const).map((m) => (
+                <label
+                  key={m}
+                  className={cn(
+                    'flex min-h-11 cursor-pointer items-center gap-2 rounded-row border px-3 has-[:focus-visible]:outline-2 md:min-h-9',
+                    mode === m ? 'border-accent font-semibold' : 'border-line',
+                  )}
+                >
+                  <input type="radio" name="st-cred-mode" value={m} checked={mode === m} onChange={() => setMode(m)} className="sr-only" />
+                  {t(`storage.cred.mode.${m}`)}
+                </label>
+              ))}
+            </div>
+            {mode === 'enter' ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {type === 's3' ? (
+                  <>
+                    <TextField id="st-a-access" label={t('storage.cred.accessKey')} value={accessKey} onChange={setAccessKey} />
+                    <TextField id="st-a-secretkey" label={t('storage.cred.secretKey')} value={secretKey} onChange={setSecretKey} password />
+                  </>
+                ) : sftpPassword ? (
+                  <TextField id="st-a-password" label={t('storage.cred.password')} value={credential} onChange={setCredential} password wide />
+                ) : (
+                  <div className="grid gap-1.5 sm:col-span-2">
+                    <label htmlFor="st-a-key" className="font-semibold">
+                      {t('storage.cred.privateKey')}
+                    </label>
+                    <textarea
+                      id="st-a-key"
+                      rows={5}
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={credential}
+                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                      onChange={(e) => setCredential(e.target.value)}
+                      className="bg-sunk border-field w-full rounded-row border px-3 py-2 font-mono text-sm"
+                    />
+                  </div>
+                )}
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <label htmlFor="st-a-file" className="font-semibold">
+                    {t('storage.cred.fromFile')}
+                  </label>
+                  <input
+                    id="st-a-file"
+                    type="file"
+                    accept={type === 's3' ? '.json,application/json' : undefined}
+                    aria-describedby="st-a-file-h"
+                    onChange={(e) => {
+                      void loadFile(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                    className="text-sm"
+                  />
+                  <p id="st-a-file-h" className="text-ink3 text-[13px]" aria-live="polite">
+                    {fileNote ?? t(type === 's3' ? 'storage.cred.fileHintS3' : 'storage.cred.fileHint')}
+                  </p>
+                </div>
+                <p className="text-ink3 text-[13px] sm:col-span-2">{t('storage.cred.stored')}</p>
+              </div>
+            ) : (
+              <>
+                <TextField id="st-a-secret" label={t('storage.f.secret')} value={secret} onChange={setSecret} placeholder={type === 's3' ? 's3-archive.json' : sftpPassword ? 'storagebox-password' : 'storagebox-key'} hint={t(sftpPassword ? 'storage.secretHint.sftpPassword' : `storage.secretHint.${type}`)} list={existing.length > 0 ? 'st-a-secrets' : undefined} wide />
+                {existing.length > 0 && (
+                  <datalist id="st-a-secrets">
+                    {existing.map((n) => (
+                      <option key={n} value={n} />
+                    ))}
+                  </datalist>
+                )}
+              </>
+            )}
+          </fieldset>
         )}
       </div>
       <SubmitRow busy={busy} label={t('storage.addButton')} error={error} done={null} />
@@ -655,7 +793,7 @@ function AddDestination({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-function TextField(props: { id: string; label: string; value: string; onChange: (v: string) => void; placeholder?: string; hint?: string; wide?: boolean; numeric?: boolean }) {
+function TextField(props: { id: string; label: string; value: string; onChange: (v: string) => void; placeholder?: string; hint?: string; wide?: boolean; numeric?: boolean; password?: boolean; list?: string }) {
   return (
     <div className={cn('grid gap-1.5', props.wide && 'sm:col-span-2')}>
       <label htmlFor={props.id} className="font-semibold">
@@ -663,8 +801,9 @@ function TextField(props: { id: string; label: string; value: string; onChange: 
       </label>
       <input
         id={props.id}
-        type={props.numeric ? 'number' : 'text'}
-        autoComplete="off"
+        type={props.password ? 'password' : props.numeric ? 'number' : 'text'}
+        autoComplete={props.password ? 'new-password' : 'off'}
+        list={props.list}
         spellCheck={false}
         value={props.value}
         placeholder={props.placeholder}

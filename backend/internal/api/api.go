@@ -181,6 +181,8 @@ func (a *API) Routes(r chi.Router) {
 	r.Delete("/admin/storage/providers/{id}", a.adminDeleteProvider)
 	r.Post("/admin/storage/providers/{id}/test", a.adminTestProvider)
 	r.Put("/admin/storage/active", a.adminSetActiveProvider)
+	r.Get("/admin/storage/secrets", a.adminListSecrets)
+	r.Put("/admin/storage/secrets/{name}", a.adminPutSecret)
 	r.Get("/admin/retention", a.adminListRetention)
 	r.Put("/admin/retention/{scopeType}/{scopeId}", a.adminPutRetention)
 	r.Delete("/admin/retention/{scopeType}/{scopeId}", a.adminDeleteRetention)

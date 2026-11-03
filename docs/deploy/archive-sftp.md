@@ -1,12 +1,13 @@
 # Off-site archive over SFTP (Hetzner Storage Box)
 
-Ervisio Logs can copy sealed days to an SFTP server. You sign in with a password or with an SSH key. Neither one ever
-goes through the browser or into the database: each sits in its own file in the secrets folder (ADR 0008, ADR 0015).
+Ervisio Logs can copy sealed days to an SFTP server. You sign in with a password or with an SSH key. Either one sits
+in its own file in the secrets folder, never in the database (ADR 0008, ADR 0015). You can type it in the Storage page,
+which writes that file and never shows it again (ADR 0017), or write the file yourself.
 
 | Install | Secrets folder | Owner and mode |
 |---|---|---|
 | Docker Compose | `secrets/` next to `compose.yaml`, mounted at `/run/ervisio-logs/secrets` | uid 65532, folder `0700`, files `0400` |
-| Standalone | `/etc/ervisio-logs/secrets` | `root:ervisio-logs`, folder `2750`, files `0640` |
+| Standalone | `/etc/ervisio-logs/secrets` | `root:ervisio-logs`, folder `2770`, files `0640` (or `0600` owned by `ervisio-logs` when the Storage page wrote them) |
 
 `ERVISIO_LOGS_ARCHIVE_SECRETS_DIR` points to the folder. Compose and the systemd unit set it; set it yourself for any
 other layout.
@@ -25,6 +26,9 @@ In the Hetzner console, turn on SSH support for the box. You need:
   ```
 
 ## 2. Write the credentials file
+
+**From the Storage page**: skip this step. In step 3, keep "Enter them here" under Credentials and type the password,
+paste the key, or load it from a file on your computer.
 
 **From the Ervisio plugin**: Settings › Archive credentials. Type a file name such as `storagebox`, pick Password or
 SSH key, paste it and save. The plugin installs the file with the owner and mode above and lists names only.
@@ -57,7 +61,7 @@ In Ervisio Logs, Storage › Add destination › SFTP server:
 | Sign in with | Password (or SSH key) |
 | Folder on the server | `ervisio-logs` (relative to the login folder; create it first if the box refuses) |
 | Host public key | the `ssh-ed25519 AAAA...` line from step 1 |
-| Credentials file | `storagebox` |
+| Credentials | type the password here, or pick "Use a file already on the server" and enter `storagebox` |
 
 Ervisio Logs connects and checks the folder before it saves. A wrong host key, password or file name shows up there.
 

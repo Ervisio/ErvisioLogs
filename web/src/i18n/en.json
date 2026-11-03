@@ -513,14 +513,35 @@
       "password": "Password"
     },
     "secretHint": {
-      "s3": "A JSON file in the secrets folder with access_key and secret_key. Ervisio Logs never sends credentials through the browser.",
-      "sftp": "A file in the secrets folder holding the unencrypted private key. Ervisio Logs never sends credentials through the browser.",
-      "sftpPassword": "A file in the secrets folder holding only the password. Ervisio Logs never sends credentials through the browser."
+      "s3": "Name of a JSON file in the secrets folder with access_key and secret_key.",
+      "sftp": "Name of a file in the secrets folder holding the unencrypted private key.",
+      "sftpPassword": "Name of a file in the secrets folder holding only the password."
     },
     "nameRequired": "Give the destination a name.",
     "addButton": "Add destination",
     "addFailed": "The destination was not added. Try again.",
-    "addedUnhealthy": "{{name}} was added, but Ervisio Logs cannot reach it. Fix the settings, then check the connection."
+    "addedUnhealthy": "{{name}} was added, but Ervisio Logs cannot reach it. Fix the settings, then check the connection.",
+    "cred": {
+      "title": "Credentials",
+      "mode": {
+        "enter": "Enter them here",
+        "server": "Use a file already on the server"
+      },
+      "accessKey": "Access key",
+      "secretKey": "Secret key",
+      "password": "Password",
+      "privateKey": "Private key (unencrypted)",
+      "fromFile": "Or load them from a file on this computer",
+      "fileHintS3": "A JSON file with access_key and secret_key. It fills the fields above.",
+      "fileHint": "A text file. It fills the field above.",
+      "fileLoaded": "Loaded from {{name}}. Check the fields, then add the destination.",
+      "fileNotS3": "That file is not JSON with access_key and secret_key.",
+      "fileTooBig": "That file is larger than 32 KiB.",
+      "stored": "Ervisio Logs saves them in the secrets folder on the server, readable only by the service, and never shows them again.",
+      "s3Required": "Enter the access key and the secret key, or pick a file on the server.",
+      "passwordRequired": "Enter the password, or pick a file on the server.",
+      "keyRequired": "Paste the private key, or pick a file on the server."
+    }
   },
   "alerts": {
     "intro": "An alert counts the events that match a search over a time window and notifies your channels when the count goes above the threshold, and again when it drops back.",

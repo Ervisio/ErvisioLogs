@@ -1615,7 +1615,7 @@ paths:
       tags: [admin]
       operationId: adminCreateProvider
       summary: Add an archive provider
-      description: "The server opens the provider and runs its health check. Invalid settings answer 422; a failed health check still creates the provider with status `error`. Secrets stay in files under the secrets directory and never travel through the API."
+      description: "The server opens the provider and runs its health check. Invalid settings answer 422; a failed health check still creates the provider with status `error`. Secrets stay in files under the secrets directory; `PUT /admin/storage/secrets/{name}` writes one, and no endpoint returns one."
       requestBody:
         required: true
         content:
@@ -1771,6 +1771,77 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/admin/storage/secrets:
+    get:
+      tags: [admin]
+      operationId: adminListSecrets
+      summary: List the secret files of archive providers
+      description: "Names only. The API never returns a secret value."
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: File names in the secrets directory, sorted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: string
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/admin/storage/secrets/{name}:
+    put:
+      tags: [admin]
+      operationId: adminPutSecret
+      summary: Write a secret file for an archive provider
+      description: "Stores the value in `name` under the secrets directory, readable by the service only, replacing any file of that name. For S3 send JSON `{\"access_key\",\"secret_key\"}`; for SFTP the password or the private key. The value is never returned or logged. ADR 0017."
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: string
+                  minLength: 1
+                  maxLength: 32768
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Stored.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
