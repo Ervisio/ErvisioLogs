@@ -17,5 +17,7 @@ A record only becomes `Accepted` after the listed tests have run and the project
 | [0010](0010-alerts-webhooks-export-otlp.md) | P5 saved queries, alerts, webhooks, export, OTLP receiver | Proposed (implemented, tests not run, OTLP not validated) |
 | [0011](0011-packaging-and-release.md) | P7 release packages, image, standalone systemd, release workflow | Proposed (implemented, never run) |
 | [0012](0012-ervisio-plugin.md) | P6 Ervisio plugin: Docker stack or standalone deploy | Proposed (implemented, not loaded in a real Ervisio) |
+| [0013](0013-compose-postgres-tls.md) | TLS for the bundled PostgreSQL in Compose | Proposed (built, stack not started) |
+| [0014](0014-plugin-v2-sdk-and-caddy.md) | Plugin 0.1.1 on the plugin SDK, with Caddy publishing | Proposed (built, not loaded in a real Ervisio) |
 
 D008 (archive encryption) and D009 (replica quorum) stay open.

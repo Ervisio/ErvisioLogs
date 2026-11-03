@@ -63,39 +63,41 @@ cp docs/deploy/docker.md "$dir/README.md"
 tar -C "$work" --owner=0 --group=0 -czf "$out/$name.tar.gz" "$name"
 echo "built $name.tar.gz"
 
-# Ervisio plugin (ADR 0012). It deploys this same release: the Compose bundle's compose.yaml and .env.example go
-# into index.js, and the standalone tarballs' checksums into bin/release.sha256 for bin/standalone.sh.
-# The archive's top-level folder is ervisio-logs, the plugin id.
+# Ervisio plugin (ADR 0012, ADR 0014). It deploys this same release: the Compose bundle's compose.yaml and
+# .env.example go into src/bundle.generated.ts before the build, and the standalone tarballs' checksums into
+# bin/release.sha256 for bin/standalone.sh. The plugin builds with @ervisio/plugin-sdk (Vite preset and
+# ervisio-plugin-pack). The archive's top-level folder is ervisio-logs, the plugin id.
 if [[ -d integrations/ervisio-plugin ]]; then
   name="ervisio-logs-$version-ervisio-plugin"
+  src="$work/plugin-src"
   dir="$work/plugin/ervisio-logs"
   mkdir -p "$work/plugin"
-  cp -R integrations/ervisio-plugin "$dir"
+  # A clean copy without node_modules or dist from a development checkout.
+  (cd integrations/ervisio-plugin && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) \
+    | { mkdir -p "$src" && tar -C "$src" -xf -; }
+  node - "$src" "$version" "$work/ervisio-logs-$version-docker" <<'JS'
+const fs = require('fs');
+const [plugin, version, bundle] = process.argv.slice(2);
+const want = version.split('+')[0];
+for (const p of ['package.json', 'plugin/manifest.json']) {
+  const v = JSON.parse(fs.readFileSync(`${plugin}/${p}`, 'utf8')).version;
+  if (v !== want) { console.error(`release: integrations/ervisio-plugin/${p} is version ${v}, the release is ${want}`); process.exit(1); }
+}
+const read = (p) => fs.readFileSync(p, 'utf8');
+const data = { version, compose: read(`${bundle}/compose.yaml`), envExample: read(`${bundle}/.env.example`) };
+fs.writeFileSync(`${plugin}/src/bundle.generated.ts`,
+  '// Written by scripts/release.sh for this release.\n' +
+  'export const BUNDLE: { version: string; compose: string | null; envExample: string | null } = ' +
+  JSON.stringify(data, null, 2) + ';\n');
+JS
+  (cd "$src" && npm ci --no-audit --no-fund && npm run build)
+  cp -R "$src/dist/ervisio-logs" "$dir"
   install -m 0755 deploy/standalone/uninstall.sh "$dir/bin/uninstall.sh"
   chmod 0755 "$dir/bin/standalone.sh"
   printf '%s\n' "$version" > "$dir/bin/release.version"
   (cd "$out" && sha256sum -- ervisio-logs-"$version"-linux-*.tar.gz) > "$dir/bin/release.sha256"
-  python3 - "$dir" "$version" "$work/ervisio-logs-$version-docker" <<'PY'
-import json, re, sys
-plugin, version, bundle = sys.argv[1:4]
-mpath = f"{plugin}/manifest.json"
-with open(mpath, encoding="utf-8") as f:
-    m = json.load(f)
-m["version"] = version.split("+")[0]
-with open(mpath, "w", encoding="utf-8", newline="\n") as f:
-    json.dump(m, f, indent=2)
-    f.write("\n")
-read = lambda p: open(p, encoding="utf-8").read()
-data = {"version": version, "compose": read(f"{bundle}/compose.yaml"), "envExample": read(f"{bundle}/.env.example")}
-jpath = f"{plugin}/index.js"
-src = read(jpath)
-line = "const BUNDLE = " + json.dumps(data, ensure_ascii=False) + "; // @bundle"
-src, n = re.subn(r"^const BUNDLE = .*; // @bundle$", lambda _: line, src, count=1, flags=re.M)
-if n != 1:
-    sys.exit("release: the @bundle line is missing from integrations/ervisio-plugin/index.js")
-with open(jpath, "w", encoding="utf-8", newline="\n") as f:
-    f.write(src)
-PY
+  [[ -f "$dir/index.js" && -f "$dir/manifest.json" ]] || { echo "release: the plugin build left no index.js or manifest.json" >&2; exit 1; }
+  [[ ! -e "$dir/manifest.sig" ]] || { echo "release: manifest.sig must not ship, the registry signs the plugin" >&2; exit 1; }
   # Ervisio installs plugins from a .tar.gz (an https:// address or a local path) and strips the top-level folder.
   # The Ervisio/plugins registry reads ervisio-logs-<v>.tar.gz and its .sha256 ("<hex>  <name>") from the latest
   # stable release, signs it with the team key and lists it. Reproducible archive: sorted, owner 0, commit time.

@@ -41,7 +41,9 @@ commands:
   migrate status        show applied and pending migrations
   version               print version information
   config-check          validate the environment configuration and exit
-  healthcheck           probe the local /healthz (for container HEALTHCHECK)`
+  healthcheck           probe the local /healthz (for container HEALTHCHECK)
+  tls-cert --dir DIR [--host NAMES] [--days N]
+                        write a self-signed certificate for the bundled PostgreSQL (kept if present)`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -63,6 +65,8 @@ func run(args []string) error {
 		return withConfig(serve)
 	case "healthcheck":
 		return healthcheck()
+	case "tls-cert":
+		return tlsCert(args[1:], os.Stdout)
 	case "config-check":
 		return withConfig(func(_ context.Context, c config.Config, _ *slog.Logger) error {
 			fmt.Println("configuration OK")

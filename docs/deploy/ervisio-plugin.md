@@ -7,7 +7,10 @@ runs on the server and you manage it:
   appears under Docker › Stacks.
 - **Standalone**: the release binary run by systemd (see [standalone.md](standalone.md)).
 
-Design and limits: ADR 0012. The plugin has **not** been loaded in a real Ervisio yet. Try it on a test server first.
+It also publishes the app on its own web address through the Caddy already on the server (see
+[Publish through Caddy](#publish-through-caddy)).
+
+Design and limits: ADR 0012 and ADR 0014. The plugin has **not** been loaded in a real Ervisio yet. Try it on a test server first.
 
 ## Install the plugin
 
@@ -24,6 +27,13 @@ Ervisio unpacks it into `/var/lib/ervisio/plugins/ervisio-logs`. The standalone 
 of `integrations/ervisio-plugin` loaded in developer mode shows the page but refuses to install anything: it has no
 release version, compose file or checksums. Build a package with `scripts/release.sh` instead.
 
+## The page
+
+A header shows the state of the app and its version. The inner menu, like plugin-docker's, has four sections:
+**Overview** (the route internet › Caddy › app › databases with the state of each hop, the services and the
+actions), **Address** (Caddy), **Settings** and **Console** (the full output of the last action, and the app logs on
+request).
+
 ## Choose a mode
 
 The first time you open the page, pick Docker or Standalone. The page shows whether Docker Compose was found. The
@@ -38,7 +48,7 @@ unlocking, and members of `systemd-journal` read the service journal. Ervisio re
    mode 2770, writes `compose.yaml` from the release, creates `.env` with random database passwords and secret key,
    then pulls the images and starts the stack. The page never shows the generated secrets.
 2. Under **Settings**, set the public URL, the environment, the port and proxy trust, then press **Save** and
-   **Update** to apply them.
+   **Restart now** to restart with them. Or let **Address** set the public URL for you.
 3. Press **Open** to open the app in a new tab.
 
 **Update** writes the `compose.yaml` of the plugin's version, keeps `.env` (adding only missing secrets), pulls and
@@ -64,6 +74,35 @@ You provide PostgreSQL 15+ and ClickHouse 25.8 (the archive tier needs ClickHous
 **Uninstall** runs the release's `uninstall.sh`: service and binary go, the env file, the data in PostgreSQL and
 ClickHouse, the spool and the archive cache stay.
 
+## Publish through Caddy
+
+**Address** looks for Caddy on the server: the `caddy.service` unit, and, if you can use Docker, containers that
+run a Caddy image. It suggests `logs.<your domain>` from the sites Caddy already serves.
+
+- The plugin writes the site the way plugin-caddy does: in `ervisio-logs.caddy` next to the Caddyfile, loaded by one
+  `import` line it appends to the Caddyfile. When a Caddy container has only its Caddyfile mounted, the block goes
+  inside the Caddyfile between the `# Managed by the Ervisio Logs plugin` and `# End of the Ervisio Logs block` comments, so it survives the container being recreated.
+- Each change runs `caddy validate` and a reload. If either fails, the plugin writes the files back exactly as they
+  were and reloads again. Only after a good reload does it set `ERVISIO_LOGS_PUBLIC_URL` to the https address and
+  `ERVISIO_LOGS_TRUST_PROXY=true`, switch the app to production when nothing else blocks it, and restart the app.
+- Caddy in a container reaches the Docker stack on the `ervisiologs_edge` network, as `ervisio-logs-app:8080`. The
+  plugin attaches the Caddy container to that network. The system Caddy reaches `127.0.0.1` and the app port.
+- A site you wrote yourself for the same host shows as published. The plugin leaves it alone and offers to set
+  only the public URL.
+- When the plugin cannot write (a JSON config, a Caddyfile outside `/etc/caddy`, caddy-docker-proxy labels, a
+  read-only mount, a stopped container, a Caddy container on a bridge network with the standalone service), it says
+  why and shows the block to paste yourself.
+- **Remove site** takes out only the plugin's block or file and the import line, with the same validate and rollback.
+
+Writing `/etc/caddy`, `caddy validate` and the reload run as root, so Ervisio asks you to unlock.
+
+## Production mode
+
+The app refuses to start in production with an http public URL or a PostgreSQL DSN with `sslmode=disable`. Since
+0.1.1 the Compose stack runs its PostgreSQL with TLS (ADR 0013), so the Docker mode can run in production once the
+public URL is https. Settings lists what still blocks production and keeps **Save** disabled while you ask for
+production with those values. In standalone mode, your DSN must use TLS.
+
 ## First sign-in
 
 The app keeps its own accounts: Ervisio passes no identity to plugins. The first administrator signs in with the
@@ -80,4 +119,5 @@ databases yourself.
 ## Not verified
 
 Loading in Ervisio, the unlock flow for each command, the stack appearing in the Docker plugin, both install paths,
-update to a newer release, and plugin removal. ADR 0012 lists the tests needed.
+update to a newer release, plugin removal, and every Caddy path (system service, container with a mounted folder,
+container with only the Caddyfile, rollback, remove). Nothing in 0.1.1 ran outside type checks and a build. ADR 0012 lists the tests needed.

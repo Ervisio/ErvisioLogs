@@ -38,7 +38,10 @@ jobs:
             --label org.opencontainers.image.version="$VERSION" \
             -t "$IMAGE:$VERSION" --push .
       - name: Artifacts
-        run: scripts/release.sh
+        run: |
+          # The plugin lockfile resolves @ervisio/plugin-sdk over git+ssh; the runner has no SSH key and the repo is public.
+          git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+          scripts/release.sh
       - name: GitHub release
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
