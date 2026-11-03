@@ -3,13 +3,30 @@
     "name": "Ervisio Logs"
   },
   "nav": {
-    "overview": "Panoramica",
+    "menu": "Apri la navigazione",
+    "closeMenu": "Chiudi la navigazione",
+    "primary": "Progetti",
+    "sections": "Sezioni del progetto",
+    "allProjects": "Tutti i progetti",
+    "environment": "Ambiente",
+    "streams": "Stream",
+    "toggleStreams": "Mostra o nascondi gli stream",
     "explorer": "Esplora log",
-    "tail": "Live Tail",
+    "live": "Live",
+    "dashboards": "Dashboard",
+    "alerts": "Alert",
+    "integrations": "Integrazioni",
+    "storage": "Archiviazione",
+    "usage": "Utilizzo",
+    "audit": "Audit",
     "settings": "Impostazioni",
-    "soon": "Non ancora disponibile",
+    "tokens": "Token API",
+    "users": "Utenti",
     "collapse": "Comprimi",
-    "expand": "Espandi"
+    "expand": "Espandi",
+    "soon": "Non ancora disponibile",
+    "status": "Stato del sistema",
+    "loadFailed": "Impossibile caricare questo progetto."
   },
   "theme": {
     "light": "Chiaro",
@@ -17,10 +34,6 @@
     "toggle": "Cambia tema"
   },
   "language": "Lingua",
-  "overview": {
-    "title": "Panoramica",
-    "intro": "Eventi, errori e velocità di ingestione compariranno qui quando arriverà l'ingestione dei log."
-  },
   "status": {
     "title": "Stato del sistema",
     "loading": "Controllo dei servizi…",
@@ -34,9 +47,218 @@
       "clickhouse": "ClickHouse",
       "migrations_postgres": "Migrazioni PostgreSQL",
       "migrations_clickhouse": "Migrazioni ClickHouse"
-    }
+    },
+    "intro": "I servizi da cui dipende questo server."
   },
-  "search": {
-    "placeholder": "Cerca o esegui un comando"
+  "common": {
+    "retry": "Riprova",
+    "working": "Attendi…"
+  },
+  "account": {
+    "open": "Account",
+    "signOut": "Esci",
+    "signOutFailed": "Uscita non riuscita. Riprova.",
+    "workspace": "Workspace"
+  },
+  "palette": {
+    "open": "Comandi",
+    "title": "Palette dei comandi",
+    "placeholder": "Cerca progetti, stream e comandi",
+    "empty": "Nessun risultato.",
+    "projects": "Progetti",
+    "streams": "Stream",
+    "sections": "Sezioni",
+    "actions": "Azioni",
+    "hintMove": "Su e giù per spostarti",
+    "hintOpen": "Invio per aprire",
+    "hintClose": "Esc per chiudere"
+  },
+  "explorer": {
+    "emptyTitle": "Ancora nessun evento",
+    "emptyText": "L'ingestione dei log non è disponibile in questa versione. Gli eventi compariranno qui quando arriverà.",
+    "emptyStream": "L'ingestione dei log non è disponibile in questa versione. Gli eventi di {{stream}} compariranno qui quando arriverà."
+  },
+  "section": {
+    "soonText": "Questa sezione non è disponibile in questa versione."
+  },
+  "notFound": {
+    "title": "Pagina non trovata",
+    "text": "Questo indirizzo non corrisponde a una pagina o a un progetto che puoi aprire.",
+    "action": "Vai a tutti i progetti"
+  },
+  "projects": {
+    "title": "Tutti i progetti",
+    "loading": "Carico i progetti…",
+    "loadFailed": "Impossibile caricare i progetti.",
+    "none": "Questo workspace non ha ancora progetti.",
+    "createWorkspaceTitle": "Crea il tuo workspace",
+    "createWorkspaceText": "Un workspace raccoglie i tuoi progetti e le persone che possono vederli.",
+    "workspaceName": "Nome del workspace",
+    "createWorkspace": "Crea workspace",
+    "creatingWorkspace": "Creo il workspace",
+    "createProjectTitle": "Crea un progetto",
+    "projectName": "Nome del progetto",
+    "createProject": "Crea progetto",
+    "creatingProject": "Creo il progetto",
+    "projectHint": "Un nuovo progetto parte con un ambiente production e uno stream default.",
+    "nameRequired": "Scrivi un nome.",
+    "nameTooLong": "Usa al massimo 100 caratteri.",
+    "forbidden": "Il tuo ruolo in questo workspace non lo permette. Chiedi a un owner o a un admin.",
+    "conflict": "Questo nome è già in uso. Scegline un altro.",
+    "failed": "Non ha funzionato. Riprova."
+  },
+  "login": {
+    "loading": "Carico…",
+    "or": "oppure",
+    "continueWith": "Continua con {{provider}}",
+    "unreachableTitle": "Il server non risponde",
+    "unreachableText": "Controlla che Ervisio Logs sia in esecuzione, poi riprova.",
+    "title": {
+      "login": "Accedi",
+      "register": "Crea un account",
+      "setup": "Crea il primo amministratore"
+    },
+    "busy": {
+      "login": "Accesso in corso",
+      "register": "Creo l'account",
+      "setup": "Creo l'amministratore"
+    },
+    "idle": {
+      "login": "Accedi",
+      "register": "Crea account",
+      "setup": "Crea amministratore"
+    },
+    "noAccount": "Non hai un account?",
+    "createAccount": "Crea un account",
+    "haveAccount": "Hai già un account?",
+    "signIn": "Accedi",
+    "closedText": "Registrazione chiusa. Chiedi a un amministratore di creare il tuo account.",
+    "backToSignIn": "Torna all'accesso",
+    "field": {
+      "login": "Email o username",
+      "email": "Email",
+      "username": "Username",
+      "password": "Password",
+      "setup_code": "Codice di setup"
+    },
+    "showPassword": "Mostra password",
+    "hidePassword": "Nascondi password",
+    "hint": {
+      "username": "Da 3 a 32 caratteri: minuscole, cifre, . _ -",
+      "password": "Almeno 10 caratteri, diversa da email e username."
+    },
+    "invalid": {
+      "loginRequired": "Scrivi email o username.",
+      "loginLong": "Massimo 320 caratteri.",
+      "setupRequired": "Incolla il codice di setup.",
+      "emailRequired": "Scrivi l'email.",
+      "emailInvalid": "Email non valida. Esempio: nome@dominio.it",
+      "usernameRequired": "Scrivi uno username.",
+      "usernameLength": "Usa da 3 a 32 caratteri.",
+      "usernameStart": "Inizia con una lettera o una cifra.",
+      "usernameChars": "Usa solo minuscole, cifre, punto, trattino, underscore.",
+      "passwordLoginRequired": "Scrivi la password.",
+      "passwordRequired": "Scrivi una password.",
+      "passwordShort_one": "Troppo corta: manca {{count}} carattere.",
+      "passwordShort_other": "Troppo corta: mancano {{count}} caratteri.",
+      "passwordLong": "Troppo lunga: massimo 128 byte.",
+      "passwordSame": "Deve essere diversa da email e username."
+    },
+    "setup": {
+      "where": "Il server scrive il codice di setup nei suoi log all'avvio.",
+      "find": "Cerca questa riga e copia il valore di setup_code:",
+      "compose": "Con Docker Compose:"
+    },
+    "wait": {
+      "seconds_one": "{{count}} secondo",
+      "seconds_other": "{{count}} secondi",
+      "minutes_one": "{{count}} minuto",
+      "minutes_other": "{{count}} minuti",
+      "later": "qualche minuto"
+    },
+    "problem": {
+      "login": {
+        "400": "Richiesta non valida. Ricarica la pagina e riprova.",
+        "401": "Email, username o password errati. Controlla e riprova.",
+        "403": "Richiesta rifiutata. Ricarica la pagina e riprova.",
+        "413": "Dati troppo lunghi. Accorcia i campi e riprova.",
+        "429": "Troppi tentativi. Riprova tra {{wait}}.",
+        "503": "Il server è occupato. Riprova tra poco."
+      },
+      "register": {
+        "400": "Richiesta non valida. Ricarica la pagina e riprova.",
+        "403": "Registrazione chiusa. Chiedi a un amministratore di creare il tuo account.",
+        "409": "Email o username già in uso. Accedi, oppure scegline altri.",
+        "413": "Dati troppo lunghi. Accorcia i campi e riprova.",
+        "422": "Dati rifiutati dal server. Controlla i campi e riprova.",
+        "429": "Troppi tentativi. Riprova tra {{wait}}.",
+        "503": "Il server è occupato. Riprova tra poco."
+      },
+      "setup": {
+        "400": "Richiesta non valida. Ricarica la pagina e riprova.",
+        "403": "Codice di setup errato o già usato. Copia dai log l'ultimo codice scritto dal server.",
+        "409": "Email o username già in uso. Scegline altri.",
+        "413": "Dati troppo lunghi. Accorcia i campi e riprova.",
+        "422": "Dati rifiutati dal server. Controlla i campi e riprova.",
+        "429": "Troppi tentativi. Riprova tra {{wait}}.",
+        "503": "Il server è occupato. Riprova tra poco."
+      }
+    },
+    "fallbackText": "Riprova. Se continua, avvisa chi amministra il server.",
+    "errorCode": "Codice: {{code}}",
+    "action": {
+      "login": "Accedi con email e password",
+      "setup": "Crea il primo amministratore"
+    },
+    "error": {
+      "fallback": {
+        "title": "Accesso non riuscito",
+        "text": "Riprova. Se continua, avvisa chi amministra il server."
+      },
+      "provider_denied": {
+        "title": "Accesso annullato",
+        "text": "Il provider non ha concesso l'accesso. Riprova, oppure usa email e password."
+      },
+      "invalid_request": {
+        "title": "Risposta incompleta dal provider",
+        "text": "Mancano dati nella risposta. Riprova dal pulsante del provider."
+      },
+      "invalid_state": {
+        "title": "Richiesta di accesso non valida",
+        "text": "La richiesta è scaduta o è partita da un altro browser. Riprova da questo browser."
+      },
+      "exchange_failed": {
+        "title": "Il provider non ha completato l'accesso",
+        "text": "Riprova tra poco. Se continua, usa email e password o avvisa un amministratore."
+      },
+      "email_unverified": {
+        "title": "Email non verificata",
+        "text": "Il provider non conferma la tua email. Verificala nel tuo account del provider, poi riprova."
+      },
+      "email_in_use": {
+        "title": "Questa email ha già un account",
+        "text": "L'account ha una password e l'email non è verificata, quindi il provider non si collega. Accedi con email e password."
+      },
+      "identity_conflict": {
+        "title": "Provider già collegato con un altro profilo",
+        "text": "Il tuo account usa già un altro profilo di questo provider. Entra con quel profilo, oppure con email e password."
+      },
+      "registration_closed": {
+        "title": "Registrazione chiusa",
+        "text": "Nessun account usa questa email e non si accettano nuovi utenti. Chiedi a un amministratore di creare il tuo account."
+      },
+      "setup_required": {
+        "title": "Manca il primo amministratore",
+        "text": "Il primo account si crea con il codice di setup, non con un provider."
+      },
+      "account_disabled": {
+        "title": "Account disattivato",
+        "text": "Chiedi a un amministratore di riattivarlo."
+      },
+      "server_error": {
+        "title": "Errore del server",
+        "text": "Accesso non riuscito. Riprova tra poco. Se continua, avvisa chi amministra il server."
+      }
+    }
   }
 }

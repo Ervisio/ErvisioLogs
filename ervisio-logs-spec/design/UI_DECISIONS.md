@@ -44,3 +44,13 @@ The approved screenshots show these problems. Approval covers the direction, so 
   asset before shipping.
 
 The Navigation and Sign-in subagents were stopped after approval and did not finish their browser checks.
+
+## Defect status (2026-11-02, uncommitted)
+
+- Explorer icons and `#`: fixed in the navigation column, with lucide icons.
+- Explorer "2 error, 1 f..." and "Vedi 13 di 214 eventi": still open. The table waits for the P2 events API.
+- "Esplora log" wrap: fixed. Unread dots removed, because no data backs them.
+- "Ervisio Logs" and "Crea un account" wrap: fixed.
+- Cognito logo: removed, the button shows text only, because the source stays unverified.
+
+Provisional, not approved: the project and workspace creation form.

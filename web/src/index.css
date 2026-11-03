@@ -1,15 +1,21 @@
 @import 'tailwindcss';
 
-/* Design tokens follow Ervisio's DESIGN-RULES (OLED default). Secondary text is lifted
-   to keep at least 4.5:1 contrast on the panel colour (the Variant Studio audit flagged #6c6c76). */
+/* Design tokens follow Ervisio's DESIGN-RULES (OLED default) and the approved prototypes
+   in ervisio-logs-spec/design/approved. Text tokens keep at least 4.5:1 on every surface. */
 :root {
   --bg: #000000;
   --surface: #0e0e10;
   --sunk: #18181b;
+  --raised: #26262b;
+  --line: #232327;
+  --field: #6b6b75;
   --ink: #f4f4f6;
   --ink2: #b0b0ba;
   --ink3: #8f8f9a;
-  --hue: #ffb547; /* Ervisio "Logs" section colour */
+  --hue: #ffb547; /* Ervisio "Logs" section colour, as text */
+  --accent: #ffb547; /* the same colour, as a fill */
+  --accent-ink: #1c1100;
+  --discord: #7983f5;
   --ok: #3ddc97;
   --err: #ff6b81;
   color-scheme: dark;
@@ -18,28 +24,46 @@
   --bg: #ececef;
   --surface: #f7f7f9;
   --sunk: #ffffff;
+  --raised: #dcdce2;
+  --line: #dcdce2;
+  --field: #84848e;
   --ink: #16161a;
   --ink2: #50505b;
-  --ink3: #6b6b76;
-  --hue: #a85f00;
+  --ink3: #5f5f6a;
+  --hue: #865000;
+  --accent: #ffb547;
+  --accent-ink: #1c1100;
+  --discord: #4f5bd5;
   --ok: #0f7a50;
   --err: #c42d4a;
   color-scheme: light;
 }
 
+@theme {
+  --breakpoint-md: 45.0625rem; /* the prototypes switch to the drawer at 720px */
+}
+
 @theme inline {
   --font-sans: 'Figtree Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, Consolas, monospace;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-sunk: var(--sunk);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-field: var(--field);
   --color-ink: var(--ink);
   --color-ink2: var(--ink2);
   --color-ink3: var(--ink3);
   --color-hue: var(--hue);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-discord: var(--discord);
   --color-ok: var(--ok);
   --color-err: var(--err);
   --radius-card: 18px;
   --radius-control: 12px;
+  --radius-row: 7px;
 }
 
 body {
@@ -50,9 +74,35 @@ body {
   font-size: 14px;
 }
 
-:focus-visible {
-  outline: 2px solid var(--hue);
-  outline-offset: 2px;
+button {
+  cursor: pointer;
+}
+
+/* In the base layer, so a control that draws focus on its container can opt out with a utility. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--hue);
+    outline-offset: 2px;
+  }
+}
+
+.err-tint {
+  background: color-mix(in srgb, var(--err) 14%, var(--surface));
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin-slow 0.8s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
