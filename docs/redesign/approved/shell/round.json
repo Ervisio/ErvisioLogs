@@ -1,0 +1,42 @@
+{
+  "group": "Redesign 0.2 / Shell e log",
+  "title": "Shell e log",
+  "question": "Quale navigazione e densità rende più facile leggere e gestire i log?",
+  "kind": "page",
+  "viewports": [
+    "laptop",
+    "mobile"
+  ],
+  "head": [
+    "<link rel=\"stylesheet\" href=\"/r/001-shell-explorer/_tokens.css\">"
+  ],
+  "variants": [
+    {
+      "id": "a",
+      "label": "Navigazione unificata",
+      "notes": "Sidebar unica, filtri a richiesta e dettaglio laterale: più spazio ai risultati."
+    },
+    {
+      "id": "b",
+      "label": "Banco di ricerca",
+      "notes": "Rail compatta e filtri persistenti: confronta stream e livelli senza aprire pannelli."
+    },
+    {
+      "id": "c",
+      "label": "Registro leggibile",
+      "notes": "Righe a due linee e dettaglio inline: leggi gli eventi mantenendo il contesto."
+    }
+  ],
+  "created": "2026-11-04T20:48:23.071Z",
+  "context": "Dati dimostrativi dal prototipo approvato; nessuna connessione all’istanza.",
+  "states": [
+    "default"
+  ],
+  "checklist": [
+    "Workspace e ruolo visibili",
+    "Ricerca, livelli e stream funzionano",
+    "Dettaglio e originale raggiungibili",
+    "Mobile senza scorrimento orizzontale",
+    "Leggibile in tema chiaro e scuro"
+  ]
+}

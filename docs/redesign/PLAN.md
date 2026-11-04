@@ -162,3 +162,23 @@ Si parte da F2 (scelta 2026-11-04). F2 è divisa in PR:
 - F2d metadati di stream e ambienti, creazione automatica configurabile.
 - F2e socket admin locale + token admin d'istanza + CORS per Bearer.
 - F2f `/admin/health`, limiti e quote di ingest, purge.
+
+## Ripresa del 2026-11-04
+
+- F2a-f e i fix F1 web/plugin sono presenti nel checkout di partenza (`dcd3bdc`); il vecchio handoff li collocava ancora su `feat/runtime-settings`.
+- Seguiti F1 implementati in locale: slug backend per nomi senza caratteri ASCII, conteggi livelli indipendenti dal filtro livello, provenienza hot/archive per riga e rimozione della ricerca web aggiuntiva.
+- F0: approvata A, «Navigazione unificata» (`a6bd837dfa14`), impostazioni 002 A (`2b78002d7bb2`), utenti remix 005 A (`b40fdd483bc3`), plugin 004 B (`befd1a6aae91`); [brief, token e prove delle decisioni](DESIGN.md).
+- Port della scelta A: sidebar unica, URL con scope e compatibilità dei link precedenti, menu senza voci future, filtri laterali, righe leggibili e dettaglio raggruppato. Le azioni usano le API esistenti; catalogo eventi, tag, aggregazioni e istogramma reali restano F4. Impostazioni complete e separazione conservazione restano F3.
+- Il parser conserva virgolette, backslash e valori multilinea nei filtri salvati o scelti dai dettagli. La QA browser usa risposte API simulate, senza scritture a un'istanza reale.
+- La validazione locale distingue unit/lint da integrazione: il test dei permessi socket richiede un ambiente Unix; i nuovi test con Postgres/ClickHouse/archivio richiedono servizi di test disponibili.
+- Nessun rilascio, push o deploy da questa ripresa.
+
+### Avanzamento gestione web e plugin
+
+- F3 parziale: impostazioni runtime a tre livelli, fonti/ereditarietà/env bloccate e salvataggi parziali recuperabili; metadati di ambienti e stream; utenti admin con sessioni e conferme; Account, recupero password, verifica email e accettazione/registrazione da invito; panoramica salute e token admin d'istanza. Route e navigazione sono collegate alle API esistenti.
+- Corretta la race di bootstrap autenticazione che poteva sovrascrivere un nuovo accesso e il CSRF; l'anteprima invito attende il controllo sessione. Test di regressione riproducono entrambi i problemi prima delle correzioni.
+- F5 implementato in locale: navigazione B nel kit SDK, client tipizzato condiviso, impostazioni/utenti/tenancy/archivio/audit/salute, trasporti socket e HTTPS, console con storico. SDK 0.3.0 privo di vault: token remoto solo nella memoria della pagina; la persistenza protetta resta subordinata al supporto SDK. Il plugin non è stato eseguito nell'host Ervisio reale.
+- QA gestione web: 72 controlli browser con API simulate (28 impostazioni/utenti, 28 account/email, 16 panoramica/token), desktop/mobile e due temi. Nessuna prova di consegna SMTP, Postgres/ClickHouse o gestione reale via plugin da questi controlli.
+- Restano in F3: UI generale per rename/delete workspace/progetti, creazione/eliminazione ambienti e stream, creazione/elenco/revoca inviti, split completo Archivio/Conservazione e purge manuale. Le API di conservazione attuali sono amministrative: evitare di esporle come permesso tenant implicito.
+- F4 e F6-F9 restano da implementare; nessuna voce futura aggiunta al menu. Le parti anticipabili (registro attività del plugin, sessioni account) non chiudono quelle fasi.
+- Verifica finale locale: 150 test web in 17 file, lint, typecheck/build web, build backend con UI aggiornata e build plugin passano. Il bundle web supera 500 kB (avviso di build); la suite Go completa conserva il fallimento Windows del test sui permessi Unix socket. Nessuna normalizzazione globale dei fine-riga o modifica ai servizi per aggirarlo.

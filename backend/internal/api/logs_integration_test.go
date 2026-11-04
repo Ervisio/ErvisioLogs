@@ -213,6 +213,26 @@ func TestIngestSearchAndTail(t *testing.T) {
 	if lc["INFO"].(float64) != 2 || lc["ERROR"].(float64) != 1 {
 		t.Fatalf("level counts %v", lc)
 	}
+	for _, item := range all["items"].([]any) {
+		if item.(map[string]any)["tier"] != "hot" {
+			t.Fatalf("hot item tier: %v", item)
+		}
+	}
+	for _, body := range []map[string]any{
+		{"levels": []string{"error"}, "include_total": true},
+		{"severity_min": 17, "include_total": true},
+		{"levels": []string{"error"}, "severity_min": 17, "include_total": true},
+	} {
+		filtered := waitSearch(t, alice, both, body, 1)
+		counts := filtered["level_counts"].(map[string]any)
+		if filtered["total"] != float64(1) || counts["INFO"] != float64(2) || counts["ERROR"] != float64(1) {
+			t.Fatalf("filtered totals: %v", filtered)
+		}
+	}
+	filtered := waitSearch(t, alice, both, map[string]any{"levels": []string{"error"}, "query": "failed", "include_total": true}, 1)
+	if counts := filtered["level_counts"].(map[string]any); len(counts) != 1 || counts["ERROR"] != float64(1) {
+		t.Fatalf("counts ignored message filter: %v", filtered)
+	}
 	first := all["items"].([]any)[1].(map[string]any)
 	if first["stream"] != "economy" || first["environment"] != "production" || first["service"] != "bank" ||
 		first["attributes"].(map[string]any)["player"].(map[string]any)["license"] != "lic:2" {

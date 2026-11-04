@@ -26,6 +26,8 @@ Invariants:
 - Docker API access limited to manifest `http.rules` regexes; added Docker/Caddy calls need a matching manifest entry.
 - No manifest.sig shipped; the Ervisio/plugins registry signs it.
 - ENV is never forced to development (warnProduction warns instead); unpassedKeys warns about ERVISIO_LOGS_* keys in .env not referenced by compose.yaml (computed from the file at runtime); secrets created by ensureSecrets.
-- Can talk to the API only via the admin unix socket (ADR 0019, volume ervisiologs_admin); not wired in the plugin yet.
+- Management B uses the transport-neutral `packages/admin-client` through `src/api/admin.ts` and `admin-transport.ts`: local Docker/system admin Unix sockets use manifest HTTP allowlists; remote mode accepts only a bare HTTPS origin and sends a bearer token.
+- SDK v0.3.0 has no secret vault: remote token exists only in open-page memory, never plugin settings/files/browser storage/logs. Disconnect or target changes abort pending requests and clear the connection; HTTPS errors redact the token.
+- Browser management QA uses simulated API responses; real Ervisio host, socket, remote API and service integration still need verification.
 Gotchas: `npm test` = node --test test/*.test.ts. envSet writes values unquoted. @ervisio/plugin-sdk is a git dep (github:Ervisio/plugin-sdk#v0.3.0); CI rewrites ssh->https for it. Build = `tsc --noEmit && vite build && ervisio-plugin-pack copy` (cd integrations/ervisio-plugin). minCore 0.5.0.
 Related: map/sdk.md, map/deploy.md, map/backend.md (ingest, archive secrets dir ERVISIO_LOGS_ARCHIVE_SECRETS_DIR), docs/deploy/ervisio-plugin.md

@@ -85,3 +85,26 @@ func TestSearchCursorRoundTrip(t *testing.T) {
 		t.Fatal("bad cursor accepted")
 	}
 }
+
+func TestMatchesSearchLevel(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		req      searchReq
+		level    string
+		severity uint8
+		want     bool
+	}{
+		{"unfiltered", searchReq{}, "INFO", 9, true},
+		{"alias", searchReq{Levels: []string{"warning"}}, "WARN", 13, true},
+		{"other level", searchReq{Levels: []string{"ERROR"}}, "INFO", 9, false},
+		{"minimum", searchReq{SeverityMin: 13}, "INFO", 9, false},
+		{"inclusive minimum", searchReq{SeverityMin: 13}, "WARN", 13, true},
+		{"combined", searchReq{SeverityMin: 17, Levels: []string{"WARN"}}, "WARN", 13, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := matchesSearchLevel(&tc.req, tc.level, tc.severity); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

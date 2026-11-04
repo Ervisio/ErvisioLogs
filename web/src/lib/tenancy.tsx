@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMatch, useNavigate } from 'react-router-dom';
 import { api, ApiError, type Project, type Workspace } from './api';
 import { useAuth, useSession } from './auth';
+import { workspacePath } from './sections';
 
 type ProjectsState = { status: 'loading' } | { status: 'failed' } | { status: 'ready'; projects: Project[] };
 
@@ -19,14 +21,21 @@ const TenancyContext = createContext<TenancyValue | null>(null);
 export function TenancyProvider({ children }: { children: ReactNode }) {
   const session = useSession();
   const { retry } = useAuth();
+  const navigate = useNavigate();
+  const scopedWorkspaceId = useMatch('/w/:workspaceId/*')?.params.workspaceId;
   const [workspaces, setWorkspaces] = useState(session.workspaces ?? []);
-  const [selected, setSelected] = useState(() => localStorage.getItem('workspace'));
   const [loaded, setLoaded] = useState<{ key: string; result: ProjectsState } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const workspace = workspaces.find((w) => w.id === selected) ?? workspaces[0] ?? null;
+  const workspace = scopedWorkspaceId
+    ? workspaces.find((w) => w.id === scopedWorkspaceId) ?? null
+    : workspaces.find((w) => w.id === localStorage.getItem('workspace')) ?? workspaces[0] ?? null;
   const workspaceId = workspace?.id ?? null;
   const loadKey = `${workspaceId}:${attempt}`;
+
+  useEffect(() => {
+    if (workspaceId) localStorage.setItem('workspace', workspaceId);
+  }, [workspaceId]);
 
   // A result counts only for the request that produced it, so switching workspace shows "loading".
   const projects = useMemo<ProjectsState>(() => {
@@ -39,7 +48,9 @@ export function TenancyProvider({ children }: { children: ReactNode }) {
     const ctrl = new AbortController();
     api
       .projects(workspaceId, ctrl.signal)
-      .then((list) => setLoaded({ key: loadKey, result: { status: 'ready', projects: list } }))
+      .then((list) => {
+        if (!ctrl.signal.aborted) setLoaded({ key: loadKey, result: { status: 'ready', projects: list.filter((p) => p.workspace_id === workspaceId) } });
+      })
       .catch((err: unknown) => {
         if (ctrl.signal.aborted) return;
         // An expired session asks the auth layer again, and the guard sends the user to sign in.
@@ -51,16 +62,17 @@ export function TenancyProvider({ children }: { children: ReactNode }) {
 
   const selectWorkspace = useCallback((id: string) => {
     localStorage.setItem('workspace', id);
-    setSelected(id);
-  }, []);
+    navigate(workspacePath(id));
+  }, [navigate]);
   const addWorkspace = useCallback((created: Workspace) => {
     setWorkspaces((cur) => [...cur, created]);
     localStorage.setItem('workspace', created.id);
-    setSelected(created.id);
-  }, []);
+    navigate(workspacePath(created.id));
+  }, [navigate]);
   const addProject = useCallback((created: Project) => {
-    setLoaded((cur) => (cur?.result.status === 'ready' ? { key: cur.key, result: { status: 'ready', projects: [...cur.result.projects, created] } } : cur));
-  }, []);
+    if (created.workspace_id !== workspaceId) return;
+    setLoaded((cur) => (cur?.key === loadKey && cur.result.status === 'ready' ? { key: cur.key, result: { status: 'ready', projects: [...cur.result.projects, created] } } : cur));
+  }, [workspaceId, loadKey]);
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
 
   const value = useMemo(

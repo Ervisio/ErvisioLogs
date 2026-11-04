@@ -1,0 +1,27 @@
+{
+    "group":  "Redesign 0.2 / Plugin",
+    "title":  "Gestione dal plugin",
+    "question":  "Quale navigazione preferisci per gestire Ervisio Logs dal plugin?",
+    "kind":  "page",
+    "viewports":  [
+                      "laptop",
+                      "mobile"
+                  ],
+    "head":  [
+
+             ],
+    "variants":  [
+                     {
+                         "id":  "a",
+                         "label":  "Schede operative",
+                         "notes":  "Schede per le nove aree del piano, impostazioni runtime in gruppi e server separato. Componenti ricostruiti dal kit SDK Ervisio."
+                     },
+                     {
+                         "id":  "b",
+                         "label":  "Menu di gestione",
+                         "notes":  "Menu interno raggruppato Gestione / Server locale, contesto workspace e progetto accanto al contenuto. Stessi dati e componenti della variante A."
+                     }
+                 ],
+    "created":  "2026-11-04T21:22:50.814Z",
+    "context":  "Anteprima F0 del plugin Ervisio. Campioni espliciti: impostazioni dallo schema F2, health da /admin/health; nessuna connessione, scrittura backend o comando server. Tab e menu selezionano le stesse funzioni. SDK ui disponibile solo nel pannello host: questa è una ricostruzione HTML del kit."
+}

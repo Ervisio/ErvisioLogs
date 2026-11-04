@@ -8,7 +8,6 @@ import { envGet, envSet, oneLine } from '../api/env';
 import * as logs from '../api/logs';
 import { Badge, Button, Icon, Input, Segmented, Skeleton, Switch } from '../kit';
 import type { Ctx } from './LogsPage';
-import { Secrets } from './Secrets';
 import { errText, t, useLoad } from './util';
 
 interface FieldDef {
@@ -25,6 +24,10 @@ const DOCKER: FieldDef[] = [
   { key: 'ERVISIO_LOGS_TRUST_PROXY', label: 'set.trustProxy', help: 'set.trustProxy.help', kind: 'bool' },
   { key: 'ERVISIO_LOGS_PORT', label: 'set.port', help: 'set.port.help', kind: 'text', placeholder: '8080' },
   { key: 'ERVISIO_LOGS_SETUP_CODE', label: 'set.setupCode', help: 'set.setupCode.help', kind: 'secret' },
+  { key: 'ERVISIO_LOGS_SECRET_KEY', label: 'manage.serviceKey', kind: 'secret' },
+  { key: 'ERVISIO_LOGS_POSTGRES_DSN', label: 'set.pgDsn', help: 'set.pgDsn.help', kind: 'secret' },
+  { key: 'ERVISIO_LOGS_CLICKHOUSE_ADDR', label: 'set.chAddr', kind: 'text', placeholder: 'clickhouse:9000' },
+  { key: 'ERVISIO_LOGS_ADMIN_SOCKET', label: 'manage.adminSocketPath', kind: 'text', placeholder: '/var/lib/ervisio-logs/socket/admin.sock' },
 ];
 
 const STANDALONE: FieldDef[] = [
@@ -37,6 +40,12 @@ const STANDALONE: FieldDef[] = [
   { key: 'ERVISIO_LOGS_CLICKHOUSE_USER', label: 'set.chUser', kind: 'text', placeholder: 'ervisio_logs' },
   { key: 'ERVISIO_LOGS_CLICKHOUSE_PASSWORD', label: 'set.chPassword', kind: 'secret' },
   { key: 'ERVISIO_LOGS_SETUP_CODE', label: 'set.setupCode', help: 'set.setupCode.help', kind: 'secret' },
+  { key: 'ERVISIO_LOGS_SECRET_KEY', label: 'manage.serviceKey', kind: 'secret' },
+  { key: 'ERVISIO_LOGS_CLICKHOUSE_DATABASE', label: 'manage.database', kind: 'text', placeholder: 'ervisio_logs' },
+  { key: 'ERVISIO_LOGS_SPOOL_DIR', label: 'manage.spoolPath', kind: 'text' },
+  { key: 'ERVISIO_LOGS_ARCHIVE_CACHE_DIR', label: 'manage.cachePath', kind: 'text' },
+  { key: 'ERVISIO_LOGS_ARCHIVE_SECRETS_DIR', label: 'manage.secretsPath', kind: 'text' },
+  { key: 'ERVISIO_LOGS_ADMIN_SOCKET', label: 'manage.adminSocketPath', kind: 'text', placeholder: '/run/ervisio-logs/admin.sock' },
 ];
 
 type Draft = Record<string, string>;
@@ -182,8 +191,6 @@ export function Settings({ ctx }: { ctx: Ctx }) {
         )}
         <p className="el-muted">{t('set.otherKeys')}</p>
       </section>
-
-      <Secrets ctx={ctx} />
 
       {saved && !dirty && (
         <div className="el-note is-ok">

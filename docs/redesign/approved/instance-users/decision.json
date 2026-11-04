@@ -1,0 +1,27 @@
+{
+  "id": "b40fdd483bc3",
+  "at": "2026-11-04T21:32:37.698Z",
+  "round": "005-instance-users-remix",
+  "action": "choose",
+  "selected": [
+    "a"
+  ],
+  "note": "",
+  "variants": {},
+  "viewed_at": {
+    "viewport": "laptop",
+    "width": 1280,
+    "theme": "light",
+    "layout": "focus"
+  },
+  "approved": {
+    "variant": "a",
+    "at": "2026-11-04T21:32:37.698Z"
+  },
+  "files": {
+    "a": "prototype.html"
+  },
+  "screenshots": {
+    "a": "screenshot.png"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "group": "Redesign 0.2 / Amministrazione",
+  "title": "Utenti: combinazioni",
+  "question": "Quale combinazione di elenco e gestione preferisci?",
+  "kind": "page",
+  "viewports": [
+    "laptop",
+    "mobile"
+  ],
+  "parent": "003-instance-users",
+  "head": [
+    "<link rel=\"stylesheet\" href=\"/r/005-instance-users-remix/_tokens.css\">"
+  ],
+  "variants": [
+    {
+      "id": "a",
+      "label": "Lettura e ispettore",
+      "notes": "Unisce le righe leggibili di B al pannello laterale di A: confronta le persone e gestisci quella selezionata accanto alla lista."
+    },
+    {
+      "id": "b",
+      "label": "Confronto e dialogo",
+      "notes": "Unisce la lista compatta di A ai dialoghi di B: confronta stato e ruolo, poi concentra le azioni su un account."
+    }
+  ],
+  "created": "2026-11-04T21:31:04.812Z",
+  "context": "Combinazioni delle varianti A e B scelte nel round precedente. Dati dimostrativi; modifiche solo nel campione locale, senza connessione all’istanza.",
+  "states": [
+    "default"
+  ],
+  "checklist": [
+    "Combina elenco e gestione delle due proposte",
+    "Ruolo istanza distinto dai workspace",
+    "Ricerca, paginazione e azioni locali funzionano",
+    "Protezioni self e ultimo owner rispettate",
+    "Mobile senza overflow e con controlli di almeno 44px"
+  ]
+}

@@ -6,3 +6,13 @@
 - map/sdk.md: TypeScript SDK: batching, retry, build. Read before touching sdk/.
 - map/integrations.md: FiveM resource + Ervisio plugin. Read before touching integrations/.
 - map/deploy.md: Docker, Makefile, release flow, version bump. Read before releasing or touching deploy/, scripts/.
+- ../README.md: setup, development commands and sign-in. Read before running the project.
+- ../docs/redesign/PLAN.md: redesign 0.2 scope, phases and dependencies. Read before choosing redesign work.
+- ../docs/redesign/DESIGN.md: F0 brief, reference observations, locked tokens, proposed directions and visual evidence. Read before redesign UI work.
+- ../docs/adr/README.md: architecture decision catalog. Read before changing an established contract.
+- ../docs/security.md: security model and operational guidance. Read before security-sensitive changes.
+- ../ervisio-logs-spec/README.md: specification entry point. Read when checking product requirements.
+- ../ervisio-logs-spec/implementation/IMPLEMENTATION_PLAN.md: original implementation phases and test gates. Read when checking baseline scope.
+- ../integrations/fivem/README.md: FiveM installation and usage. Read before integration setup.
+- ../integrations/ervisio-plugin/README.md: Ervisio plugin setup and contract. Read before plugin integration work.
+- ../sdk/typescript/README.md: SDK setup and usage. Read before changing public SDK behavior.

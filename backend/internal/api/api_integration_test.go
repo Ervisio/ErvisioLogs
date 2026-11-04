@@ -356,6 +356,20 @@ func TestWorkspaceDeleteNeedsConfirmation(t *testing.T) {
 	expect(t, alice.get("/workspaces/"+ws), 404)
 }
 
+func TestNonASCIIDerivedSlugs(t *testing.T) {
+	e := newEnv(t, nil, nil)
+	admin := e.setupAdmin()
+	w := expect(t, admin.post("/workspaces", map[string]string{"name": "東京"}), 201).JSON()
+	if w["slug"] != slugify("東京") {
+		t.Fatalf("workspace slug: %v", w["slug"])
+	}
+	p := expect(t, admin.post("/projects", map[string]string{"workspace_id": w["id"].(string), "name": "团队"}), 201).JSON()
+	if p["slug"] != slugify("团队") {
+		t.Fatalf("project slug: %v", p["slug"])
+	}
+	expect(t, admin.post("/workspaces", map[string]string{"name": "東京", "slug": "東京"}), 422)
+}
+
 func TestAPITokenLifecycle(t *testing.T) {
 	e := newEnv(t, nil, nil)
 	admin := e.setupAdmin()

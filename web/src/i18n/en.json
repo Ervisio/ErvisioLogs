@@ -2,16 +2,41 @@
   "app": {
     "name": "Ervisio Logs"
   },
+  "shell": {
+    "workspace": "Workspace",
+    "project": "Current project",
+    "projects": "Projects",
+    "projectSettings": "Project settings",
+    "workspaceSettings": "Workspace settings",
+    "instance": "Instance",
+    "goTo": "Go to…",
+    "logs": "Logs",
+    "channels": "Notification channels",
+    "configuration": "Configuration",
+    "instanceUsers": "Instance users"
+  },
+  "logDetails": {
+    "who": "Who",
+    "what": "What",
+    "where": "Where",
+    "when": "When",
+    "technical": "Technical",
+    "original": "Show original",
+    "actor": "Actor",
+    "target": "Target",
+    "filterValue": "Filter by {{field}}",
+    "copyFailed": "Could not copy JSON."
+  },
   "nav": {
     "menu": "Open navigation",
     "closeMenu": "Close navigation",
-    "primary": "Projects",
+    "primary": "Primary navigation",
     "sections": "Project sections",
     "allProjects": "All projects",
     "environment": "Environment",
     "streams": "Streams",
     "toggleStreams": "Show or hide streams",
-    "explorer": "Log Explorer",
+    "explorer": "Logs",
     "live": "Live",
     "dashboards": "Dashboards",
     "alerts": "Alerts",
@@ -63,9 +88,9 @@
     "workspace": "Workspace"
   },
   "palette": {
-    "open": "Commands",
-    "title": "Command palette",
-    "placeholder": "Search projects, streams and commands",
+    "open": "Go to…",
+    "title": "Go to…",
+    "placeholder": "Search projects, streams and settings",
     "empty": "No matches.",
     "projects": "Projects",
     "streams": "Streams",
@@ -76,6 +101,17 @@
     "hintClose": "Esc to close"
   },
   "explorer": {
+    "filters": "Filters",
+    "closeFilters": "Close filters",
+    "levelNames": {
+      "TRACE": "Trace",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "NOTICE": "Notice",
+      "WARN": "Warning",
+      "ERROR": "Error",
+      "FATAL": "Critical"
+    },
     "allStreams": "All streams",
     "events_one": "{{n}} event",
     "events_other": "{{n}} events",
@@ -111,6 +147,7 @@
     },
     "open": "Open event from {{time}}",
     "tier": {
+      "archive": "Archive",
       "live": "Live"
     },
     "shownOf": "Showing {{shown}} of {{total}}",
@@ -154,6 +191,7 @@
     "inWorkspace": "Projects in {{name}}"
   },
   "login": {
+    "forgotPassword": "Forgot password?",
     "loading": "Loading…",
     "or": "or",
     "continueWith": "Continue with {{provider}}",
@@ -987,5 +1025,514 @@
         ]
       }
     ]
+  },
+  "adminUsers": {
+    "title": "Users",
+    "instanceScope": "Administration / Instance",
+    "instanceAccount": "Instance account",
+    "intro": "Manage access to Ervisio Logs. Manage workspace membership under Members and invitations. Instance administration does not grant access to workspace logs.",
+    "forbidden": "Only an instance administrator can manage these accounts.",
+    "create": "Create user",
+    "search": "Search",
+    "searchPlaceholder": "Search email or username",
+    "list": "Instance users",
+    "loading": "Loading users…",
+    "loadFailed": "Could not load users.",
+    "empty": "No accounts match",
+    "emptyHelp": "Change your search or create an account.",
+    "manageUser": "Manage {{name}}",
+    "you": "You",
+    "active": "Active",
+    "disabled": "Disabled",
+    "admin": "Instance admin",
+    "regularUser": "User",
+    "page": "Page {{page}}",
+    "previous": "Previous",
+    "next": "Next",
+    "details": "User details",
+    "closeDetails": "Close user details",
+    "closeDialog": "Close dialog",
+    "created": "Created",
+    "email": "Email",
+    "username": "Username",
+    "verified": "Verified",
+    "unverified": "Not verified",
+    "access": "Access",
+    "disable": "Disable account",
+    "activate": "Reactivate account",
+    "demote": "Revoke instance admin",
+    "promote": "Make instance admin",
+    "resetPassword": "Reset password",
+    "selfHelp": "You cannot change your own status, administrator role or password, or delete your account here. Use Account to change your password.",
+    "sessions": "Sessions",
+    "viewSessions": "View sessions",
+    "deletion": "Deletion",
+    "delete": "Delete account",
+    "deleteHelp": "Deletion removes sessions and memberships. Tokens created by this user stop working.",
+    "cancel": "Cancel",
+    "usernameHelp": "3–32 characters: lowercase letters, numbers, dot, dash or underscore.",
+    "optionalPassword": "Password (optional)",
+    "newPassword": "New password",
+    "passwordHelp": "At least 10 characters and at most 128 bytes. Must differ from the email and username.",
+    "confirmUsername": "Type {{name}} to confirm",
+    "confirmMismatch": "The confirmation does not match the username.",
+    "actionFailed": "The action failed. Try again.",
+    "sessionsFailed": "Could not load or change the sessions.",
+    "sessionsRevoked": "Sessions revoked.",
+    "sessionHelp": "Revoking all sessions keeps the session making this request. Revoking your current session signs you out.",
+    "loadingSessions": "Loading sessions…",
+    "noSessions": "No active sessions.",
+    "unknownBrowser": "Browser not reported",
+    "revokeSession": "Revoke",
+    "currentSession": "Current session",
+    "lastSeen": "Last used",
+    "expires": "Expires",
+    "notAvailable": "Not reported",
+    "revokeOthers": "Revoke other sessions",
+    "revokeAll": "Revoke all sessions",
+    "actionTitle": {
+      "status": "Change access · {{name}}",
+      "admin": "Change administrator role · {{name}}",
+      "password": "Reset password · {{name}}",
+      "sessions": "Sessions · {{name}}",
+      "delete": "Delete {{name}}",
+      "disable": "Disable {{name}}",
+      "activate": "Reactivate {{name}}",
+      "promote": "Make {{name}} an instance admin",
+      "demote": "Revoke instance admin from {{name}}"
+    },
+    "actionHelp": {
+      "create": "Create an instance account. Without a password, the account can only sign in through an external provider that verifies the address.",
+      "status": "Change whether this user can sign in.",
+      "admin": "Instance administration does not change workspace roles.",
+      "disable": "This user will no longer be able to sign in. All their sessions will be revoked.",
+      "activate": "This user will be able to sign in again. Previous sessions remain revoked.",
+      "promote": "This user will be able to manage the instance and its accounts. This does not grant access to workspace logs.",
+      "demote": "This user will lose instance management access. Their workspace roles remain unchanged.",
+      "password": "Set a new password and revoke all of this user’s sessions. Share the password through an appropriate channel.",
+      "delete": "Delete the account, its sessions and memberships. Tokens created by this user stop working. The server keeps at least one active administrator and one owner per workspace."
+    },
+    "submit": {
+      "create": "Create user",
+      "status": "Confirm change",
+      "admin": "Confirm change",
+      "password": "Reset password",
+      "delete": "Delete account"
+    },
+    "success": {
+      "create": "User created.",
+      "status": "Account access updated.",
+      "admin": "Instance administrator role updated.",
+      "password": "Password reset and user sessions revoked.",
+      "delete": "Account deleted."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "scope": "Scope",
+    "sections": "Settings sections",
+    "forbidden": "You do not have permission to open these settings.",
+    "readOnly": "You can read these settings. Your workspace role does not allow changes here.",
+    "loadFailed": "Could not load settings.",
+    "saveFailed": "Could not save this value.",
+    "refreshFailed": "Values were written, but the latest settings could not be reloaded. Check the server before retrying.",
+    "checkValues": "Check the indicated values before saving.",
+    "partial": "Saved {{saved}} values; {{failed}} values failed and remain unsaved.",
+    "saved_one": "Saved {{count}} value.",
+    "saved_other": "Saved {{count}} values.",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes.",
+    "noChanges": "No unsaved changes.",
+    "empty": "No settings are available at this scope.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "notSet": "Not set",
+    "technical": "Technical details",
+    "seconds": "Seconds",
+    "locked": "Set by an environment variable on the server. Change it there.",
+    "pending": "Pending change",
+    "useDefault": "Use the default value",
+    "useInherited": "Use the inherited value",
+    "resetValue": "Restore inherited value",
+    "invalidBoolean": "Choose enabled or disabled.",
+    "invalidNumber": "Enter a whole number from {{min}} to {{max}}.",
+    "invalidChoice": "Choose one of the available values.",
+    "invalidText": "Use text without control characters, up to {{max}} bytes.",
+    "scopes": {
+      "instance": "Instance",
+      "workspace": "Workspace",
+      "project": "Project"
+    },
+    "headings": {
+      "instance": "Configure the instance",
+      "workspace": "Workspace settings",
+      "project": "Project settings"
+    },
+    "intro": {
+      "instance": "Manage defaults. Server environment variables always take precedence.",
+      "workspace": "Set shared defaults for projects in this workspace.",
+      "project": "Choose which values to inherit and which to customize for this project."
+    },
+    "sources": {
+      "env": "Set on the server",
+      "instance": "Instance value",
+      "workspace": "Workspace value",
+      "project": "Project value",
+      "default": "Default value"
+    },
+    "unknown": {
+      "label": "Additional setting",
+      "hint": "Open technical details to identify this server setting."
+    },
+    "groups": {
+      "access": {
+        "label": "Access",
+        "hint": "Registration and session lifetime."
+      },
+      "collection": {
+        "label": "Log collection",
+        "hint": "Control stream creation and incoming event rates. Zero means unlimited for rates and stream counts."
+      },
+      "quotas": {
+        "label": "Daily limits",
+        "hint": "Quotas reset at midnight UTC. Zero means unlimited."
+      },
+      "email": {
+        "label": "Email",
+        "hint": "SMTP for invitations and account recovery. Passwords are referenced by file name."
+      },
+      "archive": {
+        "label": "Archive and alerts",
+        "hint": "Background work intervals and alert history."
+      },
+      "advanced": {
+        "label": "Advanced",
+        "hint": "Export limits and server diagnostics."
+      },
+      "metadata": {
+        "label": "Environments and streams",
+        "hint": "Display names, descriptions and colors. Technical names stay unchanged."
+      }
+    },
+    "metadata": {
+      "choose": "Edit",
+      "stream": "Stream",
+      "environment": "Environment",
+      "technicalName": "Technical name",
+      "immutable": "Clients use this identifier. It cannot be renamed.",
+      "displayName": "Display name",
+      "description": "Description",
+      "color": "Color",
+      "colorHint": "A six-digit color such as #ffb547, or empty to remove it.",
+      "noInheritance": "Metadata belongs to this item and does not inherit workspace values.",
+      "empty": "This project has no streams or environments.",
+      "loadFailed": "Could not load streams and environments.",
+      "invalidName": "Use up to 100 characters for the display name, without NUL characters.",
+      "invalidDescription": "Use up to 500 characters for the description, without NUL characters.",
+      "invalidColor": "Use a color such as #ffb547, or leave it empty.",
+      "saved": "Metadata saved."
+    },
+    "duration": {
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "hours_one": "{{count}} hour",
+      "hours_other": "{{count}} hours",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "seconds_one": "{{count}} second",
+      "seconds_other": "{{count}} seconds"
+    },
+    "fields": {
+      "auth_open_registration": {
+        "label": "Open registration",
+        "hint": "Allow people to create an account without an invitation."
+      },
+      "auth_session_ttl": {
+        "label": "Session lifetime",
+        "hint": "How long a signed-in session remains valid."
+      },
+      "ingest_auto_create_streams": {
+        "label": "Create streams automatically",
+        "hint": "Accept new stream names sent by your servers."
+      },
+      "ingest_max_streams": {
+        "label": "Maximum streams",
+        "hint": "Also applies to manual creation. Zero means unlimited."
+      },
+      "ingest_rate_per_token": {
+        "label": "Events per second per token",
+        "hint": "Each token has its own limit. Zero means unlimited."
+      },
+      "ingest_rate_per_project": {
+        "label": "Events per second per project",
+        "hint": "Combined events from all tokens in a project."
+      },
+      "ingest_rate_per_workspace": {
+        "label": "Events per second in the workspace",
+        "hint": "Combined limit across the workspace projects."
+      },
+      "ingest_rate_burst_seconds": {
+        "label": "Burst allowance",
+        "hint": "How many seconds of the rate limit can be used in a burst."
+      },
+      "ingest_max_future_skew": {
+        "label": "Maximum event clock lead",
+        "hint": "Accepted offset when a client clock is ahead."
+      },
+      "ingest_max_past_age": {
+        "label": "Maximum event age",
+        "hint": "Reject events older than this interval."
+      },
+      "ingest_project_quota_events": {
+        "label": "Events per day per project",
+        "hint": "Total accepted events within a UTC day."
+      },
+      "ingest_project_quota_bytes": {
+        "label": "Bytes per day per project",
+        "hint": "Accepted data size before archiving."
+      },
+      "ingest_workspace_quota_events": {
+        "label": "Events per day in the workspace",
+        "hint": "Shared quota across all workspace projects."
+      },
+      "ingest_workspace_quota_bytes": {
+        "label": "Bytes per day in the workspace",
+        "hint": "Combined data size across the workspace."
+      },
+      "email_smtp_host": {
+        "label": "SMTP server",
+        "hint": "Host name without a port. Leave empty to disable email."
+      },
+      "email_smtp_port": {
+        "label": "SMTP port",
+        "hint": "The port used by your mail server."
+      },
+      "email_smtp_security": {
+        "label": "Connection security",
+        "hint": "Use the mode required by your SMTP server."
+      },
+      "email_smtp_username": {
+        "label": "SMTP username",
+        "hint": "User name of the mail account."
+      },
+      "email_smtp_password_file": {
+        "label": "SMTP password file",
+        "hint": "File name inside the secrets directory. The password is never displayed here."
+      },
+      "email_from": {
+        "label": "Sender",
+        "hint": "For example Ervisio Logs <logs@example.com>."
+      },
+      "archive_interval": {
+        "label": "Archive frequency",
+        "hint": "Time between archiver passes."
+      },
+      "archive_grace": {
+        "label": "Wait after the end of a day",
+        "hint": "Delay before archiving a completed UTC day."
+      },
+      "archive_late_interval": {
+        "label": "Late event interval",
+        "hint": "Avoid frequent small archives for the same day."
+      },
+      "alerts_interval": {
+        "label": "Alert evaluation frequency",
+        "hint": "How often alert rules are evaluated."
+      },
+      "alerts_history_retention": {
+        "label": "Alert history lifetime",
+        "hint": "How long alert results are retained."
+      },
+      "alerts_webhook_allow_private": {
+        "label": "Webhooks to private addresses",
+        "hint": "Allow destinations inside the local network."
+      },
+      "export_max_rows": {
+        "label": "Maximum rows per export",
+        "hint": "Limit the size of a single export."
+      },
+      "server_log_level": {
+        "label": "Server log level",
+        "hint": "Ervisio Logs diagnostics, separate from collected events."
+      }
+    },
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading settings…"
+  },
+  "accountPage": {
+    "title": "Account",
+    "sections": "Account settings",
+    "profile": "Profile",
+    "password": "Password",
+    "sessions": "Sessions",
+    "readOnly": "Your account details.",
+    "username": "Username",
+    "email": "Email",
+    "created": "Created",
+    "emailVerified": "Email verified",
+    "emailUnverified": "Email not verified",
+    "resendVerification": "Send verification email",
+    "verificationSent": "Verification email requested. Check your inbox.",
+    "passwordIntro": "Enter your current password to choose a new one. Your current session stays active; other sessions are revoked. Accounts that sign in only through an external provider may have no password.",
+    "currentPassword": "Current password",
+    "changePassword": "Change password",
+    "passwordChanged": "Password changed. Your current session remains active; other sessions were revoked.",
+    "sessionsIntro": "Review your active sessions. Revoking other sessions keeps this one. Revoking the current session signs you out.",
+    "loadingSessions": "Loading sessions…",
+    "noSessions": "No active sessions.",
+    "notReported": "Not reported",
+    "revokeSession": "Revoke session",
+    "revokeCurrent": "Revoke current session",
+    "currentSession": "Current session",
+    "lastSeen": "Last used",
+    "expires": "Expires",
+    "revokeOthers": "Revoke other sessions",
+    "sessionsRevoked": "Sessions revoked."
+  },
+  "emailFlow": {
+    "signIn": "Sign in",
+    "email": "Email",
+    "username": "Username",
+    "newPassword": "New password",
+    "passwordHelp": "At least 10 characters and at most 128 bytes. Must differ from the email and username.",
+    "usernameHelp": "3–32 characters: lowercase letters, numbers, dot, dash or underscore.",
+    "forgotTitle": "Reset your password",
+    "forgotHelp": "Enter your account email to request a reset link.",
+    "sendReset": "Request reset link",
+    "forgotNeutral": "If this address belongs to an active account, you will receive an email with the next steps.",
+    "resetTitle": "Choose a new password",
+    "resetHelp": "This link works once. Resetting your password revokes all of your sessions.",
+    "resetSubmit": "Set new password",
+    "resetDone": "Password reset. Sign in with your new password.",
+    "verifyTitle": "Verify your email",
+    "verifyHelp": "Confirm to verify the address associated with this link.",
+    "verifySubmit": "Verify email",
+    "verifyDone": "Email verified.",
+    "missingLink": "Open the complete link from your email. If you refreshed this page or signed in through an external provider, open the email link again.",
+    "expired": "This link is invalid, used or expired. Request a new link or ask the person who invited you.",
+    "rateLimited": "Too many requests. Try again in {{seconds}} seconds.",
+    "failed": "The request failed. Try again shortly.",
+    "inviteTitle": "Workspace invitation",
+    "loadingInvite": "Loading invitation…",
+    "loadingAccount": "Checking your account…",
+    "inviteRole": "Invited role: {{role}}",
+    "inviteExpires": "Expires {{date}}",
+    "signedInAs": "Signed in as {{email}}",
+    "acceptInvite": "Accept invitation",
+    "inviteDone": "Invitation accepted.",
+    "signInInvite": "Sign in with the invited address to accept this invitation.",
+    "inviteContinuity": "The invitation stays in memory during password sign-in in this tab. After a refresh or external-provider sign-in, open the email link again.",
+    "registerInviteHelp": "Create an account for the invited address and join this workspace. A valid invitation works even when public registration is closed.",
+    "registerInvite": "Create account and accept",
+    "wrongAccount": "This invitation is for another address. Sign out and sign in with the invited account.",
+    "switchAccount": "Use the invited account"
+  },
+  "instanceAdmin": {
+    "forbidden": "Only instance administrators can open this page.",
+    "loading": "Loading instance data…",
+    "refresh": "Refresh",
+    "saving": "Saving…",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "unavailable": "Unavailable",
+    "health": {
+      "title": "Instance overview",
+      "intro": "Current values reported by the instance. Refreshes approximately every 30 seconds.",
+      "loadFailed": "Could not read the instance health. Retry to request current data.",
+      "stale": "Refresh failed. The values below are from the last successful response.",
+      "updated": "Last response: {{at}}",
+      "status": {
+        "ok": "Instance reports normal operation",
+        "degraded": "Instance reports degraded operation",
+        "unknown": "Instance status unavailable"
+      },
+      "databases": "Databases",
+      "checkOk": "Check succeeded",
+      "checkFailed": "Check failed",
+      "errorReported": "The instance reported an error. Connection details are not displayed here.",
+      "wal": "Durable ingest queue",
+      "walUnavailable": "The instance did not return queue statistics.",
+      "walBytes": "Queue size",
+      "walMax": "Queue capacity",
+      "segments": "Segments",
+      "pending": "Pending records",
+      "lag": "Writer lag",
+      "seconds": "s",
+      "archive": "Archive and upload queue",
+      "waiting": "Waiting uploads",
+      "waitingBytes": "Waiting upload bytes",
+      "failed": "Failed uploads",
+      "failedBytes": "Failed upload bytes",
+      "archiver": "Archiver",
+      "destination": "Archive destination",
+      "noDestination": "No destination returned",
+      "verified": "Last verified archive",
+      "oldest": "Oldest unarchived event",
+      "destinationStatus": "Destination status",
+      "lastCheck": "Last destination check",
+      "destinationError": "The instance reported an archive destination error. Credential and connection details are not displayed."
+    },
+    "scopes": {
+      "read": {
+        "label": "Read administration",
+        "hint": "Read instance management information without modifying it. This does not grant access to collected logs."
+      },
+      "users": {
+        "label": "Manage users",
+        "hint": "Create and manage accounts, passwords and sessions."
+      },
+      "settings": {
+        "label": "Manage runtime settings",
+        "hint": "Change runtime settings for the instance."
+      },
+      "tenancy": {
+        "label": "Manage workspaces and projects",
+        "hint": "Manage workspaces, projects, memberships and ingestion tokens."
+      },
+      "storage": {
+        "label": "Manage archive and retention",
+        "hint": "Manage archive destinations, credential files and retention policies."
+      }
+    },
+    "tokens": {
+      "title": "Instance admin tokens",
+      "intro": "Tokens for the Ervisio plugin or other management tools. Creation and revocation require your administrator session.",
+      "validity": "A token is valid only while its creator remains an active instance administrator. “Not revoked” describes its stored revocation state, not the creator’s current access.",
+      "create": "Create admin token",
+      "loadFailed": "Could not load admin tokens.",
+      "empty": "No admin tokens have been created.",
+      "scopes": "Permissions",
+      "created": "Created",
+      "expires": "Expires",
+      "lastUsed": "Last used",
+      "revokedAt": "Revoked",
+      "creator": "Creator ID",
+      "never": "Never",
+      "revoked": "Revoked",
+      "expired": "Expired",
+      "notRevoked": "Not revoked",
+      "revoke": "Revoke token",
+      "revokeNamed": "Revoke {{name}}",
+      "name": "Token name",
+      "expiry": "Expiry",
+      "expiryHint": "Required, in the future and within 365 days. This control uses your device’s local time.",
+      "invalidName": "Enter a name from 1 to 100 characters, without NUL characters.",
+      "invalidScopes": "Select at least one of the five administrator permissions.",
+      "invalidExpiry": "Choose a future expiry within 365 days.",
+      "createFailed": "Could not create the token.",
+      "createdTitle": "Token created: {{name}}",
+      "once": "Copy this token before closing. Its full value is returned only once and will be cleared from this page when you close it.",
+      "secret": "New admin token",
+      "show": "Show token",
+      "hide": "Hide token",
+      "copy": "Copy token",
+      "done": "Close and clear token",
+      "copied": "Token copied to the clipboard.",
+      "copyFailed": "Could not copy the token. Reveal it to copy it manually before closing.",
+      "confirmName": "Repeat the token name",
+      "revokeHint": "Repeat “{{name}}” to revoke this token. Tools using it will lose access.",
+      "revokeFailed": "Could not revoke the token."
+    }
   }
 }

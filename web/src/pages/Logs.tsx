@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Copy, Pause, Play, Search, X } from 'lucide-react';
+import { Pause, Play, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { ShellContext } from '../components/Shell';
-import { api, ApiError, tailUrl, type ExportRequest, type LogItem, type Project, type SavedFilter, type SearchResult } from '../lib/api';
+import { api, ApiError, tailUrl, type ExportRequest, type LogItem, type Project, type SavedFilter } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/cn';
 import { formatQuery, parseQuery } from '../lib/query';
 import LogViews from '../components/LogViews';
+import LogDetails from '../components/LogDetails';
+import LogRows from '../components/LogRows';
+import { LOG_LEVELS, levelColor } from '../lib/logPresentation';
+import { projectPath } from '../lib/sections';
 import FirstEvent from './FirstEvent';
 
 const RANGES = [
@@ -19,8 +23,6 @@ const RANGES = [
 ] as const;
 type RangeKey = (typeof RANGES)[number]['key'];
 
-/** Severity order, highest first. The server stores these names. */
-const LEVELS = ['FATAL', 'ERROR', 'WARN', 'NOTICE', 'INFO', 'DEBUG', 'TRACE'];
 const PAGE = 100;
 /** The table stops growing here; past it the user narrows the search. Keeps the DOM bounded. */
 const MAX_ROWS = 1000;
@@ -28,34 +30,18 @@ const MAX_ROWS = 1000;
 const LIVE_MAX = 500;
 
 type Loaded =
-  | { status: 'ready'; items: LogItem[]; next: string | null; from: string; total: number | null; counts: Record<string, number>; allCounts: Record<string, number>; partial: boolean; anyEvents: boolean }
+  | { status: 'ready'; items: LogItem[]; next: string | null; from: string; total: number | null; allCounts: Record<string, number>; partial: boolean; anyEvents: boolean }
   | { status: 'failed'; message: string };
 type LiveState = 'off' | 'connecting' | 'open' | 'retrying' | 'failed';
-
-const levelClass = (level: string) =>
-  level === 'FATAL' ? 'bg-err text-bg rounded px-1 font-semibold' : level === 'ERROR' ? 'text-err' : level === 'WARN' ? 'text-warn' : 'text-ink2';
-const isBad = (level: string) => level === 'ERROR' || level === 'FATAL';
 
 const time = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 };
-const dateTime = (iso: string) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-};
 
 const rangeStart = (key: RangeKey) => new Date(Date.now() - RANGES.find((r) => r.key === key)!.ms).toISOString();
 /** A range left in sessionStorage by an older build or by hand is ignored. */
 const storedRange = (): RangeKey => RANGES.find((r) => r.key === sessionStorage.getItem('range'))?.key ?? '24h';
-
-/** "key value, key value" for the message column; nested objects stay JSON. */
-function attrsInline(attrs: LogItem['attributes']): string {
-  if (!attrs) return '';
-  return Object.entries(attrs)
-    .map(([k, v]) => `${k} ${typeof v === 'string' ? v : JSON.stringify(v)}`)
-    .join(', ');
-}
 
 export default function Logs({ project, live: startLive }: { project: Project; live: boolean }) {
   const { t, i18n } = useTranslation();
@@ -69,19 +55,53 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   const [levels, setLevels] = useState<string[]>([]);
   const [range, setRange] = useState<RangeKey>(storedRange);
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState<{ key: string; result: Loaded } | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; countKey: string; result: Loaded } | null>(null);
   const [more, setMore] = useState<{ key: string; busy: boolean; error: boolean }>({ key: '', busy: false, error: false });
   const [live, setLive] = useState(startLive);
   const [liveState, setLiveState] = useState<LiveState>('off');
   const [liveRows, setLiveRows] = useState<{ key: string; items: LogItem[]; at: string | null }>({ key: '', items: [], at: null });
   const [selected, setSelected] = useState<LogItem | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [now, setNow] = useState(Date.now);
   const lastCursor = useRef<{ key: string; id: string } | null>(null);
+  const filtersRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersOpen || !window.matchMedia?.('(max-width:720px)').matches) return;
+    const opener = document.activeElement;
+    const panel = filtersRef.current;
+    const stops = panel?.querySelectorAll<HTMLElement>('button, select');
+    const first = stops?.[0], last = stops?.[stops.length - 1];
+    first?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+      if (event.key !== 'Tab') return;
+      if (!panel?.contains(document.activeElement) || (event.shiftKey && document.activeElement === first)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, [filtersOpen]);
 
   const parsed = useMemo(() => parseQuery(applied), [applied]);
   const envName = environment?.name ?? '';
   // Everything that changes the result set; a result counts only for the key that asked for it.
   const unfiltered = !applied && levels.length === 0 && !streamName && !envName;
   const key = JSON.stringify([project.id, streamName, envName, applied, levels, range, attempt]);
+  const countKey = JSON.stringify([project.id, streamName, envName, applied, range, attempt]);
 
   // Every page of a search shares the `from` of its first one, so "load more" never moves the start of the range.
   const baseSearch = useCallback(
@@ -112,9 +132,8 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   useEffect(() => {
     const ctrl = new AbortController();
     const from = rangeStart(range);
-    // The server counts levels with the level filter applied; the chips need the counts without it.
-    Promise.all([request(from), levels.length ? api.searchLogs({ ...baseSearch(from), limit: 1, include_total: true }) : null])
-      .then(async ([r, unleveled]: [SearchResult, SearchResult | null]) => {
+    request(from)
+      .then(async (r) => {
         const items = r.items ?? [];
         // An empty, unfiltered range may still hide older events: only a project with none at all gets the setup guide.
         let anyEvents = items.length > 0;
@@ -124,24 +143,24 @@ export default function Logs({ project, live: startLive }: { project: Project; l
         }
         setLoaded({
           key,
+          countKey,
           result: {
             status: 'ready',
             items,
             next: r.next_cursor,
             from,
             total: r.total ?? null,
-            counts: r.level_counts ?? {},
-            allCounts: (unleveled ?? r).level_counts ?? {},
+            allCounts: r.level_counts ?? {},
             partial: r.partial,
             anyEvents,
           },
         });
       })
       .catch((err: unknown) => {
-        if (!ctrl.signal.aborted) setLoaded({ key, result: { status: 'failed', message: fail(err) } });
+        if (!ctrl.signal.aborted) setLoaded({ key, countKey, result: { status: 'failed', message: fail(err) } });
       });
     return () => ctrl.abort();
-  }, [key, request, baseSearch, range, levels, fail, unfiltered, project.id]);
+  }, [key, countKey, request, range, fail, unfiltered, project.id]);
 
   const result = loaded?.key === key ? loaded.result : null;
   const items = result?.status === 'ready' ? result.items : [];
@@ -154,7 +173,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
       .then((r) => {
         setLoaded((cur) =>
           cur?.key === key && cur.result.status === 'ready'
-            ? { key, result: { ...cur.result, items: [...cur.result.items, ...(r.items ?? [])], next: r.next_cursor } }
+            ? { ...cur, result: { ...cur.result, items: [...cur.result.items, ...(r.items ?? [])], next: r.next_cursor } }
             : cur,
         );
         setMore({ key, busy: false, error: false });
@@ -241,7 +260,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
     const known = RANGES.find((r) => r.key === view.range);
     if (known) pickRange(known.key);
     const target = view.streams?.length ? streams.find((s) => s.name === view.streams![0]) : undefined;
-    if (target?.id !== streamId) navigate(target ? `/projects/${project.id}/streams/${target.id}` : `/projects/${project.id}`);
+    if (target?.id !== streamId) navigate(projectPath(project.workspace_id, project.id, target ? `streams/${target.id}` : ''));
   };
   const exportRequest = (format: ExportRequest['format']): ExportRequest => ({
     ...filter,
@@ -255,16 +274,15 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   const freshLive = liveItems.filter((i) => !loadedIds.has(i.id));
   const shown = freshLive.length ? [...freshLive, ...items] : items;
 
-  const counts = result?.status === 'ready' ? result.counts : {};
-  const allCounts = result?.status === 'ready' ? result.allCounts : {};
-  const chipLevels = LEVELS.filter((l) => (allCounts[l] ?? 0) > 0 || levels.includes(l));
+  const allCounts = loaded?.countKey === countKey && loaded.result.status === 'ready' ? loaded.result.allCounts : {};
   const total = result?.status === 'ready' ? result.total : null;
-  const errors = (counts.ERROR ?? 0) + (counts.FATAL ?? 0);
+  const errors = (levels.length === 0 || levels.includes('ERROR') ? allCounts.ERROR ?? 0 : 0)
+    + (levels.length === 0 || levels.includes('FATAL') ? allCounts.FATAL ?? 0 : 0);
   const fmt = (n: number) => n.toLocaleString(i18n.language);
   const empty = result?.status === 'ready' && shown.length === 0;
   const liveAt = liveRows.key === key && liveRows.at ? time(liveRows.at) : null;
 
-  const title = streamName ? `# ${streamName}` : live ? t('nav.live') : t('explorer.allStreams');
+  const title = streamName ? `# ${streamName}` : t('nav.explorer');
   const header = (
     <div className="flex min-w-0 items-center gap-3">
       <h1 className="min-w-0 truncate text-base font-bold">{title}</h1>
@@ -304,7 +322,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
           <label htmlFor="log-q" className="sr-only">
             {t('explorer.search')}
           </label>
-          <div className="bg-sunk border-field focus-within:outline-hue flex h-11 items-center gap-2 rounded-row border px-3 focus-within:outline-2 md:h-10">
+          <div className="bg-sunk border-field focus-within:outline-hue flex h-12 items-center gap-2 rounded-row border px-3 focus-within:outline-2 md:h-10">
             <Search className="text-ink3 size-4 flex-none" aria-hidden />
             <input
               id="log-q"
@@ -312,13 +330,13 @@ export default function Logs({ project, live: startLive }: { project: Project; l
               onChange={(e) => setInput(e.target.value)}
               placeholder={t('explorer.searchPlaceholder')}
               aria-describedby="log-q-hint"
-              className="placeholder:text-ink3 min-w-0 flex-1 bg-transparent text-base outline-none md:text-sm"
+              className="placeholder:text-ink3 h-11 min-w-0 flex-1 bg-transparent text-base outline-none md:h-9 md:text-sm"
             />
             {input && (
               <button type="button" aria-label={t('explorer.clear')} onClick={() => {
                   setInput('');
                   setApplied('');
-                }} className="text-ink3 hover:text-ink -mr-2 grid size-9 place-items-center">
+                }} className="text-ink3 hover:text-ink -mr-3 grid size-11 place-items-center md:size-9">
                 <X className="size-4" aria-hidden />
               </button>
             )}
@@ -327,22 +345,11 @@ export default function Logs({ project, live: startLive }: { project: Project; l
             {t('explorer.searchHint')}
           </p>
         </form>
-        {chipLevels.length > 0 && (
-          <div role="group" aria-label={t('explorer.levels')} className="bg-sunk border-raised flex h-11 items-center gap-0.5 rounded-row border p-1 md:h-10">
-            {chipLevels.map((l) => (
-              <button
-                key={l}
-                type="button"
-                aria-pressed={levels.includes(l)}
-                onClick={() => toggleLevel(l)}
-                className={cn('flex h-full items-center gap-1.5 rounded-[5px] px-2 text-[13px] whitespace-nowrap', levels.includes(l) ? 'bg-raised text-ink font-semibold' : 'text-ink2 hover:text-ink')}
-              >
-                {l.toLowerCase()}
-                <span className="text-ink3 tabular-nums">{fmt(allCounts[l] ?? 0)}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        <button type="button" onClick={() => setFiltersOpen(value => !value)} aria-expanded={filtersOpen} aria-controls="log-filters" className="bg-sunk border-raised text-ink hover:bg-raised flex min-h-11 items-center gap-2 rounded-row border px-3 font-semibold md:min-h-10">
+          <SlidersHorizontal className="size-4" aria-hidden />
+          {t('explorer.filters')}
+          {levels.length > 0 && <span className="text-hue text-xs">{levels.length}</span>}
+        </button>
         <label className="sr-only" htmlFor="log-range">
           {t('explorer.range')}
         </label>
@@ -362,192 +369,83 @@ export default function Logs({ project, live: startLive }: { project: Project; l
         </p>
       )}
 
-      <div className="relative min-h-0 flex-1 overflow-auto">
-        {!result && (
-          <p role="status" className="text-ink2 flex items-center gap-2 p-6">
-            <span className="spinner" aria-hidden />
-            {t('explorer.loading')}
-          </p>
-        )}
-        {result?.status === 'failed' && (
-          <div role="alert" className="p-6">
-            <p className="text-ink2 mb-2">{result.message}</p>
-            <button type="button" onClick={() => setAttempt((n) => n + 1)} className="text-hue min-h-11 font-semibold underline underline-offset-2">
-              {t('common.retry')}
-            </button>
-          </div>
-        )}
-        {empty && !result.anyEvents && unfiltered && !liveOn && <FirstEvent project={project} onEvent={reload} />}
-        {empty && (result.anyEvents || !unfiltered || liveOn) && (
-          <div className="p-6 text-center">
-            <h2 className="mb-1 text-[17px] font-bold">{liveOn ? t('live.waitingTitle') : t('explorer.noMatchTitle')}</h2>
-            <p className="text-ink2">{liveOn ? t('live.waitingText') : t('explorer.noMatchText')}</p>
-          </div>
-        )}
-        {shown.length > 0 && (
-          <table className="w-full table-fixed border-collapse text-[13px]">
-            <caption className="sr-only">{t('explorer.caption')}</caption>
-            <thead className="bg-bg text-ink2 sticky top-0 z-10 text-left text-[12px]">
-              <tr className="border-line border-b">
-                <th scope="col" className="w-[124px] py-2 pl-4 font-medium md:w-[132px]">{t('explorer.col.time')}</th>
-                <th scope="col" className="w-[64px] py-2 font-medium">{t('explorer.col.level')}</th>
-                <th scope="col" className="hidden w-[120px] py-2 font-medium lg:table-cell">{t('explorer.col.stream')}</th>
-                <th scope="col" className="hidden w-[130px] py-2 font-medium xl:table-cell">{t('explorer.col.resource')}</th>
-                <th scope="col" className="hidden w-[180px] py-2 font-medium md:table-cell">{t('explorer.col.event')}</th>
-                <th scope="col" className="py-2 font-medium">{t('explorer.col.message')}</th>
-                <th scope="col" className="hidden w-[76px] py-2 pr-4 font-medium sm:table-cell">{t('explorer.col.source')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((item, i) => {
-                const fromLive = i < freshLive.length;
-                return (
-                  <tr
-                    key={item.id}
-                    onClick={() => setSelected(item)}
-                    className={cn('border-line hover:bg-sunk cursor-pointer border-b', isBad(item.level) && 'err-tint', selected?.id === item.id && 'outline-hue outline-1 -outline-offset-1')}
-                  >
-                    <td className="text-ink2 py-2.5 pl-4 font-mono tabular-nums">
-                      <button type="button" onClick={() => setSelected(item)} className="text-left focus-visible:outline-offset-1" aria-label={t('explorer.open', { time: dateTime(item.timestamp) })}>
-                        {dateTime(item.timestamp)}
-                      </button>
-                    </td>
-                    <td className="py-2.5 font-mono">
-                      <span className={levelClass(item.level)}>{item.level.toLowerCase()}</span>
-                    </td>
-                    <td className="text-ink2 hidden truncate py-2.5 pr-2 lg:table-cell">
-                      <span aria-hidden className="text-ink3">#</span>
-                      {item.stream}
-                    </td>
-                    <td className="text-ink2 hidden truncate py-2.5 pr-2 font-mono xl:table-cell">{item.resource || item.service}</td>
-                    <td className="hidden truncate py-2.5 pr-2 font-mono md:table-cell">{item.event}</td>
-                    <td className="truncate py-2.5 pr-3">
-                      <span className="text-ink">{item.message}</span>
-                      <span className="text-ink3 ml-2 font-mono text-[12px]">{attrsInline(item.attributes)}</span>
-                    </td>
-                    <td className="hidden py-2.5 pr-4 sm:table-cell">
-                      {fromLive && <span className="text-hue border-hue rounded border px-1.5 py-0.5 text-[12px] font-semibold">{t('explorer.tier.live')}</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {result?.status === 'ready' && shown.length > 0 && (
-        <footer className="border-line flex flex-none items-center gap-3 border-t px-4 py-2.5">
-          <p className="text-ink2 min-w-0 flex-1 truncate text-[13px] whitespace-nowrap">
-            {total !== null ? t('explorer.shownOf', { shown: fmt(shown.length), total: fmt(total + freshLive.length) }) : t('explorer.shown', { shown: fmt(shown.length) })}
-          </p>
-          {more.key === key && more.error && <p role="alert" className="text-err text-[13px]">{t('explorer.moreFailed')}</p>}
-          {result.next && items.length < MAX_ROWS && (
-            <button type="button" onClick={loadMore} disabled={more.key === key && more.busy} className="bg-accent text-accent-ink flex h-11 items-center gap-2 rounded-row px-4 font-bold whitespace-nowrap hover:brightness-110 disabled:opacity-60 md:h-9">
-              {more.key === key && more.busy && <span className="spinner" aria-hidden />}
-              {t('explorer.more')}
-            </button>
-          )}
-          {result.next && items.length >= MAX_ROWS && <p className="text-ink2 text-[13px]">{t('explorer.narrow')}</p>}
-        </footer>
-      )}
-
-      {selected && <Detail item={selected} onClose={closeDetail} />}
-    </>
-  );
-}
-
-function Detail({ item, onClose }: { item: LogItem; onClose: () => void }) {
-  const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLElement>(null);
-  const json = JSON.stringify(item, null, 2);
-
-  useEffect(() => {
-    const opener = document.activeElement;
-    closeRef.current?.focus();
-    return () => {
-      if (opener instanceof HTMLElement) opener.focus();
-    };
-  }, []);
-
-  // Tab stays inside the panel, also when focus was moved out by clicking a row.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose();
-      if (e.key !== 'Tab' || !panelRef.current) return;
-      const stops = panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled])');
-      const first = stops[0];
-      const last = stops[stops.length - 1];
-      const inside = panelRef.current.contains(document.activeElement);
-      if (!inside || (e.shiftKey && document.activeElement === first)) {
-        e.preventDefault();
-        (e.shiftKey && inside ? last : first).focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const copy = () => {
-    void navigator.clipboard?.writeText(json).then(() => setCopied(true));
-  };
-  const rows: [string, string][] = [
-    [t('detail.time'), new Date(item.timestamp).toLocaleString()],
-    [t('detail.received'), new Date(item.ingested_at).toLocaleString()],
-    [t('explorer.col.level'), item.level.toLowerCase()],
-    [t('explorer.col.stream'), item.stream],
-    [t('detail.environment'), item.environment],
-    [t('explorer.col.event'), item.event],
-    [t('explorer.col.resource'), item.resource],
-    [t('detail.service'), item.service],
-    [t('detail.host'), item.host],
-    [t('detail.trace'), item.trace_id],
-    ['id', item.id],
-  ];
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} aria-hidden />
-      <aside
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="detail-title"
-        className="bg-surface border-line fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-card border-t md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:w-[440px] md:rounded-none md:border-t-0 md:border-l"
-      >
-        <header className="border-line flex flex-none items-center gap-2 border-b px-4 py-2">
-          <h2 id="detail-title" className="min-w-0 flex-1 truncate font-bold">
-            {item.event || t('detail.title')}
-          </h2>
-          <button type="button" onClick={copy} className="text-ink2 hover:text-ink flex h-11 items-center gap-1.5 px-2 whitespace-nowrap md:h-9">
-            <Copy className="size-4" aria-hidden />
-            {copied ? t('detail.copied') : t('detail.copy')}
-          </button>
-          <button ref={closeRef} type="button" aria-label={t('detail.close')} onClick={onClose} className="text-ink2 hover:text-ink grid size-11 place-items-center md:size-9">
-            <X className="size-5" aria-hidden />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          <p className="mb-4 text-[15px] break-words">{item.message}</p>
-          <dl className="mb-4 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[13px]">
-            {rows
-              .filter(([, v]) => v)
-              .map(([k, v]) => (
-                <div key={k} className="contents">
-                  <dt className="text-ink2">{k}</dt>
-                  <dd className="font-mono break-all">{v}</dd>
-                </div>
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {filtersOpen && (
+          <aside ref={filtersRef} id="log-filters" aria-label={t('explorer.filters')} className="bg-surface border-line fixed inset-0 z-40 flex flex-col overflow-auto p-4 md:static md:z-auto md:w-[184px] md:flex-none md:border-r md:p-3">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">{t('explorer.filters')}</h2>
+              <button type="button" onClick={() => setFiltersOpen(false)} aria-label={t('explorer.closeFilters')} className="text-ink2 hover:text-ink grid size-11 place-items-center md:size-9"><X className="size-4" aria-hidden /></button>
+            </div>
+            <div role="group" aria-label={t('explorer.levels')} className="mb-6 grid gap-1">
+              <h3 className="text-ink2 mb-1 px-2 text-xs font-semibold">{t('explorer.levels')}</h3>
+              {LOG_LEVELS.map(level => (
+                <button key={level} type="button" aria-pressed={levels.includes(level)} onClick={() => toggleLevel(level)} className={cn('flex min-h-11 items-center gap-2 rounded-row px-2 text-left text-[13px] md:min-h-9', levels.includes(level) ? 'bg-sunk text-ink font-semibold' : 'text-ink2 hover:bg-sunk')}>
+                  <span className={cn('size-1.5 rounded-full bg-current', levelColor(level))} aria-hidden />
+                  {t(`explorer.levelNames.${level}`)}
+                  <span className="text-ink2 ml-auto font-mono text-xs tabular-nums">{fmt(allCounts[level] ?? 0)}</span>
+                </button>
               ))}
-          </dl>
-          <h3 className="text-ink2 mb-1.5 text-[13px] font-semibold">{t('detail.attributes')}</h3>
-          <pre className="bg-sunk overflow-auto rounded-row p-3 font-mono text-[12px] leading-relaxed">{JSON.stringify(item.attributes ?? {}, null, 2)}</pre>
+            </div>
+            <label className="text-ink2 grid gap-2 text-xs font-semibold">
+              {t('nav.streams')}
+              <select aria-label={t('nav.streams')} value={streamId ?? ''} onChange={event => navigate(projectPath(project.workspace_id, project.id, event.target.value ? `streams/${event.target.value}` : ''))} className="bg-sunk border-field text-ink min-h-11 w-full min-w-0 rounded-row border px-2 text-[13px] font-normal md:min-h-9">
+                <option value="">{t('explorer.allStreams')}</option>
+                {streams.map(stream => <option key={stream.id} value={stream.id}>{stream.name}</option>)}
+              </select>
+            </label>
+          </aside>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-auto">
+            {!result && (
+              <p role="status" className="text-ink2 flex items-center gap-2 p-6">
+                <span className="spinner" aria-hidden />
+                {t('explorer.loading')}
+              </p>
+            )}
+            {result?.status === 'failed' && (
+              <div role="alert" className="p-6">
+                <p className="text-ink2 mb-2">{result.message}</p>
+                <button type="button" onClick={() => setAttempt((n) => n + 1)} className="text-hue min-h-11 font-semibold underline underline-offset-2">
+                  {t('common.retry')}
+                </button>
+              </div>
+            )}
+            {empty && !result.anyEvents && unfiltered && !liveOn && <FirstEvent project={project} onEvent={reload} />}
+            {empty && (result.anyEvents || !unfiltered || liveOn) && (
+              <div className="p-6 text-center">
+                <h2 className="mb-1 text-[17px] font-bold">{liveOn ? t('live.waitingTitle') : t('explorer.noMatchTitle')}</h2>
+                <p className="text-ink2">{liveOn ? t('live.waitingText') : t('explorer.noMatchText')}</p>
+              </div>
+            )}
+            {shown.length > 0 && (
+              <LogRows items={shown} selectedId={selected?.id} liveIds={new Set(freshLive.map(item => item.id))} now={now} onSelect={setSelected} />
+            )}
+          </div>
+
+          {result?.status === 'ready' && shown.length > 0 && (
+            <footer className="border-line flex flex-none items-center gap-3 border-t px-4 py-2.5">
+              <p className="text-ink2 min-w-0 flex-1 truncate text-[13px] whitespace-nowrap">
+                {total !== null ? t('explorer.shownOf', { shown: fmt(shown.length), total: fmt(total + freshLive.length) }) : t('explorer.shown', { shown: fmt(shown.length) })}
+              </p>
+              {more.key === key && more.error && <p role="alert" className="text-err text-[13px]">{t('explorer.moreFailed')}</p>}
+              {result.next && items.length < MAX_ROWS && (
+                <button type="button" onClick={loadMore} disabled={more.key === key && more.busy} className="bg-accent text-accent-ink flex h-11 items-center gap-2 rounded-row px-4 font-bold whitespace-nowrap hover:brightness-110 disabled:opacity-60 md:h-9">
+                  {more.key === key && more.busy && <span className="spinner" aria-hidden />}
+                  {t('explorer.more')}
+                </button>
+              )}
+              {result.next && items.length >= MAX_ROWS && <p className="text-ink2 text-[13px]">{t('explorer.narrow')}</p>}
+            </footer>
+          )}
         </div>
-      </aside>
+        {selected && <LogDetails key={selected.id} item={selected} onClose={closeDetail} onFilter={(field, value) => {
+          const text = formatQuery(parsed.text, [...parsed.filters.filter(filter => filter.field !== field), { field, op: 'eq', value }]);
+          setInput(text);
+          setApplied(text);
+          if (window.matchMedia?.('(max-width:720px)').matches) closeDetail();
+        }} />}
+      </div>
     </>
   );
 }

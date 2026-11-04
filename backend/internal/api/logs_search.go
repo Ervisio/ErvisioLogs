@@ -118,6 +118,7 @@ type logItem struct {
 	TraceID        string          `json:"trace_id"`
 	SpanID         string          `json:"span_id"`
 	Attributes     json.RawMessage `json:"attributes"`
+	Tier           string          `json:"tier"`
 }
 
 type searchCursor struct {
@@ -359,9 +360,17 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.SearchedTiers, resp.Partial = tiers, partial
 	if req.IncludeTotal {
+		countReq := req
+		countReq.Levels, countReq.SeverityMin = nil, 0
+		countReq.From, countReq.To = &q.from, &q.to
+		countQuery, err := buildSearch(&countReq, proj, cat, q.to)
+		if err != nil {
+			a.internalError(w, r, err)
+			return
+		}
 		// Counted on the filter without the cursor, so the number stays the same while paging.
 		// Duplicates left by a retried insert are counted once.
-		crow, err := a.Logs.CH.Query(ctx, "SELECT severity_text, uniqExact(event_id) FROM "+source+" WHERE "+q.sql()+" GROUP BY severity_text", q.args...)
+		crow, err := a.Logs.CH.Query(ctx, "SELECT severity_text, severity_number, uniqExact(event_id) FROM "+source+" WHERE "+countQuery.sql()+" GROUP BY severity_text, severity_number", countQuery.args...)
 		if err != nil {
 			a.searchFailed(w, r, err)
 			return
@@ -370,14 +379,17 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 		resp.LevelCounts = map[string]uint64{}
 		for crow.Next() {
 			var lv string
+			var severity uint8
 			var n uint64
-			if err := crow.Scan(&lv, &n); err != nil {
+			if err := crow.Scan(&lv, &severity, &n); err != nil {
 				crow.Close()
 				a.searchFailed(w, r, err)
 				return
 			}
-			resp.LevelCounts[lv] = n
-			total += n
+			resp.LevelCounts[lv] += n
+			if matchesSearchLevel(&req, lv, severity) {
+				total += n
+			}
 		}
 		crow.Close()
 		if err := crow.Err(); err != nil {
@@ -395,8 +407,8 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		q.add("(timestamp < fromUnixTimestamp64Milli(?, 'UTC') OR (timestamp = fromUnixTimestamp64Milli(?, 'UTC') AND event_id < ?))", c.T, c.T, c.ID)
 	}
-	sql := "SELECT " + searchCols + " FROM " + source + " WHERE " + q.sql() +
-		" ORDER BY timestamp DESC, event_id DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(limit+1)
+	sql := "SELECT " + searchCols + ", tier FROM " + source + " WHERE " + q.sql() +
+		" ORDER BY timestamp DESC, event_id DESC, tier DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(limit+1)
 	rs, err := a.Logs.CH.Query(ctx, sql, q.args...)
 	if err != nil {
 		a.searchFailed(w, r, err)
@@ -408,7 +420,7 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 		var sid, eid uuid.UUID
 		var attrs string
 		if err := rs.Scan(&it.ID, &it.Timestamp, &it.IngestedAt, &it.Level, &it.SeverityNumber, &it.Event, &it.Message,
-			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs); err != nil {
+			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs, &it.Tier); err != nil {
 			a.searchFailed(w, r, err)
 			return
 		}
@@ -431,10 +443,26 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
+func matchesSearchLevel(req *searchReq, level string, severity uint8) bool {
+	if severity < req.SeverityMin {
+		return false
+	}
+	if len(req.Levels) == 0 {
+		return true
+	}
+	for _, requested := range req.Levels {
+		_, canonical, _ := ingest.SeverityNumber(requested)
+		if canonical == level {
+			return true
+		}
+	}
+	return false
+}
+
 // searchSource returns the FROM expression for a search: the hot table alone, or the hot table
 // plus the cached archive segments of the range. partial reports segments that could not be read.
 func (a *API) searchSource(ctx context.Context, proj store.Project, q *query) (source string, tiers []string, partial bool, err error) {
-	source, tiers = "events", []string{"hot"}
+	source, tiers = "(SELECT "+hotUnionCols+", 'hot' AS tier FROM events)", []string{"hot"}
 	if a.Logs.Archive == nil {
 		return source, tiers, false, nil
 	}
@@ -450,9 +478,9 @@ func (a *API) searchSource(ctx context.Context, proj store.Project, q *query) (s
 		// between marking and deleting leaves copies in both, and LIMIT 1 BY event_id and
 		// uniqExact(event_id) count each event once.
 		parts := make([]string, 0, len(srcs)+1)
-		parts = append(parts, "SELECT "+hotUnionCols+" FROM events")
+		parts = append(parts, "SELECT "+hotUnionCols+", 'hot' AS tier FROM events")
 		for _, s := range srcs {
-			parts = append(parts, s.RemoteSelect())
+			parts = append(parts, "SELECT *, 'archive' AS tier FROM ("+s.RemoteSelect()+")")
 		}
 		source = "(" + strings.Join(parts, " UNION ALL ") + ")"
 	}

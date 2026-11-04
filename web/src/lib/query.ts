@@ -4,15 +4,20 @@ export type ParsedQuery = { text: string; filters: AttrFilter[] };
 
 // key=value, key!=value, key~value (contains), key>=n, key<=n, key>n, key<n, has:key.
 // Keys follow the ingest alphabet; values may be quoted to hold spaces.
-const TERM = /^([A-Za-z0-9_.-]+)(!=|>=|<=|=|~|>|<)(.*)$/;
+const TERM = /^([A-Za-z0-9_.-]+)(!=|>=|<=|=|~|>|<)(.*)$/s;
 const OPS: Record<string, string> = { '=': 'eq', '!=': 'neq', '~': 'contains', '>': 'gt', '>=': 'gte', '<': 'lt', '<=': 'lte' };
 
 function tokens(input: string): string[] {
   const out: string[] = [];
   let cur = '';
   let quoted = false;
-  for (const ch of input) {
-    if (ch === '"') quoted = !quoted;
+  for (let index = 0; index < input.length; index++) {
+    const ch = input[index];
+    const next = input[index + 1];
+    if (quoted && ch === '\\' && (next === '"' || next === '\\')) {
+      cur += next;
+      index++;
+    } else if (ch === '"') quoted = !quoted;
     else if (/\s/.test(ch) && !quoted) {
       if (cur) out.push(cur);
       cur = '';
@@ -39,7 +44,7 @@ export function parseQuery(input: string): ParsedQuery {
 }
 
 const SYMBOL: Record<string, string> = Object.fromEntries(Object.entries(OPS).map(([sym, op]) => [op, sym]));
-const quote = (v: string) => (/[\s"]/.test(v) ? `"${v.replace(/"/g, '')}"` : v);
+const quote = (value: string) => (/[\s"\\]/.test(value) ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : value);
 
 /** The inverse of parseQuery: the search box text for a saved filter. */
 export function formatQuery(text: string | undefined, filters: AttrFilter[] | undefined): string {

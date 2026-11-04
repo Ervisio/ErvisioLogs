@@ -3,7 +3,7 @@
   "name": "Ervisio Logs",
   "version": "0.1.5",
   "author": "Ervisio team",
-  "description": "Install and run Ervisio Logs on this server, as a Docker Compose stack (shown in the Docker plugin) or as a systemd service, and publish it through the Caddy you already run. Data is never deleted by the plugin.",
+  "description": "Install and manage Ervisio Logs, its runtime settings, workspaces, projects and users. Destructive actions require explicit confirmation.",
   "homepage": "https://github.com/Ervisio/ErvisioLogs",
   "icon": "server",
   "color": "log",
@@ -559,10 +559,476 @@
             "path": "/v1\\.[0-9]+/networks/ervisiologs_edge/connect"
           }
         ]
+      },
+      {
+        "name": "logs-admin-docker",
+        "socket": "/var/lib/docker/volumes/ervisiologs_admin/_data/admin.sock",
+        "admin": true,
+        "headers": [
+          "Content-Type"
+        ],
+        "maxBody": 1048576,
+        "timeoutSec": 30,
+        "rules": [
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/health"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/settings"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/settings/[a-z][a-z0-9_.]{0,99}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/admin/users"
+          },
+          {
+            "methods": [
+              "GET",
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}/password"
+          },
+          {
+            "methods": [
+              "GET",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}/sessions"
+          },
+          {
+            "methods": [
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}/sessions/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/storage"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/api/v1/admin/storage/providers"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/storage/providers/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/api/v1/admin/storage/providers/[0-9a-fA-F-]{36}/test"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/api/v1/admin/storage/active"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/storage/secrets"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/api/v1/admin/storage/secrets/[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/retention"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/retention/(instance|workspace|project|stream)/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/workspaces"
+          },
+          {
+            "methods": [
+              "GET",
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/members"
+          },
+          {
+            "methods": [
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/members/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/settings"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/settings/[a-z][a-z0-9_.]{0,99}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/projects"
+          },
+          {
+            "methods": [
+              "GET",
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/settings"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/settings/[a-z][a-z0-9_.]{0,99}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/(environments|streams)"
+          },
+          {
+            "methods": [
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/(environments|streams)/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/tokens"
+          },
+          {
+            "methods": [
+              "DELETE"
+            ],
+            "path": "/api/v1/tokens/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/audit"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/audit"
+          }
+        ]
+      },
+      {
+        "name": "logs-admin-system",
+        "socket": "/run/ervisio-logs/admin.sock",
+        "admin": true,
+        "headers": [
+          "Content-Type"
+        ],
+        "maxBody": 1048576,
+        "timeoutSec": 30,
+        "rules": [
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/health"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/settings"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/settings/[a-z][a-z0-9_.]{0,99}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/admin/users"
+          },
+          {
+            "methods": [
+              "GET",
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}/password"
+          },
+          {
+            "methods": [
+              "GET",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}/sessions"
+          },
+          {
+            "methods": [
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/users/[0-9a-fA-F-]{36}/sessions/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/storage"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/api/v1/admin/storage/providers"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/storage/providers/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/api/v1/admin/storage/providers/[0-9a-fA-F-]{36}/test"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/api/v1/admin/storage/active"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/storage/secrets"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/api/v1/admin/storage/secrets/[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/retention"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/admin/retention/(instance|workspace|project|stream)/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/workspaces"
+          },
+          {
+            "methods": [
+              "GET",
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/members"
+          },
+          {
+            "methods": [
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/members/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/settings"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/settings/[a-z][a-z0-9_.]{0,99}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/projects"
+          },
+          {
+            "methods": [
+              "GET",
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/settings"
+          },
+          {
+            "methods": [
+              "PUT",
+              "DELETE"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/settings/[a-z][a-z0-9_.]{0,99}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/(environments|streams)"
+          },
+          {
+            "methods": [
+              "PATCH",
+              "DELETE"
+            ],
+            "path": "/api/v1/projects/[0-9a-fA-F-]{36}/(environments|streams)/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET",
+              "POST"
+            ],
+            "path": "/api/v1/tokens"
+          },
+          {
+            "methods": [
+              "DELETE"
+            ],
+            "path": "/api/v1/tokens/[0-9a-fA-F-]{36}"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/admin/audit"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
+            "path": "/api/v1/workspaces/[0-9a-fA-F-]{36}/audit"
+          }
+        ]
       }
     ],
     "sockets": [
-      "/var/run/docker.sock"
-    ]
+      "/var/run/docker.sock",
+      "/var/lib/docker/volumes/ervisiologs_admin/_data/admin.sock",
+      "/run/ervisio-logs/admin.sock"
+    ],
+    "network": {
+      "hosts": [],
+      "userHosts": true
+    }
   }
 }

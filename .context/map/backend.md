@@ -35,7 +35,7 @@ Invariants:
 - Archive credentials never in DB: storage_providers.secret_file names a file in ARCHIVE_SECRETS_DIR (storage_secrets.go writes them); only one active provider (unique partial index).
 Gotchas:
 - Integration archive tests fail on Docker Desktop macOS (bind mount shows 0-byte Parquet to CH); also on clean HEAD. Run them on Linux.
-- Search: total/level_counts are counted BEFORE the rows query (logs_search.go), so a concurrent insert can make total < items; level_counts honour the level filter (web works around it).
+- Search: total/level_counts run BEFORE the rows query, so a concurrent insert can make total < items. level_counts ignores levels/severity_min; total keeps both. LogItem.tier is hot/archive (tail=hot); hot wins duplicate copies. Local followup tests require integration services for SQL/runtime proof.
 - OTLP is at /v1/logs not /api/v1 (exporters append /v1/logs).
 - CH day partition holds all tenants → deletes use ALTER DELETE per partition, never DROP PARTITION (ADR 0009).
 - Spool dir (SPOOL_DIR) must persist across restarts; spool id stabilises dedup tokens (ingest/writer.go:loadSpoolID).

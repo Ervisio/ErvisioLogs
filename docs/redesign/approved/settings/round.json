@@ -1,0 +1,26 @@
+{
+  "group": "Redesign 0.2 / Impostazioni",
+  "title": "Impostazioni per scope",
+  "question": "Come vuoi organizzare impostazioni e valori ereditati?",
+  "kind": "page",
+  "viewports": [
+    "laptop",
+    "mobile"
+  ],
+  "head": ["<link rel=\"stylesheet\" href=\"/r/002-settings/_tokens.css\">"],
+  "variants": [
+    {
+      "id": "a",
+      "label": "Sezioni affiancate",
+      "notes": "La sidebar unificata approvata rimane invariata. Una seconda lista, interna alle impostazioni, seleziona il gruppo di campi. Ambiti, valori ereditati, blocchi dal server e salvataggi locali funzionano."
+    },
+    {
+      "id": "b",
+      "label": "Gruppi e provenienza",
+      "notes": "Stessa sidebar e stessi token di A. Ambito in testata e gruppi espandibili mostrano personalizzazioni e provenienza, senza una seconda colonna. Stessi campi, vincoli e dati dimostrativi di A."
+    }
+  ],
+  "created": "2026-11-04T21:22:50.030Z",
+  "context": "Campione locale dichiarato: Nico admin istanza, workspace/progetto Roma RP, stream economy e ambiente production. Chiavi, tipi, ambiti e intervalli seguono backend/internal/settings/settings.go e i metadati F2. Valori DB/env inventati per il confronto; nessun segreto, file env o API reale letto. Le modifiche restano nella pagina e si perdono ricaricando. Nessuna modifica al prodotto.",
+  "checklist": ["Progetto iniziale uguale su entrambe le varianti", "Cambio ambito e sezione funzionanti", "Solo chiavi consentite nello scope", "Ereditarietà, reset e blocchi env corretti", "Metadati stream e ambiente disponibili", "Validazione e salvataggi solo locali", "Sidebar, font e token della direzione approvata", "Mobile senza overflow e navigazione da tastiera"]
+}

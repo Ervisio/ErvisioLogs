@@ -13,3 +13,10 @@
 2026-11-04 · F2e (ADR 0019): socket admin locale + token admin `evl_adm_` come "operatori" non utenti, owner senza accesso ai log in ogni workspace · il plugin può gestire l'istanza senza poter leggere i log; rischio accettato: può cancellare workspace o aggiungere utenti propri (auditato).
 2026-11-04 · F2f (ADR 0020): limiti/quote ingest via settings (default 0 = illimitato), contatori in memoria per processo; purge asincrona via archiver, rifiutata se taglia segmenti archiviati · Parquet immutabili, niente stato condiviso nuovo per i limiti.
 2026-11-04 · Worktree degli agenti partono da main: per lavoro su branch non mergiati, dire all'agente di fare reset/rebase sul branch giusto all'inizio.
+2026-11-04 · Ripresa multi-agent: gpt-6.1-terra per modifiche meccaniche, gpt-6.1-sol per lavoro complesso · istruzione dell'utente; nessun push o deploy da questa ripresa.
+2026-11-04 · F0 shell/explorer: approvata A, Navigazione unificata, decisione a6bd837dfa14 senza note · sidebar unica e dettaglio laterale; catalogo/istogramma reali restano F4, port React con dati/API esistenti.
+2026-11-04 · F0 impostazioni A (2b78002d7bb2), utenti remix005 A (b40fdd483bc3), plugin B (befd1a6aae91), senza note · prototipi/decisioni/screenshot in docs/redesign/approved/.
+2026-11-04 · Plugin HTTPS: token solo in memoria per pagina, SDK0.3.0 privo di vault · persistenza protetta richiede supporto SDK; nessun fallback plaintext, utente informato.
+2026-11-04 · Web management uses the shared transport-neutral admin client with cookie/CSRF; plugin supplies socket or HTTPS transport · identical endpoint contracts without sharing authentication state.
+2026-11-04 · Settings save per key, retain partial success and failed drafts; env overrides cannot be reset · the backend has no bulk transaction and retry must not rewrite acknowledged keys.
+2026-11-04 · Email actions wait for auth bootstrap; establish/logout/retry abort obsolete bootstrap responses · prevent missing CSRF on cold invitation links and stale session state after sign-in.

@@ -1,4 +1,5 @@
 /** Every text of the plugin, in English and Italian. Keys are grouped by the view that uses them. */
+import { managementStrings } from './management-strings';
 const en: Record<string, string> = {
   retry: 'Try again',
   'error.title': 'Ervisio Logs could not be read',
@@ -419,4 +420,4 @@ const it: Record<string, string> = {
   'job.waiting': "In attesa dell'output",
 };
 
-export const strings = { en, it };
+export const strings = { en: { ...en, ...managementStrings.en }, it: { ...it, ...managementStrings.it } };

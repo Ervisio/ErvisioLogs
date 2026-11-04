@@ -1,5 +1,7 @@
 /** Thin client for /api/v1: cookie session, CSRF header on unsafe calls, RFC 7807 errors. */
 import { slugFor } from './slug';
+import { createAdminClient, type Environment, type Stream } from '../../../packages/admin-client/src';
+export type { Environment, Stream, MetadataPatch, SettingEntry, SettingValue, SettingsScope } from '../../../packages/admin-client/src';
 
 export type User = {
   id: string;
@@ -12,8 +14,6 @@ export type User = {
 };
 export type Workspace = { id: string; slug: string; name: string; created_at: string; role: string };
 export type Project = { id: string; workspace_id: string; slug: string; name: string; created_at: string };
-export type Environment = { id: string; project_id: string; name: string; created_at: string };
-export type Stream = { id: string; project_id: string; name: string; type: string; created_at: string };
 export type ApiToken = {
   id: string;
   project_id: string;
@@ -28,6 +28,7 @@ export type ApiToken = {
 export type Member = { user_id: string; email: string; username: string; role: string; joined_at: string };
 export type LogItem = {
   id: string;
+  tier: 'hot' | 'archive';
   timestamp: string;
   ingested_at: string;
   level: string;
@@ -199,7 +200,7 @@ export const setCsrfToken = (token: string | null) => {
   csrfToken = token;
 };
 
-async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json, application/problem+json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken;
@@ -225,6 +226,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 const list = async <T>(path: string, signal?: AbortSignal) =>
   (await request<{ items: T[] | null }>('GET', path, undefined, signal)).items ?? [];
 
+const adminClient = createAdminClient(request);
+
 export const api = {
   providers: (signal?: AbortSignal) => request<Providers>('GET', '/auth/providers', undefined, signal),
   me: (signal?: AbortSignal) => request<Session>('GET', '/auth/me', undefined, signal),
@@ -241,6 +244,11 @@ export const api = {
     list<Environment>(`/projects/${encodeURIComponent(projectId)}/environments`, signal),
   streams: (projectId: string, signal?: AbortSignal) =>
     list<Stream>(`/projects/${encodeURIComponent(projectId)}/streams`, signal),
+  updateStream: adminClient.updateStream,
+  updateEnvironment: adminClient.updateEnvironment,
+  settings: adminClient.settings,
+  putSetting: adminClient.putSetting,
+  resetSetting: adminClient.resetSetting,
   searchLogs: (body: SearchRequest, signal?: AbortSignal) => request<SearchResult>('POST', '/logs/search', body, signal),
   tokens: (projectId: string, signal?: AbortSignal) =>
     list<ApiToken>(`/tokens?project_id=${encodeURIComponent(projectId)}`, signal),

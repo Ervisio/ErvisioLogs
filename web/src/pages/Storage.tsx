@@ -47,7 +47,7 @@ function useProblem() {
  * Retention and archive storage. Policies and destinations belong to the whole server, so only
  * the instance administrator sees this page; it opens on the current project's override.
  */
-export default function Storage({ project }: { project: Project }) {
+export default function Storage({ project }: { project?: Project }) {
   const { t } = useTranslation();
   const { retry } = useAuth();
   const { user } = useSession();
@@ -98,7 +98,7 @@ export default function Storage({ project }: { project: Project }) {
   }
 
   const instance = result?.status === 'ready' ? result.policies.find((p) => p.scope_type === 'instance') : undefined;
-  const override = result?.status === 'ready' ? result.policies.find((p) => p.scope_type === 'project' && p.scope_id === project.id) : undefined;
+  const override = result?.status === 'ready' && project ? result.policies.find((p) => p.scope_type === 'project' && p.scope_id === project.id) : undefined;
 
   return (
     <>
@@ -114,7 +114,7 @@ export default function Storage({ project }: { project: Project }) {
             result.status === 'ready' && (
               <>
                 <Usage overview={result.overview} />
-                <ProjectRetention project={project} instance={instance} override={override} onSaved={reload} />
+                {project && <ProjectRetention project={project} instance={instance} override={override} onSaved={reload} />}
                 <Destinations providers={result.overview.providers ?? []} onChanged={reload} />
                 <InstanceRetention instance={instance} onSaved={reload} />
               </>

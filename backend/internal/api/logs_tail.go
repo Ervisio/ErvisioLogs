@@ -246,5 +246,5 @@ func tailItem(e *ingest.Event, cat *catalogEntry) logItem {
 	return logItem{ID: e.EventID, Timestamp: e.Timestamp, IngestedAt: e.IngestedAt, Level: e.SeverityText,
 		SeverityNumber: e.SeverityNumber, Event: e.EventName, Message: e.Message, Stream: stream, Environment: env,
 		Service: e.SourceService, Host: e.SourceHost, Resource: e.SourceResource, TraceID: e.TraceID, SpanID: e.SpanID,
-		Attributes: attrs}
+		Attributes: attrs, Tier: "hot"}
 }

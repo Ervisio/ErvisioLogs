@@ -76,8 +76,8 @@ func (a *API) exportLogs(w http.ResponseWriter, r *http.Request) {
 		a.internalError(w, r, err)
 		return
 	}
-	sql := "SELECT " + searchCols + " FROM " + source + " WHERE " + q.sql() +
-		" ORDER BY timestamp DESC, event_id DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(maxRows+1)
+	sql := "SELECT " + searchCols + ", tier FROM " + source + " WHERE " + q.sql() +
+		" ORDER BY timestamp DESC, event_id DESC, tier DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(maxRows+1)
 	rs, err := a.Logs.CH.Query(ctx, sql, q.args...)
 	if err != nil {
 		a.searchFailed(w, r, err)
@@ -119,7 +119,7 @@ func (a *API) exportLogs(w http.ResponseWriter, r *http.Request) {
 		var sid, eid uuid.UUID
 		var attrs string
 		if err := rs.Scan(&it.ID, &it.Timestamp, &it.IngestedAt, &it.Level, &it.SeverityNumber, &it.Event, &it.Message,
-			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs); err != nil {
+			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs, &it.Tier); err != nil {
 			streamErr = err
 			break
 		}

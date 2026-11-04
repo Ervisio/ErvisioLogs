@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Activity, LogOut, Moon, Sun } from 'lucide-react';
+import { Activity, LogOut, Moon, Sun, UserRound } from 'lucide-react';
 import { useAuth, useSession } from '../lib/auth';
 import { useTenancy } from '../lib/tenancy';
 import { applyTheme, currentTheme } from '../lib/theme';
@@ -63,6 +63,10 @@ export default function AccountMenu({ onClose, onNavigate }: { onClose: () => vo
         <p className="text-ink2 truncate text-[13px]">{user.email}</p>
       </div>
       <div className="bg-line -mx-2 my-1 h-px" />
+      <Link to="/account" onClick={onNavigate} className={ROW}>
+        <UserRound className="size-4" aria-hidden />
+        {t('account.open')}
+      </Link>
       {workspaces.length > 1 && (
         <label className="text-ink2 flex items-center justify-between gap-2 px-2 py-1 text-[13px]">
           {t('account.workspace')}

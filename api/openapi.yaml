@@ -542,7 +542,7 @@ paths:
                 slug:
                   type: string
                   pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
-                  description: Defaults to a slug of the name.
+                  description: Defaults to a slug of the name, or name- plus a deterministic hash when the name has no ASCII letters or digits.
                 owner_id:
                   type: string
                   format: uuid
@@ -1333,6 +1333,7 @@ paths:
                 slug:
                   type: string
                   pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
+                  description: Defaults to a slug of the name, or name- plus a deterministic hash when the name has no ASCII letters or digits.
               additionalProperties: false
       security:
         - sessionCookie: []
@@ -4355,7 +4356,7 @@ components:
       additionalProperties: false
     LogItem:
       type: object
-      required: [id, timestamp, ingested_at, level, severity_number, event, message, stream, environment, service, host, resource, trace_id, span_id, attributes]
+      required: [id, timestamp, ingested_at, level, severity_number, event, message, stream, environment, service, host, resource, trace_id, span_id, attributes, tier]
       properties:
         id:
           type: string
@@ -4389,6 +4390,10 @@ components:
           type: string
         attributes:
           type: object
+        tier:
+          type: string
+          enum: [hot, archive]
+          description: Source of this row. Hot storage wins ties between copies of the same event.
     SearchResult:
       type: object
       required: [items, next_cursor, execution_stats, searched_tiers, partial]
@@ -4401,12 +4406,12 @@ components:
           type: [string, "null"]
         total:
           type: integer
-          description: Present when include_total was true.
+          description: Present when include_total was true. Counts matching events with every filter applied, before pagination.
         level_counts:
           type: object
           additionalProperties:
             type: integer
-          description: Present when include_total was true.
+          description: Present when include_total was true. Counts per level with levels and severity_min ignored; all other filters apply, before pagination.
         execution_stats:
           type: object
           properties:
@@ -4420,7 +4425,7 @@ components:
           type: array
           items:
             type: string
-            enum: [hot]
+            enum: [hot, archive]
         partial:
           type: boolean
     Liveness:

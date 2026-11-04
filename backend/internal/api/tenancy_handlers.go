@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -23,7 +25,12 @@ var (
 )
 
 func slugify(s string) string {
+	original := s
 	s = strings.Trim(dashes.ReplaceAllString(strings.ToLower(s), "-"), "-")
+	if s == "" {
+		sum := sha256.Sum256([]byte(original))
+		return fmt.Sprintf("name-%x", sum[:8])
+	}
 	if len(s) > 39 {
 		s = strings.Trim(s[:39], "-")
 	}

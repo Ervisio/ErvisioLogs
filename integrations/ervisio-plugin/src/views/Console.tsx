@@ -1,13 +1,15 @@
 /** Console: the full output of the last action, and the recent logs of the app on request. */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as logs from '../api/logs';
-import { Badge, Button, EmptyState, Icon } from '../kit';
+import { Badge, Button, EmptyState, Icon, Select } from '../kit';
 import type { Ctx } from './LogsPage';
 import { copy, t } from './util';
+import { mt } from './management/shared';
 
 export function Console({ ctx }: { ctx: Ctx }) {
   const { mode, runner } = ctx;
-  const job = runner.job;
+  const [selected, setSelected] = useState('');
+  const job = runner.history.find(item => item.id === selected) ?? runner.job;
   const box = useRef<HTMLPreElement>(null);
   const lines = job?.lines.length ?? 0;
 
@@ -18,6 +20,7 @@ export function Console({ ctx }: { ctx: Ctx }) {
 
   return (
     <section className="el-card el-console">
+      {runner.history.length > 0 && <Select label={mt('jobs')} value={selected} onChange={setSelected} options={[{ value: '', label: mt('active') }, ...runner.history.map((item, index) => ({ value: item.id, label: `${index + 1}. ${item.title}` }))]} />}
       <h3>
         <Icon name="terminal" />
         {job ? job.title : t('nav.console')}

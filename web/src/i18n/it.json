@@ -2,16 +2,41 @@
   "app": {
     "name": "Ervisio Logs"
   },
+  "shell": {
+    "workspace": "Workspace",
+    "project": "Progetto attuale",
+    "projects": "Progetti",
+    "projectSettings": "Impostazioni progetto",
+    "workspaceSettings": "Impostazioni workspace",
+    "instance": "Istanza",
+    "goTo": "Vai a…",
+    "logs": "Log",
+    "channels": "Canali di notifica",
+    "configuration": "Configurazione",
+    "instanceUsers": "Utenti d’istanza"
+  },
+  "logDetails": {
+    "who": "Chi",
+    "what": "Cosa",
+    "where": "Dove",
+    "when": "Quando",
+    "technical": "Tecnico",
+    "original": "Mostra originale",
+    "actor": "Attore",
+    "target": "Bersaglio",
+    "filterValue": "Filtra per {{field}}",
+    "copyFailed": "Impossibile copiare il JSON."
+  },
   "nav": {
     "menu": "Apri la navigazione",
     "closeMenu": "Chiudi la navigazione",
-    "primary": "Progetti",
+    "primary": "Navigazione principale",
     "sections": "Sezioni del progetto",
     "allProjects": "Tutti i progetti",
     "environment": "Ambiente",
     "streams": "Stream",
     "toggleStreams": "Mostra o nascondi gli stream",
-    "explorer": "Esplora log",
+    "explorer": "Log",
     "live": "Live",
     "dashboards": "Dashboard",
     "alerts": "Alert",
@@ -63,9 +88,9 @@
     "workspace": "Workspace"
   },
   "palette": {
-    "open": "Comandi",
-    "title": "Palette dei comandi",
-    "placeholder": "Cerca progetti, stream e comandi",
+    "open": "Vai a…",
+    "title": "Vai a…",
+    "placeholder": "Cerca progetti, stream e impostazioni",
     "empty": "Nessun risultato.",
     "projects": "Progetti",
     "streams": "Stream",
@@ -76,6 +101,17 @@
     "hintClose": "Esc per chiudere"
   },
   "explorer": {
+    "filters": "Filtri",
+    "closeFilters": "Chiudi filtri",
+    "levelNames": {
+      "TRACE": "Traccia",
+      "DEBUG": "Debug",
+      "INFO": "Info",
+      "NOTICE": "Nota",
+      "WARN": "Attenzione",
+      "ERROR": "Errore",
+      "FATAL": "Critico"
+    },
     "allStreams": "Tutti gli stream",
     "events_one": "{{n}} evento",
     "events_other": "{{n}} eventi",
@@ -111,6 +147,7 @@
     },
     "open": "Apri l'evento delle {{time}}",
     "tier": {
+      "archive": "Archivio",
       "live": "Live"
     },
     "shownOf": "{{shown}} di {{total}}",
@@ -154,6 +191,7 @@
     "inWorkspace": "Progetti in {{name}}"
   },
   "login": {
+    "forgotPassword": "Password dimenticata?",
     "loading": "Carico…",
     "or": "oppure",
     "continueWith": "Continua con {{provider}}",
@@ -987,5 +1025,514 @@
         ]
       }
     ]
+  },
+  "adminUsers": {
+    "title": "Utenti",
+    "instanceScope": "Amministrazione / Istanza",
+    "instanceAccount": "Account di istanza",
+    "intro": "Gestisci l’accesso a Ervisio Logs. Per le appartenenze ai workspace usa Membri e inviti. Il ruolo di admin istanza non concede accesso ai log dei workspace.",
+    "forbidden": "Solo un amministratore di istanza può gestire questi account.",
+    "create": "Crea utente",
+    "search": "Cerca",
+    "searchPlaceholder": "Cerca email o username",
+    "list": "Utenti dell’istanza",
+    "loading": "Carico gli utenti…",
+    "loadFailed": "Impossibile caricare gli utenti.",
+    "empty": "Nessun account corrisponde",
+    "emptyHelp": "Cambia la ricerca o crea un account.",
+    "manageUser": "Gestisci {{name}}",
+    "you": "Tu",
+    "active": "Attivo",
+    "disabled": "Disabilitato",
+    "admin": "Admin istanza",
+    "regularUser": "Utente",
+    "page": "Pagina {{page}}",
+    "previous": "Precedente",
+    "next": "Successiva",
+    "details": "Dettaglio utente",
+    "closeDetails": "Chiudi dettaglio utente",
+    "closeDialog": "Chiudi finestra",
+    "created": "Creato",
+    "email": "Email",
+    "username": "Username",
+    "verified": "Verificata",
+    "unverified": "Non verificata",
+    "access": "Accesso",
+    "disable": "Disabilita account",
+    "activate": "Riattiva account",
+    "demote": "Revoca admin istanza",
+    "promote": "Promuovi ad admin istanza",
+    "resetPassword": "Reimposta password",
+    "selfHelp": "Da qui non puoi cambiare stato, ruolo admin o password, né eliminare il tuo account. Per cambiare la password usa Account.",
+    "sessions": "Sessioni",
+    "viewSessions": "Mostra sessioni",
+    "deletion": "Eliminazione",
+    "delete": "Elimina account",
+    "deleteHelp": "L’eliminazione rimuove sessioni e appartenenze. I token creati dall’utente smettono di funzionare.",
+    "cancel": "Annulla",
+    "usernameHelp": "Da 3 a 32 caratteri: minuscole, numeri, punto, trattino o underscore.",
+    "optionalPassword": "Password (facoltativa)",
+    "newPassword": "Nuova password",
+    "passwordHelp": "Almeno 10 caratteri e al massimo 128 byte. Deve essere diversa da email e username.",
+    "confirmUsername": "Scrivi {{name}} per confermare",
+    "confirmMismatch": "La conferma non corrisponde allo username.",
+    "actionFailed": "L’azione non è riuscita. Riprova.",
+    "sessionsFailed": "Impossibile caricare o modificare le sessioni.",
+    "sessionsRevoked": "Sessioni revocate.",
+    "sessionHelp": "La revoca di tutte le sessioni mantiene quella che invia la richiesta. Revocare la sessione corrente ti disconnette.",
+    "loadingSessions": "Carico le sessioni…",
+    "noSessions": "Nessuna sessione attiva.",
+    "unknownBrowser": "Browser non indicato",
+    "revokeSession": "Revoca",
+    "currentSession": "Sessione corrente",
+    "lastSeen": "Ultimo uso",
+    "expires": "Scade",
+    "notAvailable": "Non indicato",
+    "revokeOthers": "Revoca le altre sessioni",
+    "revokeAll": "Revoca tutte le sessioni",
+    "actionTitle": {
+      "status": "Modifica accesso · {{name}}",
+      "admin": "Modifica ruolo admin · {{name}}",
+      "password": "Reimposta password · {{name}}",
+      "sessions": "Sessioni · {{name}}",
+      "delete": "Elimina {{name}}",
+      "disable": "Disabilita {{name}}",
+      "activate": "Riattiva {{name}}",
+      "promote": "Promuovi {{name}} ad admin istanza",
+      "demote": "Revoca admin istanza a {{name}}"
+    },
+    "actionHelp": {
+      "create": "Crea un account di istanza. Senza password, l’account può accedere solo con un provider esterno che verifica l’indirizzo.",
+      "status": "Modifica la possibilità di accedere a questo account.",
+      "admin": "Il ruolo di admin istanza non modifica i ruoli nei workspace.",
+      "disable": "L’utente non potrà più accedere. Tutte le sue sessioni verranno revocate.",
+      "activate": "L’utente potrà accedere nuovamente. Le sessioni precedenti resteranno revocate.",
+      "promote": "L’utente potrà gestire l’istanza e i suoi account. Questo ruolo non concede accesso ai log dei workspace.",
+      "demote": "L’utente perderà la gestione dell’istanza. I suoi ruoli nei workspace resteranno invariati.",
+      "password": "Imposta una nuova password e revoca tutte le sessioni dell’utente. Comunica la password attraverso un canale appropriato.",
+      "delete": "Elimina l’account, le sessioni e le appartenenze. I token creati dall’utente smettono di funzionare. Il server mantiene almeno un admin attivo e un owner per workspace."
+    },
+    "submit": {
+      "create": "Crea utente",
+      "status": "Conferma modifica",
+      "admin": "Conferma modifica",
+      "password": "Reimposta password",
+      "delete": "Elimina account"
+    },
+    "success": {
+      "create": "Utente creato.",
+      "status": "Accesso all’account aggiornato.",
+      "admin": "Ruolo di admin istanza aggiornato.",
+      "password": "Password reimpostata e sessioni dell’utente revocate.",
+      "delete": "Account eliminato."
+    }
+  },
+  "settings": {
+    "title": "Impostazioni",
+    "scope": "Ambito",
+    "sections": "Sezioni delle impostazioni",
+    "forbidden": "Non hai il permesso di aprire queste impostazioni.",
+    "readOnly": "Puoi leggere le impostazioni. Il tuo ruolo nel workspace non consente modifiche in questo ambito.",
+    "loadFailed": "Impossibile caricare le impostazioni.",
+    "saveFailed": "Impossibile salvare questo valore.",
+    "refreshFailed": "I valori sono stati scritti, ma non è stato possibile ricaricare le impostazioni. Controlla il server prima di riprovare.",
+    "checkValues": "Controlla i valori indicati prima di salvare.",
+    "partial": "{{saved}} valori salvati; {{failed}} valori non sono stati salvati e restano da correggere.",
+    "saved_one": "{{count}} valore salvato.",
+    "saved_other": "{{count}} valori salvati.",
+    "saving": "Salvataggio…",
+    "unsaved": "Modifiche da salvare.",
+    "noChanges": "Nessuna modifica da salvare.",
+    "empty": "Nessuna impostazione disponibile in questo ambito.",
+    "enabled": "Abilitata",
+    "disabled": "Disabilitata",
+    "notSet": "Non impostato",
+    "technical": "Dettagli tecnici",
+    "seconds": "Secondi",
+    "locked": "Impostata con una variabile sul server. Questo valore si cambia nella configurazione del server.",
+    "pending": "Modifica da salvare",
+    "useDefault": "Usa il valore predefinito",
+    "useInherited": "Usa il valore ereditato",
+    "resetValue": "Ripristina valore ereditato",
+    "invalidBoolean": "Scegli abilitata o disabilitata.",
+    "invalidNumber": "Inserisci un numero intero tra {{min}} e {{max}}.",
+    "invalidChoice": "Scegli uno dei valori disponibili.",
+    "invalidText": "Usa testo senza caratteri di controllo, entro {{max}} byte.",
+    "scopes": {
+      "instance": "Istanza",
+      "workspace": "Workspace",
+      "project": "Progetto"
+    },
+    "headings": {
+      "instance": "Configura l'istanza",
+      "workspace": "Impostazioni del workspace",
+      "project": "Impostazioni del progetto"
+    },
+    "intro": {
+      "instance": "Gestisci i valori predefiniti. Le variabili del server hanno sempre la precedenza.",
+      "workspace": "Definisci i valori condivisi dai progetti di questo workspace.",
+      "project": "Scegli cosa ereditare e cosa personalizzare per questo progetto."
+    },
+    "sources": {
+      "env": "Impostata dal server",
+      "instance": "Valore dell'istanza",
+      "workspace": "Valore del workspace",
+      "project": "Valore del progetto",
+      "default": "Valore predefinito"
+    },
+    "unknown": {
+      "label": "Altra impostazione",
+      "hint": "Apri i dettagli tecnici per identificare questa impostazione del server."
+    },
+    "groups": {
+      "access": {
+        "label": "Accesso",
+        "hint": "Registrazione e durata delle sessioni."
+      },
+      "collection": {
+        "label": "Raccolta log",
+        "hint": "Controlla gli stream e il ritmo di invio."
+      },
+      "quotas": {
+        "label": "Limiti giornalieri",
+        "hint": "Le quote si azzerano a mezzanotte UTC. Zero significa nessun limite."
+      },
+      "metadata": {
+        "label": "Ambienti e stream",
+        "hint": "Nomi leggibili, descrizioni e colori. Il nome tecnico rimane invariato."
+      },
+      "email": {
+        "label": "Email",
+        "hint": "Collegamento SMTP per gli inviti e il recupero dell’account."
+      },
+      "archive": {
+        "label": "Archivio e avvisi",
+        "hint": "Intervalli di lavoro e storico. Le durate sono espresse in secondi."
+      },
+      "advanced": {
+        "label": "Avanzate",
+        "hint": "Esportazione e diagnostica del server."
+      }
+    },
+    "metadata": {
+      "choose": "Modifica",
+      "stream": "Stream",
+      "environment": "Ambiente",
+      "technicalName": "Nome tecnico",
+      "immutable": "È l'identificatore usato dai client. Non si può rinominare.",
+      "displayName": "Nome visibile",
+      "description": "Descrizione",
+      "color": "Colore",
+      "colorHint": "Un colore a sei cifre come #ffb547, oppure vuoto per rimuoverlo.",
+      "noInheritance": "I metadati appartengono a questo elemento e non ereditano valori dal workspace.",
+      "empty": "Questo progetto non ha stream o ambienti.",
+      "loadFailed": "Impossibile caricare stream e ambienti.",
+      "invalidName": "Il nome visibile accetta fino a 100 caratteri, senza caratteri NUL.",
+      "invalidDescription": "La descrizione accetta fino a 500 caratteri, senza caratteri NUL.",
+      "invalidColor": "Usa un colore come #ffb547, oppure lascia vuoto.",
+      "saved": "Metadati salvati."
+    },
+    "duration": {
+      "days_one": "{{count}} giorno",
+      "days_other": "{{count}} giorni",
+      "hours_one": "{{count}} ora",
+      "hours_other": "{{count}} ore",
+      "minutes_one": "{{count}} minuto",
+      "minutes_other": "{{count}} minuti",
+      "seconds_one": "{{count}} secondo",
+      "seconds_other": "{{count}} secondi"
+    },
+    "fields": {
+      "auth_open_registration": {
+        "label": "Registrazione aperta",
+        "hint": "Consenti di creare un account senza invito."
+      },
+      "auth_session_ttl": {
+        "label": "Durata delle sessioni",
+        "hint": "Validità di una sessione dopo l’accesso."
+      },
+      "ingest_auto_create_streams": {
+        "label": "Crea gli stream automaticamente",
+        "hint": "Accetta i nuovi nomi di stream inviati dai tuoi server."
+      },
+      "ingest_max_streams": {
+        "label": "Numero massimo di stream",
+        "hint": "Vale anche per la creazione manuale. Zero significa nessun limite."
+      },
+      "ingest_rate_per_token": {
+        "label": "Eventi al secondo per token",
+        "hint": "Ogni token ha il proprio limite. Zero significa nessun limite."
+      },
+      "ingest_rate_per_project": {
+        "label": "Eventi al secondo per progetto",
+        "hint": "Somma degli eventi di tutti i token del progetto."
+      },
+      "ingest_rate_per_workspace": {
+        "label": "Eventi al secondo nel workspace",
+        "hint": "Limite complessivo dei progetti del workspace."
+      },
+      "ingest_rate_burst_seconds": {
+        "label": "Margine per i picchi di invio",
+        "hint": "Quanti secondi del limite si possono consumare in un picco."
+      },
+      "ingest_max_future_skew": {
+        "label": "Anticipo massimo degli eventi",
+        "hint": "Scarto accettato quando l’orologio del client è avanti."
+      },
+      "ingest_max_past_age": {
+        "label": "Età massima degli eventi",
+        "hint": "Rifiuta gli eventi più vecchi di questo intervallo."
+      },
+      "ingest_project_quota_events": {
+        "label": "Eventi al giorno per progetto",
+        "hint": "Numero complessivo di eventi accettati nel giorno UTC."
+      },
+      "ingest_project_quota_bytes": {
+        "label": "Byte al giorno per progetto",
+        "hint": "Dimensione dei dati accettati, prima dell’archiviazione."
+      },
+      "ingest_workspace_quota_events": {
+        "label": "Eventi al giorno nel workspace",
+        "hint": "Quota condivisa da tutti i progetti del workspace."
+      },
+      "ingest_workspace_quota_bytes": {
+        "label": "Byte al giorno nel workspace",
+        "hint": "Dimensione complessiva dei dati del workspace."
+      },
+      "email_smtp_host": {
+        "label": "Server SMTP",
+        "hint": "Solo il nome host, senza porta. Lascia vuoto per disattivare l’email."
+      },
+      "email_smtp_port": {
+        "label": "Porta SMTP",
+        "hint": "La porta del server di posta."
+      },
+      "email_smtp_security": {
+        "label": "Sicurezza della connessione",
+        "hint": "Usa la modalità richiesta dal tuo server SMTP."
+      },
+      "email_smtp_username": {
+        "label": "Utente SMTP",
+        "hint": "Nome utente dell’account di posta."
+      },
+      "email_smtp_password_file": {
+        "label": "File della password SMTP",
+        "hint": "Nome del file nella cartella dei segreti. La password non compare qui."
+      },
+      "email_from": {
+        "label": "Mittente",
+        "hint": "Per esempio Ervisio Logs <logs@example.test>."
+      },
+      "archive_interval": {
+        "label": "Frequenza dell’archiviazione",
+        "hint": "Intervallo tra due passaggi dell’archiviatore."
+      },
+      "archive_grace": {
+        "label": "Attesa dopo la fine del giorno",
+        "hint": "Prima di archiviare una giornata UTC conclusa."
+      },
+      "archive_late_interval": {
+        "label": "Intervallo per gli eventi in ritardo",
+        "hint": "Evita piccoli archivi ravvicinati per la stessa giornata."
+      },
+      "alerts_interval": {
+        "label": "Frequenza dei controlli degli avvisi",
+        "hint": "Quanto spesso vengono valutate le regole."
+      },
+      "alerts_history_retention": {
+        "label": "Durata dello storico degli avvisi",
+        "hint": "Conservazione dei risultati delle regole."
+      },
+      "alerts_webhook_allow_private": {
+        "label": "Webhook verso indirizzi privati",
+        "hint": "Consenti destinazioni locali o interne alla rete."
+      },
+      "export_max_rows": {
+        "label": "Righe massime per esportazione",
+        "hint": "Un limite protegge l’istanza dalle esportazioni molto grandi."
+      },
+      "server_log_level": {
+        "label": "Livello dei log del server",
+        "hint": "Riguarda la diagnostica di Ervisio Logs, non i log raccolti."
+      }
+    },
+    "save": "Salva",
+    "cancel": "Annulla",
+    "loading": "Caricamento impostazioni…"
+  },
+  "accountPage": {
+    "title": "Account",
+    "sections": "Impostazioni account",
+    "profile": "Profilo",
+    "password": "Password",
+    "sessions": "Sessioni",
+    "readOnly": "I dati del tuo account.",
+    "username": "Username",
+    "email": "Email",
+    "created": "Creato",
+    "emailVerified": "Email verificata",
+    "emailUnverified": "Email non verificata",
+    "resendVerification": "Invia email di verifica",
+    "verificationSent": "Email di verifica richiesta. Controlla la posta.",
+    "passwordIntro": "Inserisci la password attuale per sceglierne una nuova. La sessione corrente resta attiva; le altre vengono revocate. Gli account che accedono solo tramite un provider esterno potrebbero non avere una password.",
+    "currentPassword": "Password attuale",
+    "changePassword": "Cambia password",
+    "passwordChanged": "Password cambiata. La sessione corrente resta attiva; le altre sono state revocate.",
+    "sessionsIntro": "Controlla le tue sessioni attive. Revocare le altre mantiene questa sessione. Revocare la sessione corrente ti disconnette.",
+    "loadingSessions": "Carico le sessioni…",
+    "noSessions": "Nessuna sessione attiva.",
+    "notReported": "Non indicato",
+    "revokeSession": "Revoca sessione",
+    "revokeCurrent": "Revoca sessione corrente",
+    "currentSession": "Sessione corrente",
+    "lastSeen": "Ultimo uso",
+    "expires": "Scade",
+    "revokeOthers": "Revoca le altre sessioni",
+    "sessionsRevoked": "Sessioni revocate."
+  },
+  "emailFlow": {
+    "signIn": "Accedi",
+    "email": "Email",
+    "username": "Username",
+    "newPassword": "Nuova password",
+    "passwordHelp": "Almeno 10 caratteri e al massimo 128 byte. Deve essere diversa da email e username.",
+    "usernameHelp": "Da 3 a 32 caratteri: minuscole, numeri, punto, trattino o underscore.",
+    "forgotTitle": "Recupera la password",
+    "forgotHelp": "Inserisci l’email del tuo account per richiedere un link di recupero.",
+    "sendReset": "Richiedi link di recupero",
+    "forgotNeutral": "Se questo indirizzo appartiene a un account attivo, riceverai un’email con le istruzioni.",
+    "resetTitle": "Scegli una nuova password",
+    "resetHelp": "Il link funziona una sola volta. Reimpostare la password revoca tutte le tue sessioni.",
+    "resetSubmit": "Imposta nuova password",
+    "resetDone": "Password reimpostata. Accedi con la nuova password.",
+    "verifyTitle": "Verifica la tua email",
+    "verifyHelp": "Conferma per verificare l’indirizzo associato a questo link.",
+    "verifySubmit": "Verifica email",
+    "verifyDone": "Email verificata.",
+    "missingLink": "Apri il link completo ricevuto per email. Se hai ricaricato questa pagina o hai effettuato l’accesso con un provider esterno, apri di nuovo il link nell’email.",
+    "expired": "Il link non è valido, è già stato usato o è scaduto. Richiedine uno nuovo o contatta chi ti ha invitato.",
+    "rateLimited": "Troppe richieste. Riprova tra {{seconds}} secondi.",
+    "failed": "La richiesta non è riuscita. Riprova tra poco.",
+    "inviteTitle": "Invito al workspace",
+    "loadingInvite": "Carico l’invito…",
+    "loadingAccount": "Controllo l’account…",
+    "inviteRole": "Ruolo dell’invito: {{role}}",
+    "inviteExpires": "Scade il {{date}}",
+    "signedInAs": "Hai effettuato l’accesso come {{email}}",
+    "acceptInvite": "Accetta invito",
+    "inviteDone": "Invito accettato.",
+    "signInInvite": "Accedi con l’indirizzo invitato per accettare questo invito.",
+    "inviteContinuity": "L’invito resta in memoria durante l’accesso con password in questa scheda. Dopo un refresh o l’accesso con un provider esterno, apri di nuovo il link nell’email.",
+    "registerInviteHelp": "Crea un account per l’indirizzo invitato ed entra nel workspace. Un invito valido funziona anche con le registrazioni pubbliche chiuse.",
+    "registerInvite": "Crea account e accetta",
+    "wrongAccount": "L’invito è per un altro indirizzo. Esci e accedi con l’account invitato.",
+    "switchAccount": "Usa l’account invitato"
+  },
+  "instanceAdmin": {
+    "forbidden": "Questa pagina è riservata agli amministratori dell’istanza.",
+    "loading": "Caricamento dati dell’istanza…",
+    "refresh": "Aggiorna",
+    "saving": "Salvataggio…",
+    "enabled": "Abilitato",
+    "disabled": "Disabilitato",
+    "unavailable": "Non disponibile",
+    "health": {
+      "title": "Panoramica istanza",
+      "intro": "Valori attuali restituiti dall’istanza. Aggiornamento ogni 30 secondi circa.",
+      "loadFailed": "Impossibile leggere la salute dell’istanza. Riprova per richiedere dati aggiornati.",
+      "stale": "Aggiornamento non riuscito. I valori mostrati provengono dall’ultima risposta valida.",
+      "updated": "Ultima risposta: {{at}}",
+      "status": {
+        "ok": "L’istanza segnala un funzionamento regolare",
+        "degraded": "L’istanza segnala un funzionamento degradato",
+        "unknown": "Stato dell’istanza non disponibile"
+      },
+      "databases": "Database",
+      "checkOk": "Verifica riuscita",
+      "checkFailed": "Verifica non riuscita",
+      "errorReported": "L’istanza ha segnalato un errore. I dettagli della connessione non vengono mostrati qui.",
+      "wal": "Coda persistente degli eventi",
+      "walUnavailable": "L’istanza non ha restituito le statistiche della coda.",
+      "walBytes": "Dimensione della coda",
+      "walMax": "Capacità della coda",
+      "segments": "Segmenti",
+      "pending": "Record in attesa",
+      "lag": "Ritardo di scrittura",
+      "seconds": "s",
+      "archive": "Archivio e coda upload",
+      "waiting": "Upload in attesa",
+      "waitingBytes": "Byte da caricare",
+      "failed": "Upload falliti",
+      "failedBytes": "Byte degli upload falliti",
+      "archiver": "Archiviatore",
+      "destination": "Destinazione archivio",
+      "noDestination": "Nessuna destinazione restituita",
+      "verified": "Ultimo archivio verificato",
+      "oldest": "Evento più vecchio da archiviare",
+      "destinationStatus": "Stato della destinazione",
+      "lastCheck": "Ultima verifica della destinazione",
+      "destinationError": "L’istanza ha segnalato un errore della destinazione archivio. Credenziali e dettagli della connessione non vengono mostrati."
+    },
+    "scopes": {
+      "read": {
+        "label": "Leggi amministrazione",
+        "hint": "Leggi le informazioni di gestione dell’istanza senza modificarle. Non concede accesso ai log raccolti."
+      },
+      "users": {
+        "label": "Gestisci utenti",
+        "hint": "Crea e gestisci account, password e sessioni."
+      },
+      "settings": {
+        "label": "Gestisci impostazioni runtime",
+        "hint": "Modifica le impostazioni runtime dell’istanza."
+      },
+      "tenancy": {
+        "label": "Gestisci workspace e progetti",
+        "hint": "Gestisci workspace, progetti, membri e token di acquisizione."
+      },
+      "storage": {
+        "label": "Gestisci archivio e conservazione",
+        "hint": "Gestisci destinazioni archivio, file delle credenziali e regole di conservazione."
+      }
+    },
+    "tokens": {
+      "title": "Token admin d’istanza",
+      "intro": "Token per il plugin Ervisio o altri strumenti di gestione. Creazione e revoca richiedono la tua sessione amministratore.",
+      "validity": "Un token è valido solo mentre il suo creatore è un amministratore istanza attivo. “Non revocato” descrive la revoca salvata, non l’accesso attuale del creatore.",
+      "create": "Crea token admin",
+      "loadFailed": "Impossibile caricare i token admin.",
+      "empty": "Non sono stati creati token admin.",
+      "scopes": "Permessi",
+      "created": "Creato",
+      "expires": "Scade",
+      "lastUsed": "Ultimo utilizzo",
+      "revokedAt": "Revocato",
+      "creator": "ID creatore",
+      "never": "Mai",
+      "revoked": "Revocato",
+      "expired": "Scaduto",
+      "notRevoked": "Non revocato",
+      "revoke": "Revoca token",
+      "revokeNamed": "Revoca {{name}}",
+      "name": "Nome del token",
+      "expiry": "Scadenza",
+      "expiryHint": "Obbligatoria, futura ed entro 365 giorni. Questo controllo usa l’ora locale del dispositivo.",
+      "invalidName": "Inserisci un nome da 1 a 100 caratteri, senza caratteri NUL.",
+      "invalidScopes": "Seleziona almeno uno dei cinque permessi amministratore.",
+      "invalidExpiry": "Scegli una scadenza futura entro 365 giorni.",
+      "createFailed": "Impossibile creare il token.",
+      "createdTitle": "Token creato: {{name}}",
+      "once": "Copia il token prima di chiudere. Il valore completo viene restituito una sola volta e viene rimosso dalla pagina quando chiudi.",
+      "secret": "Nuovo token admin",
+      "show": "Mostra token",
+      "hide": "Nascondi token",
+      "copy": "Copia token",
+      "done": "Chiudi e cancella il token",
+      "copied": "Token copiato negli appunti.",
+      "copyFailed": "Impossibile copiare il token. Mostralo per copiarlo manualmente prima di chiudere.",
+      "confirmName": "Ripeti il nome del token",
+      "revokeHint": "Ripeti “{{name}}” per revocare questo token. Gli strumenti che lo usano perderanno l’accesso.",
+      "revokeFailed": "Impossibile revocare il token."
+    }
   }
 }

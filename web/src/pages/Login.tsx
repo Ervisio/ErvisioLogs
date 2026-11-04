@@ -421,6 +421,7 @@ export default function Login() {
             )}
             {mode === 'setup' && <SetupHelp />}
             {(local || mode === 'setup') && <CredentialsForm key={mode} mode={mode} />}
+            {mode === 'login' && local && <Link to="/forgot-password" className="text-hue flex min-h-11 items-center font-semibold underline underline-offset-2">{t('login.forgotPassword')}</Link>}
             {mode === 'login' && canRegister && (
               <p className="text-ink2">
                 {t('login.noAccount')}{' '}

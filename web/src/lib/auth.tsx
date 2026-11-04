@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { api, ApiError, setCsrfToken, type Session } from './api';
 
@@ -20,12 +20,15 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const bootstrap = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
+    bootstrap.current = ctrl;
     api
       .me(ctrl.signal)
       .then((session) => {
+        if (ctrl.signal.aborted) return;
         setCsrfToken(session.csrf_token);
         setState({ status: 'authenticated', session });
       })
@@ -40,17 +43,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [attempt]);
 
   const establish = useCallback((session: Session) => {
+    bootstrap.current?.abort();
     setCsrfToken(session.csrf_token);
     setState({ status: 'authenticated', session });
   }, []);
 
   const logout = useCallback(async () => {
     await api.logout();
+    bootstrap.current?.abort();
     setCsrfToken(null);
     setState({ status: 'anonymous' });
   }, []);
 
   const retry = useCallback(() => {
+    bootstrap.current?.abort();
     setState({ status: 'loading' });
     setAttempt((n) => n + 1);
   }, []);
