@@ -27,3 +27,5 @@ web/test-results/
 web/playwright-report/
 # Release artifacts (scripts/release.sh)
 dist/
+.context/now.md
+.context/.last-nudge
