@@ -137,7 +137,7 @@ func (a *API) clearSetupCode() {
 
 // Routes mounts the API under the given router (expected at /api/v1).
 func (a *API) Routes(r chi.Router) {
-	r.Use(a.authenticate)
+	r.Use(cors, a.authenticate)
 
 	r.Get("/auth/providers", a.listProviders)
 	r.Post("/auth/register", a.register)
@@ -212,6 +212,9 @@ func (a *API) Routes(r chi.Router) {
 	r.Delete("/admin/users/{id}/sessions", a.adminRevokeUserSessions)
 	r.Delete("/admin/users/{id}/sessions/{sessionId}", a.adminRevokeUserSession)
 	r.Get("/admin/audit", a.adminListAudit)
+	r.Get("/admin/tokens", a.listAdminTokens)
+	r.Post("/admin/tokens", a.createAdminToken)
+	r.Delete("/admin/tokens/{id}", a.revokeAdminToken)
 	r.Get("/admin/storage", a.adminGetStorage)
 	r.Post("/admin/storage/providers", a.adminCreateProvider)
 	r.Put("/admin/storage/providers/{id}", a.adminUpdateProvider)
@@ -251,9 +254,10 @@ func (a *API) Routes(r chi.Router) {
 // ---------- principal ----------
 
 type principal struct {
-	user    *store.User
-	session *store.Session
-	token   *store.APIToken
+	user     *store.User
+	session  *store.Session
+	token    *store.APIToken
+	operator *operator
 }
 
 type ctxKey struct{}
@@ -263,19 +267,31 @@ func principalOf(r *http.Request) principal {
 	return p
 }
 
-// authenticate resolves the caller from a Bearer API token or the session cookie. It never rejects
-// by itself: handlers decide what they require. Cookie-authenticated unsafe requests must pass the
-// CSRF and Origin checks here, before any handler runs.
+// authenticate resolves the caller from the admin socket, a Bearer API or admin token, or the session
+// cookie. It never rejects by itself: handlers decide what they require. Cookie-authenticated unsafe
+// requests must pass the CSRF and Origin checks here, before any handler runs.
 func (a *API) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var p principal
+		if r.Context().Value(socketKey{}) != nil {
+			p.operator = socketOperator()
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, p)))
+			return
+		}
 		if h := r.Header.Get("Authorization"); h != "" {
 			tok, ok := strings.CutPrefix(h, "Bearer ")
 			if !ok || !auth.LooksLikeAPIToken(tok) {
 				httpx.WriteProblem(w, r, http.StatusUnauthorized, "invalid credentials")
 				return
 			}
-			t, err := a.Store.TokenByHash(r.Context(), auth.HashAPIToken(a.secret, tok))
+			var err error
+			if auth.LooksLikeAdminToken(tok) {
+				p.operator, err = a.adminTokenOperator(r.Context(), tok)
+			} else {
+				var t store.APIToken
+				t, err = a.Store.TokenByHash(r.Context(), auth.HashAPIToken(a.secret, tok))
+				p.token = &t
+			}
 			if err != nil {
 				if !errors.Is(err, store.ErrNotFound) {
 					a.internalError(w, r, err)
@@ -284,7 +300,6 @@ func (a *API) authenticate(next http.Handler) http.Handler {
 				httpx.WriteProblem(w, r, http.StatusUnauthorized, "invalid credentials")
 				return
 			}
-			p.token = &t
 		} else if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {
 			s, err := a.Store.SessionByHash(r.Context(), auth.HashSession(c.Value), a.clientIP(r))
 			switch {
@@ -346,8 +361,12 @@ func (a *API) requireAdmin(w http.ResponseWriter, r *http.Request) (*store.User,
 }
 
 // workspaceAccess authorises a session user inside a workspace. A non-member gets 404, exactly
-// like a missing workspace, so existence is not revealed. perm == "" means any member.
+// like a missing workspace, so existence is not revealed. perm == "" means any member. A nil user
+// is an operator (see caller).
 func (a *API) workspaceAccess(w http.ResponseWriter, r *http.Request, user *store.User, ws uuid.UUID, perm string) (store.Membership, bool) {
+	if user == nil {
+		return a.operatorAccess(w, r, ws, perm)
+	}
 	m, err := a.Store.MembershipOf(r.Context(), ws, user.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -507,10 +526,13 @@ func (a *API) rateIP(r *http.Request) string {
 func (a *API) audit(r *http.Request, ws *uuid.UUID, action, targetType, targetID string, detail map[string]any) {
 	e := store.AuditEvent{WorkspaceID: ws, Action: action, TargetType: targetType, TargetID: targetID,
 		RequestID: httpx.RequestID(r.Context()), IP: a.clientIP(r)}
-	if p := principalOf(r); p.user != nil {
+	switch p := principalOf(r); {
+	case p.user != nil:
 		e.ActorUserID = &p.user.ID
-	} else if p.token != nil {
+	case p.token != nil:
 		e.ActorToken = &p.token.ID
+	case p.operator != nil:
+		e.ActorName, e.ActorToken = p.operator.name, p.operator.tokenID
 	}
 	if detail != nil {
 		e.Detail, _ = json.Marshal(detail)

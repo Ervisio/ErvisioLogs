@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/archive"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
@@ -49,7 +50,7 @@ func (a *API) archiver() *archive.Archiver {
 }
 
 func (a *API) adminGetStorage(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	ctx := r.Context()
@@ -129,7 +130,7 @@ func validProviderReq(req *providerReq) string {
 }
 
 func (a *API) adminCreateProvider(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	var req providerReq
@@ -171,7 +172,7 @@ func (a *API) writeProvider(w http.ResponseWriter, r *http.Request, id uuid.UUID
 // config of a provider that holds segments cannot change either, because the segments' object
 // keys would then point into another location. Rotating the secret file stays possible.
 func (a *API) adminUpdateProvider(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	id, ok := idParam(w, r, "id")
@@ -237,7 +238,7 @@ func jsonEqual(x, y json.RawMessage) bool {
 }
 
 func (a *API) adminTestProvider(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	id, ok := idParam(w, r, "id")
@@ -261,7 +262,7 @@ func (a *API) adminTestProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminDeleteProvider(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	id, ok := idParam(w, r, "id")
@@ -283,7 +284,7 @@ func (a *API) adminDeleteProvider(w http.ResponseWriter, r *http.Request) {
 // adminSetActiveProvider picks the provider that receives new segments, after a passing health
 // check. A null provider_id stops archiving; hot data then stays until global retention.
 func (a *API) adminSetActiveProvider(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	var req struct {
@@ -326,7 +327,7 @@ func (a *API) adminSetActiveProvider(w http.ResponseWriter, r *http.Request) {
 // ---------- retention ----------
 
 func (a *API) adminListRetention(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	rows, err := a.Store.RetentionPolicies(r.Context())
@@ -394,7 +395,7 @@ func retentionScope(w http.ResponseWriter, r *http.Request) (string, uuid.UUID, 
 }
 
 func (a *API) adminPutRetention(w http.ResponseWriter, r *http.Request) {
-	admin, ok := a.requireAdmin(w, r)
+	admin, ok := a.adminAccess(w, r, auth.AdminStorage)
 	if !ok {
 		return
 	}
@@ -421,7 +422,7 @@ func (a *API) adminPutRetention(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := a.Store.PutRetentionPolicy(r.Context(), store.RetentionPolicy{ScopeType: scopeType, ScopeID: scopeID,
 		LocalAgeHours: req.LocalAgeHours, GlobalAgeHours: req.GlobalAgeHours, CacheMaxBytes: req.CacheMaxBytes,
-		HighPct: req.HighPct, LowPct: req.LowPct, UpdatedBy: &admin.ID})
+		HighPct: req.HighPct, LowPct: req.LowPct, UpdatedBy: userRef(admin)})
 	if err != nil {
 		a.storeError(w, r, err)
 		return
@@ -432,7 +433,7 @@ func (a *API) adminPutRetention(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminDeleteRetention(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	scopeType, scopeID, ok := retentionScope(w, r)

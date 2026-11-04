@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 )
 
 func affected(tag pgconn.CommandTag, err error) error {
@@ -46,10 +48,11 @@ func scanToken(r rowScanner) (APIToken, error) {
 	return t, mapErr(err)
 }
 
-func (s *Store) CreateToken(ctx context.Context, workspaceID, projectID, createdBy uuid.UUID, name, prefix string, hash []byte, scopes []string, expires *time.Time) (APIToken, error) {
-	return scanToken(s.pool.QueryRow(ctx, `INSERT INTO api_tokens (id, workspace_id, project_id, name, prefix, hash, scopes, created_by, expires_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING `+tokenCols,
-		newID(), workspaceID, projectID, name, prefix, hash, scopes, createdBy, expires))
+// CreateToken stores a token. A nil createdBy means an operator issued it (ADR 0019).
+func (s *Store) CreateToken(ctx context.Context, workspaceID, projectID uuid.UUID, createdBy *uuid.UUID, name, prefix string, hash []byte, scopes []string, expires *time.Time) (APIToken, error) {
+	return scanToken(s.pool.QueryRow(ctx, `INSERT INTO api_tokens (id, workspace_id, project_id, name, prefix, hash, scopes, created_by, expires_at, issued_by_operator)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING `+tokenCols,
+		newID(), workspaceID, projectID, name, prefix, hash, scopes, createdBy, expires, createdBy == nil))
 }
 
 func (s *Store) ListTokens(ctx context.Context, workspaceID, projectID uuid.UUID) ([]APIToken, error) {
@@ -81,17 +84,20 @@ func (s *Store) RevokeToken(ctx context.Context, workspaceID, id uuid.UUID) erro
 // TokenByHash returns a token that is neither revoked nor expired, and whose creator is still an
 // active member of the workspace. A token never exceeds its creator's permissions, evaluated on every
 // call: Scopes holds the stored scopes the creator's current role allows. The stored scopes are left
-// untouched, so restoring the creator's standing restores the token. ErrNotFound when none remains.
+// untouched, so restoring the creator's standing restores the token. A token an operator issued has no
+// creator and keeps only logs:ingest. ErrNotFound when none remains.
 func (s *Store) TokenByHash(ctx context.Context, hash []byte) (APIToken, error) {
 	t, err := scanToken(s.pool.QueryRow(ctx, `SELECT t.id, t.workspace_id, t.project_id, t.name, t.prefix,
 			ARRAY(SELECT x.scope FROM unnest(t.scopes) WITH ORDINALITY AS x(scope, ord)
-				WHERE x.scope IN (SELECT rp.permission FROM role_permissions rp WHERE rp.role_id = m.role_id)
+				WHERE CASE WHEN t.issued_by_operator THEN x.scope = $2
+					ELSE x.scope IN (SELECT rp.permission FROM role_permissions rp WHERE rp.role_id = m.role_id) END
 				ORDER BY x.ord),
 			t.created_at, t.expires_at, t.last_used_at, t.revoked_at
 		FROM api_tokens t
-		JOIN users u ON u.id = t.created_by AND u.status = 'active'
-		JOIN workspace_members m ON m.workspace_id = t.workspace_id AND m.user_id = t.created_by
-		WHERE t.hash=$1 AND t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > now())`, hash))
+		LEFT JOIN users u ON u.id = t.created_by AND u.status = 'active'
+		LEFT JOIN workspace_members m ON m.workspace_id = t.workspace_id AND m.user_id = u.id
+		WHERE t.hash=$1 AND t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > now())
+			AND (t.issued_by_operator OR m.user_id IS NOT NULL)`, hash, auth.LogsIngest))
 	if err != nil {
 		return APIToken{}, err
 	}
@@ -110,6 +116,7 @@ type AuditEvent struct {
 	WorkspaceID *uuid.UUID      `json:"workspace_id"`
 	ActorUserID *uuid.UUID      `json:"actor_user_id"`
 	ActorToken  *uuid.UUID      `json:"actor_token_id"`
+	ActorName   string          `json:"actor_name"`
 	Action      string          `json:"action"`
 	TargetType  string          `json:"target_type"`
 	TargetID    string          `json:"target_id"`
@@ -124,9 +131,9 @@ func (s *Store) RecordAudit(ctx context.Context, e AuditEvent) error {
 	if len(e.Detail) == 0 {
 		e.Detail = json.RawMessage(`{}`)
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO audit_events (id, workspace_id, actor_user_id, actor_token_id, action, target_type, target_id, request_id, ip, detail)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		newID(), e.WorkspaceID, e.ActorUserID, e.ActorToken, e.Action, e.TargetType, e.TargetID, e.RequestID, e.IP, e.Detail)
+	_, err := s.pool.Exec(ctx, `INSERT INTO audit_events (id, workspace_id, actor_user_id, actor_token_id, actor_name, action, target_type, target_id, request_id, ip, detail)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		newID(), e.WorkspaceID, e.ActorUserID, e.ActorToken, e.ActorName, e.Action, e.TargetType, e.TargetID, e.RequestID, e.IP, e.Detail)
 	return err
 }
 
@@ -148,7 +155,7 @@ func (s *Store) listAudit(ctx context.Context, scope string, limit int, cursor s
 			return nil, "", err
 		}
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id, workspace_id, actor_user_id, actor_token_id, action, target_type, target_id, request_id, ip, detail, created_at
+	rows, err := s.pool.Query(ctx, `SELECT id, workspace_id, actor_user_id, actor_token_id, actor_name, action, target_type, target_id, request_id, ip, detail, created_at
 		FROM audit_events WHERE `+scope+` AND (created_at, id) < ($1, $2)
 		ORDER BY created_at DESC, id DESC LIMIT $3`, append([]any{ts, id, limit + 1}, args...)...)
 	if err != nil {
@@ -157,7 +164,7 @@ func (s *Store) listAudit(ctx context.Context, scope string, limit int, cursor s
 	defer rows.Close()
 	for rows.Next() {
 		var e AuditEvent
-		if err := rows.Scan(&e.ID, &e.WorkspaceID, &e.ActorUserID, &e.ActorToken, &e.Action, &e.TargetType, &e.TargetID, &e.RequestID, &e.IP, &e.Detail, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.WorkspaceID, &e.ActorUserID, &e.ActorToken, &e.ActorName, &e.Action, &e.TargetType, &e.TargetID, &e.RequestID, &e.IP, &e.Detail, &e.CreatedAt); err != nil {
 			return nil, "", err
 		}
 		events = append(events, e)

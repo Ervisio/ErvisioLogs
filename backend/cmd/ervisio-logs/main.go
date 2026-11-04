@@ -225,7 +225,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	writer := &ingest.Writer{Log: spool, CH: ch, Dir: cfg.Ingest.SpoolDir, Hub: hub, Logger: log}
 	apiHandlers.Logs = &api.Logs{WAL: spool, CH: ch, Hub: hub, Writer: writer}
 
-	errc := make(chan error, 2)
+	errc := make(chan error, 3)
 	wctx, stopWriter := context.WithCancel(context.Background())
 	writerDone := make(chan struct{})
 	go func() {
@@ -263,10 +263,25 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		defer func() { stopAlerts(); <-alertsDone }()
 	}
 
-	srv := server.NewHTTPServer(cfg.HTTPAddr, server.NewRouter(server.Options{
+	router := server.NewRouter(server.Options{
 		Log: log, Health: health, API: apiHandlers, UI: webui.Handler(), MaxBodyBytes: cfg.MaxBodyBytes,
 		Metrics: apiHandlers.MetricsHandler(cfg.Ingest.MetricsToken, cfg.Env == config.EnvDevelopment),
-	}))
+	})
+	srv := server.NewHTTPServer(cfg.HTTPAddr, router)
+
+	// Local admin socket (ADR 0019): whoever can open the file manages the instance.
+	var sockSrv *http.Server
+	if cfg.AdminSocket != "" {
+		l, err := server.ListenUnix(cfg.AdminSocket)
+		if err != nil {
+			return fmt.Errorf("admin socket: %w", err)
+		}
+		sockSrv = server.NewHTTPServer("", api.Socket(router))
+		go func() {
+			log.Info("admin socket listening", "path", cfg.AdminSocket)
+			errc <- sockSrv.Serve(l)
+		}()
+	}
 
 	go func() {
 		log.Info("listening", "addr", cfg.HTTPAddr)
@@ -280,6 +295,11 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	log.Info("shutting down", "timeout", cfg.ShutdownTimeout.String())
 	sctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
+	if sockSrv != nil {
+		if err := sockSrv.Shutdown(sctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+	}
 	if err := srv.Shutdown(sctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

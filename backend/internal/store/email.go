@@ -90,8 +90,8 @@ func scanInvitation(r pgx.Row) (Invitation, error) {
 }
 
 // CreateInvitation invites email to the workspace. Inviting the same address again replaces the earlier
-// invitation and its link. ErrConflict when the address already belongs to a member.
-func (s *Store) CreateInvitation(ctx context.Context, workspaceID, invitedBy uuid.UUID, email, role string, hash []byte, expires time.Time) (Invitation, error) {
+// invitation and its link. A nil invitedBy is an operator. ErrConflict when the address already belongs to a member.
+func (s *Store) CreateInvitation(ctx context.Context, workspaceID uuid.UUID, invitedBy *uuid.UUID, email, role string, hash []byte, expires time.Time) (Invitation, error) {
 	var inv Invitation
 	err := s.tx(ctx, func(tx pgx.Tx) error {
 		var member bool

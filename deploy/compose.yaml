@@ -156,6 +156,9 @@ services:
       ERVISIO_LOGS_HTTP_ADDR: ":8080"
       # Credentials of archive destinations (Storage page): one file each, named in the destination.
       ERVISIO_LOGS_ARCHIVE_SECRETS_DIR: /run/ervisio-logs/secrets
+      # Local admin socket (ADR 0019): instance management without a login, reachable only through the
+      # volume below. Set ERVISIO_LOGS_ADMIN_SOCKET= (empty) in .env to turn it off.
+      ERVISIO_LOGS_ADMIN_SOCKET: ${ERVISIO_LOGS_ADMIN_SOCKET-/var/lib/ervisio-logs/socket/admin.sock}
     ports:
       # Loopback only: put a TLS reverse proxy in front for anything beyond local use.
       - "127.0.0.1:${ERVISIO_LOGS_PORT:-8080}:8080"
@@ -170,6 +173,9 @@ services:
       - spool:/var/lib/ervisio-logs/spool
       - cache:/var/lib/ervisio-logs/cache
       - pg-tls:/var/lib/ervisio-logs/tls:ro
+      # The admin socket, mode 0660 and owned by uid/gid 65532: a tool such as the Ervisio plugin mounts
+      # the ervisiologs_admin volume and connects as that uid or group.
+      - admin-socket:/var/lib/ervisio-logs/socket
       # A host folder next to compose.yaml, owned by uid 65532 with mode 0700 (the Ervisio plugin sets this up).
       # Writable: the Storage page saves credentials typed in the browser here (ADR 0017).
       - ./secrets:/run/ervisio-logs/secrets
@@ -191,3 +197,5 @@ volumes:
   ch-data:
   spool:
   cache:
+  admin-socket:
+    name: ervisiologs_admin

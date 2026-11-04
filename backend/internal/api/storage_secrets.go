@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/archive"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 )
 
@@ -29,7 +30,7 @@ func (a *API) secretsDir(w http.ResponseWriter, r *http.Request) (string, bool) 
 }
 
 func (a *API) adminListSecrets(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	dir, ok := a.secretsDir(w, r)
@@ -52,7 +53,7 @@ func (a *API) adminListSecrets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminPutSecret(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminStorage); !ok {
 		return
 	}
 	name := chi.URLParam(r, "name")

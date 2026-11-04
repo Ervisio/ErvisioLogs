@@ -41,11 +41,20 @@ func validName(w http.ResponseWriter, r *http.Request, name string) bool {
 // ---------- workspaces ----------
 
 func (a *API) listWorkspaces(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
-	ws, err := a.Store.WorkspacesOf(r.Context(), u.ID)
+	var ws []store.Workspace
+	var err error
+	if op := principalOf(r).operator; op != nil {
+		if !operatorAllowed(w, r, op, auth.AdminTenancy) {
+			return
+		}
+		ws, err = a.Store.ListWorkspaces(r.Context())
+	} else {
+		ws, err = a.Store.WorkspacesOf(r.Context(), u.ID)
+	}
 	if err != nil {
 		a.internalError(w, r, err)
 		return
@@ -59,12 +68,19 @@ type workspaceReq struct {
 }
 
 func (a *API) createWorkspace(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
-	var req workspaceReq
+	var req struct {
+		workspaceReq
+		OwnerID *uuid.UUID `json:"owner_id"`
+	}
 	if !decode(w, r, &req) || !validName(w, r, strings.TrimSpace(req.Name)) {
+		return
+	}
+	owner, ok := a.workspaceOwner(w, r, u, req.OwnerID)
+	if !ok {
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
@@ -75,7 +91,7 @@ func (a *API) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "slug must be 1 to 39 characters: lowercase letters, digits and dashes")
 		return
 	}
-	ws, err := a.Store.CreateWorkspace(r.Context(), u.ID, req.Slug, req.Name)
+	ws, err := a.Store.CreateWorkspace(r.Context(), owner, req.Slug, req.Name)
 	if err != nil {
 		a.storeError(w, r, err)
 		return
@@ -84,8 +100,35 @@ func (a *API) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, ws)
 }
 
+// workspaceOwner picks the first owner of a new workspace: the session user, or for an operator the
+// active user named by owner_id.
+func (a *API) workspaceOwner(w http.ResponseWriter, r *http.Request, u *store.User, ownerID *uuid.UUID) (uuid.UUID, bool) {
+	switch {
+	case u != nil && ownerID != nil:
+		invalid(w, r, "owner_id is only accepted from an administrator token or the admin socket")
+		return uuid.Nil, false
+	case u != nil:
+		return u.ID, true
+	case !operatorAllowed(w, r, principalOf(r).operator, auth.AdminTenancy):
+		return uuid.Nil, false
+	case ownerID == nil:
+		invalid(w, r, "owner_id is required")
+		return uuid.Nil, false
+	}
+	owner, err := a.Store.UserByID(r.Context(), *ownerID)
+	if errors.Is(err, store.ErrNotFound) || (err == nil && owner.Status != "active") {
+		invalid(w, r, "owner_id must name an active user")
+		return uuid.Nil, false
+	}
+	if err != nil {
+		a.internalError(w, r, err)
+		return uuid.Nil, false
+	}
+	return owner.ID, true
+}
+
 func (a *API) getWorkspace(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -102,12 +145,14 @@ func (a *API) getWorkspace(w http.ResponseWriter, r *http.Request) {
 		a.storeError(w, r, err)
 		return
 	}
-	ws.Role = m.Role
+	if u != nil {
+		ws.Role = m.Role
+	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"workspace": ws, "permissions": m.Perms.List()})
 }
 
 func (a *API) updateWorkspace(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -134,7 +179,7 @@ func (a *API) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) deleteWorkspace(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -173,7 +218,7 @@ func (a *API) deleteWorkspace(w http.ResponseWriter, r *http.Request) {
 // ---------- members ----------
 
 func (a *API) listMembers(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -200,7 +245,7 @@ func canGrant(m store.Membership, role string) bool {
 }
 
 func (a *API) addMember(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -252,7 +297,7 @@ func (a *API) addMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) updateMember(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -279,7 +324,7 @@ func (a *API) updateMember(w http.ResponseWriter, r *http.Request) {
 	}
 	// The roles that decide are those read under the store's lock: either may have changed since the check above.
 	var from string
-	err := a.Store.SetMemberRole(r.Context(), id, u.ID, userID, req.Role, func(actor, target store.Membership) error {
+	err := a.Store.SetMemberRole(r.Context(), id, actorID(u), userID, req.Role, func(actor, target store.Membership) error {
 		if !actor.Perms.Has(auth.MembersManage) || !canGrant(actor, req.Role) || !canGrant(actor, target.Role) {
 			return store.ErrForbidden
 		}
@@ -295,7 +340,7 @@ func (a *API) updateMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) removeMember(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -308,16 +353,17 @@ func (a *API) removeMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Members may always leave; removing someone else needs members:manage.
+	self := u != nil && userID == u.ID
 	perm := auth.MembersManage
-	if userID == u.ID {
+	if self {
 		perm = ""
 	}
 	if _, ok := a.workspaceAccess(w, r, u, id, perm); !ok {
 		return
 	}
 	// As in updateMember, the roles that decide are those read under the store's lock.
-	err := a.Store.RemoveMember(r.Context(), id, u.ID, userID, func(actor, target store.Membership) error {
-		if userID != u.ID && (!actor.Perms.Has(auth.MembersManage) || !canGrant(actor, target.Role)) {
+	err := a.Store.RemoveMember(r.Context(), id, actorID(u), userID, func(actor, target store.Membership) error {
+		if !self && (!actor.Perms.Has(auth.MembersManage) || !canGrant(actor, target.Role)) {
 			return store.ErrForbidden
 		}
 		return nil
@@ -331,7 +377,7 @@ func (a *API) removeMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) listAudit(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -358,7 +404,7 @@ func (a *API) writeAuditPage(w http.ResponseWriter, r *http.Request, events []st
 
 // projectAccess loads a project and authorises the caller in its workspace.
 func (a *API) projectAccess(w http.ResponseWriter, r *http.Request, perm string) (store.Project, *store.User, bool) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return store.Project{}, nil, false
 	}
@@ -378,7 +424,7 @@ func (a *API) projectAccess(w http.ResponseWriter, r *http.Request, perm string)
 }
 
 func (a *API) listProjects(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -399,7 +445,7 @@ func (a *API) listProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) createProject(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}

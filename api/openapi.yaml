@@ -8,6 +8,10 @@ info:
 
     Browser sessions use an HttpOnly cookie. Every POST, PATCH and DELETE made with the cookie must send the `X-CSRF-Token` returned by `/auth/login`, `/auth/register` or `/auth/me`, and a browser `Origin` header must match the public URL. API tokens (`Authorization: Bearer evl_...`) are project-scoped and cannot call user routes.
 
+    Instance administration has two more principals (ADR 0019), neither of which ever reads, exports or deletes logs. An instance admin token (`Authorization: Bearer evl_adm_...`, header only, never a cookie) carries `admin:*` scopes and may call the operations that list `adminToken` in their security. The local admin socket (`ERVISIO_LOGS_ADMIN_SOCKET`) serves the same API to whoever can open the file and holds every admin scope; it has no session and no CSRF check. In every workspace both act as an owner limited to `logs:ingest`, `projects:write`, `tokens:manage`, `members:manage` and `workspace:manage`; their audit events carry the token name, or `plugin` for the socket, in `actor_name`.
+
+    The admin-token routes (`/admin/*`, `/workspaces*`, `/projects*`, `/tokens*`) answer CORS with `Access-Control-Allow-Origin: *` and no credentials, and answer preflight `OPTIONS` with 204 allowing `Authorization` and `Content-Type`. Cookie requests keep their Origin and CSRF checks.
+
     This document is checked against the implemented routes by `TestOpenAPIMatchesRouter`: an undocumented or unimplemented route fails the test suite.
   license:
     name: TBD (to be decided by the project owner)
@@ -500,8 +504,10 @@ paths:
       tags: [workspaces]
       operationId: listWorkspaces
       summary: "List the caller's workspaces"
+      description: "An admin token or the admin socket lists every workspace, without a role."
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: "Workspaces with the caller's role."
@@ -537,9 +543,14 @@ paths:
                   type: string
                   pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
                   description: Defaults to a slug of the name.
+                owner_id:
+                  type: string
+                  format: uuid
+                  description: "Required from an admin token or the admin socket, refused (422) from a session: the active user who becomes owner."
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Created.
@@ -574,6 +585,7 @@ paths:
           description: Workspace id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Workspace.
@@ -620,6 +632,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Updated.
@@ -666,6 +679,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Deleted.
@@ -696,6 +710,7 @@ paths:
           description: Workspace id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Members.
@@ -743,6 +758,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Added.
@@ -779,6 +795,7 @@ paths:
           description: Workspace id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Invitations.
@@ -828,6 +845,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Invited.
@@ -874,6 +892,7 @@ paths:
             format: uuid
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Revoked.
@@ -1028,6 +1047,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Updated.
@@ -1067,6 +1087,7 @@ paths:
           description: User id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Removed.
@@ -1104,6 +1125,7 @@ paths:
             type: string
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: "Events, newest first."
@@ -1144,6 +1166,7 @@ paths:
           description: Workspace id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Settings.
@@ -1197,6 +1220,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The setting after the change.
@@ -1239,6 +1263,7 @@ paths:
           example: ingest.max_streams
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The setting after the reset.
@@ -1266,6 +1291,7 @@ paths:
             format: uuid
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Projects.
@@ -1310,6 +1336,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: "Created with a default `production` environment and `default` stream."
@@ -1346,6 +1373,7 @@ paths:
           description: Project id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Project.
@@ -1383,6 +1411,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Updated.
@@ -1428,6 +1457,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Deleted.
@@ -1458,6 +1488,7 @@ paths:
           description: Project id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Environments.
@@ -1508,6 +1539,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Created.
@@ -1558,6 +1590,7 @@ paths:
               $ref: "#/components/schemas/DisplayMetaUpdate"
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Updated.
@@ -1598,6 +1631,7 @@ paths:
           description: Environment id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Deleted.
@@ -1623,6 +1657,7 @@ paths:
           description: Project id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Settings.
@@ -1676,6 +1711,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The setting after the change.
@@ -1718,6 +1754,7 @@ paths:
           example: ingest.max_streams
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The setting after the reset.
@@ -1746,6 +1783,7 @@ paths:
           description: Project id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Streams.
@@ -1797,6 +1835,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Created.
@@ -1847,6 +1886,7 @@ paths:
               $ref: "#/components/schemas/DisplayMetaUpdate"
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Updated.
@@ -1887,6 +1927,7 @@ paths:
           description: Stream id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Deleted.
@@ -2128,6 +2169,7 @@ paths:
             format: uuid
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Tokens. Never includes the secret.
@@ -2154,7 +2196,7 @@ paths:
       tags: [tokens]
       operationId: createToken
       summary: "Create an API token (needs tokens:manage)"
-      description: "A token is bound to one project and carries a subset of `logs:ingest`, `logs:read`, `logs:export`. A creator cannot grant a scope they do not hold. A token never exceeds its creator: at every request its effective scopes are those it was created with that the creator's current role still allows, and it stops working while the creator is disabled, is not a member of the workspace, or no scope remains. These conditions revoke nothing: restoring the creator restores the token. Only an HMAC of the token is stored."
+      description: "A token created with an admin token or the admin socket can only carry `logs:ingest` and has no creator; it outlives the admin token. A token is bound to one project and carries a subset of `logs:ingest`, `logs:read`, `logs:export`. A creator cannot grant a scope they do not hold. A token never exceeds its creator: at every request its effective scopes are those it was created with that the creator's current role still allows, and it stops working while the creator is disabled, is not a member of the workspace, or no scope remains. These conditions revoke nothing: restoring the creator restores the token. Only an HMAC of the token is stored."
       requestBody:
         required: true
         content:
@@ -2181,6 +2223,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: "Created. `token` is shown once and cannot be retrieved again."
@@ -2241,6 +2284,7 @@ paths:
           description: Token id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Revoked (also when it already was).
@@ -2270,6 +2314,7 @@ paths:
             type: string
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: "Events, newest first."
@@ -2292,6 +2337,110 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/v1/admin/tokens:
+    get:
+      tags: [admin, tokens]
+      operationId: listAdminTokens
+      summary: List instance admin tokens (instance administrator)
+      description: "Newest first, revoked and expired ones included. Never includes the secret."
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminToken"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [admin, tokens]
+      operationId: createAdminToken
+      summary: Create an instance admin token (instance administrator)
+      description: "Session only: an admin token cannot create admin tokens. The token works while it is not revoked or expired and its creator is an active instance administrator. It never reads, exports or deletes logs. Only an HMAC of it is stored."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes, expires_at]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                scopes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/AdminScope"
+                  minItems: 1
+                  uniqueItems: true
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: In the future and at most one year away.
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: "Created. `token` is shown once and cannot be retrieved again."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, admin_token]
+                properties:
+                  token:
+                    type: string
+                    examples: [evl_adm_...]
+                  admin_token:
+                    $ref: "#/components/schemas/AdminToken"
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  "/api/v1/admin/tokens/{id}":
+    delete:
+      tags: [admin, tokens]
+      operationId: revokeAdminToken
+      summary: Revoke an instance admin token (instance administrator)
+      description: "Takes effect immediately. API tokens it issued keep working."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Revoked (also when it already was).
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/admin/users:
     get:
       tags: [admin]
@@ -2317,6 +2466,7 @@ paths:
             type: string
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Users.
@@ -2365,6 +2515,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Created.
@@ -2401,6 +2552,7 @@ paths:
           description: User id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The user.
@@ -2429,6 +2581,7 @@ paths:
           description: User id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Deleted.
@@ -2471,6 +2624,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Updated. Disabling revokes every session of the user.
@@ -2515,6 +2669,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Password set.
@@ -2547,6 +2702,7 @@ paths:
           description: User id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: "Live sessions, most recently used first."
@@ -2581,6 +2737,7 @@ paths:
           description: User id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Sessions revoked.
@@ -2620,6 +2777,7 @@ paths:
             format: uuid
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Revoked.
@@ -2636,6 +2794,7 @@ paths:
       summary: Archive providers, segment totals and cache usage
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Storage overview.
@@ -2661,6 +2820,7 @@ paths:
               $ref: "#/components/schemas/ProviderRequest"
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "201":
           description: Created.
@@ -2702,6 +2862,7 @@ paths:
               $ref: "#/components/schemas/ProviderRequest"
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Updated.
@@ -2738,6 +2899,7 @@ paths:
           description: Provider id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Removed.
@@ -2764,6 +2926,7 @@ paths:
           description: Provider id.
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The provider with its new status.
@@ -2797,6 +2960,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Active provider set.
@@ -2820,6 +2984,7 @@ paths:
       description: "Names only. The API never returns a secret value."
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: File names in the secrets directory, sorted.
@@ -2868,6 +3033,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Stored.
@@ -2890,6 +3056,7 @@ paths:
       summary: List retention policies
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Policies.
@@ -2955,6 +3122,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The stored policy.
@@ -2995,6 +3163,7 @@ paths:
           description: "Id of the workspace, project or stream. The instance policy uses the nil UUID."
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "204":
           description: Removed; the scope inherits again.
@@ -3014,6 +3183,7 @@ paths:
       description: "Each entry carries its effective value, where it comes from and the value it would inherit without an override at this level. Keys set by an environment variable are locked to that value."
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: Settings.
@@ -3060,6 +3230,7 @@ paths:
               additionalProperties: false
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The setting after the change.
@@ -3095,6 +3266,7 @@ paths:
           example: ingest.max_streams
       security:
         - sessionCookie: []
+        - adminToken: []
       responses:
         "200":
           description: The setting after the reset.
@@ -3805,6 +3977,10 @@ components:
       type: http
       scheme: bearer
       description: "Project-scoped API token (`evl_...`), shown once at creation."
+    adminToken:
+      type: http
+      scheme: bearer
+      description: "Instance admin token (`evl_adm_...`), shown once at creation. Each operation needs one admin scope: `admin:users` for /admin/users, `admin:settings` for /admin/settings, `admin:storage` for /admin/storage and /admin/retention, `admin:tenancy` for workspaces, projects and their tokens, `admin:read` for /admin/audit; `admin:read` also allows GET on all of them. 403 for a missing scope."
     sessionCookie:
       type: apiKey
       in: cookie
@@ -4388,6 +4564,42 @@ components:
           type: string
           format: date-time
       additionalProperties: false
+    AdminToken:
+      type: object
+      required: [id, name, prefix, scopes, created_by, created_at, expires_at, last_used_at, revoked_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        prefix:
+          type: string
+          description: "First characters, safe to display."
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminScope"
+        created_by:
+          type: [string, "null"]
+          format: uuid
+          description: "The creating administrator; null once that account is deleted, which also stops the token."
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: [string, "null"]
+          format: date-time
+        revoked_at:
+          type: [string, "null"]
+          format: date-time
+      additionalProperties: false
+    AdminScope:
+      type: string
+      enum: ["admin:read", "admin:users", "admin:settings", "admin:tenancy", "admin:storage"]
     ApiToken:
       type: object
       required:
@@ -4446,6 +4658,10 @@ components:
         actor_token_id:
           type: [string, "null"]
           format: uuid
+          description: "An API token, or for an admin token actor its id."
+        actor_name:
+          type: string
+          description: "Set when the actor is an admin token (its name) or the admin socket (`plugin`)."
         action:
           type: string
           examples: [token.create]

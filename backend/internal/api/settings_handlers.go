@@ -19,12 +19,12 @@ import (
 type settingsScope func(w http.ResponseWriter, r *http.Request, write bool) (settings.Scope, *store.User, bool)
 
 func (a *API) instanceSettings(w http.ResponseWriter, r *http.Request, _ bool) (settings.Scope, *store.User, bool) {
-	u, ok := a.requireAdmin(w, r)
+	u, ok := a.adminAccess(w, r, auth.AdminSettings)
 	return settings.Scope{}, u, ok
 }
 
 func (a *API) workspaceSettings(w http.ResponseWriter, r *http.Request, write bool) (settings.Scope, *store.User, bool) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return settings.Scope{}, nil, false
 	}
@@ -72,7 +72,7 @@ func (a *API) putSetting(scope settingsScope) http.HandlerFunc {
 			return
 		}
 		key := chi.URLParam(r, "key")
-		e, err := a.Settings.Set(r.Context(), sc, key, req.Value, &u.ID)
+		e, err := a.Settings.Set(r.Context(), sc, key, req.Value, userRef(u))
 		if err != nil {
 			a.settingsError(w, r, err, e)
 			return

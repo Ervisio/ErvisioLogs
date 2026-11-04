@@ -16,7 +16,7 @@ import (
 // ---------- user administration ----------
 
 func (a *API) adminListUsers(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminUsers); !ok {
 		return
 	}
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -33,7 +33,7 @@ func (a *API) adminListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminGetUser(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminUsers); !ok {
 		return
 	}
 	u, ok := a.userParam(w, r)
@@ -46,7 +46,7 @@ func (a *API) adminGetUser(w http.ResponseWriter, r *http.Request) {
 // adminCreateUser creates an account. Without a password the account can only sign in through an
 // external provider, which proves control of the address on first sign-in.
 func (a *API) adminCreateUser(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminUsers); !ok {
 		return
 	}
 	var req registerReq
@@ -85,7 +85,7 @@ func (a *API) adminCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
-	admin, ok := a.requireAdmin(w, r)
+	admin, ok := a.adminAccess(w, r, auth.AdminUsers)
 	if !ok {
 		return
 	}
@@ -107,7 +107,7 @@ func (a *API) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 	case req.Status != nil && *req.Status != "active" && *req.Status != "disabled":
 		invalid(w, r, "status must be active or disabled")
 		return
-	case id == admin.ID:
+	case admin != nil && id == admin.ID:
 		invalid(w, r, "you cannot change your own status or administrator role")
 		return
 	}
@@ -125,7 +125,7 @@ func (a *API) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
-	admin, ok := a.requireAdmin(w, r)
+	admin, ok := a.adminAccess(w, r, auth.AdminUsers)
 	if !ok {
 		return
 	}
@@ -133,7 +133,7 @@ func (a *API) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if u.ID == admin.ID {
+	if admin != nil && u.ID == admin.ID {
 		invalid(w, r, "you cannot delete your own account")
 		return
 	}
@@ -153,7 +153,7 @@ func (a *API) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // adminResetPassword sets a new password and signs the user out everywhere.
 func (a *API) adminResetPassword(w http.ResponseWriter, r *http.Request) {
-	admin, ok := a.requireAdmin(w, r)
+	admin, ok := a.adminAccess(w, r, auth.AdminUsers)
 	if !ok {
 		return
 	}
@@ -167,7 +167,7 @@ func (a *API) adminResetPassword(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if u.ID == admin.ID {
+	if admin != nil && u.ID == admin.ID {
 		invalid(w, r, "change your own password from your account")
 		return
 	}
@@ -191,7 +191,7 @@ func (a *API) adminResetPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminListUserSessions(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminUsers); !ok {
 		return
 	}
 	if u, ok := a.userParam(w, r); ok {
@@ -200,7 +200,7 @@ func (a *API) adminListUserSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminRevokeUserSessions(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminUsers); !ok {
 		return
 	}
 	if u, ok := a.userParam(w, r); ok {
@@ -209,7 +209,7 @@ func (a *API) adminRevokeUserSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) adminRevokeUserSession(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminUsers); !ok {
 		return
 	}
 	if u, ok := a.userParam(w, r); ok {

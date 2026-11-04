@@ -39,6 +39,22 @@ func SystemRoleNames() []string {
 // TokenScopes are the scopes an API token may carry. A token can never exceed its creator's permissions.
 var TokenScopes = map[string]bool{LogsIngest: true, LogsRead: true, LogsExport: true}
 
+// Admin scopes are held by instance admin tokens and the local admin socket (ADR 0019). None of them
+// reaches tenant logs.
+const (
+	AdminRead     = "admin:read"
+	AdminUsers    = "admin:users"
+	AdminSettings = "admin:settings"
+	AdminTenancy  = "admin:tenancy"
+	AdminStorage  = "admin:storage"
+)
+
+var AdminScopes = map[string]bool{AdminRead: true, AdminUsers: true, AdminSettings: true, AdminTenancy: true, AdminStorage: true}
+
+// OperatorPermissions are what an operator (socket or admin token) holds inside every workspace: tenancy
+// management, plus logs:ingest so it can issue ingest tokens. Never logs:read, logs:export or logs:delete.
+var OperatorPermissions = []string{LogsIngest, ProjectsWrite, TokensManage, MembersManage, WorkspaceManage}
+
 // PermSet is a set of permissions.
 type PermSet map[string]bool
 

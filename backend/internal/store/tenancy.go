@@ -111,6 +111,24 @@ func (s *Store) WorkspacesOf(ctx context.Context, userID uuid.UUID) ([]Workspace
 	return out, rows.Err()
 }
 
+// ListWorkspaces returns every workspace, for operators (ADR 0019); Role stays empty.
+func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, slug, name, created_at FROM workspaces ORDER BY created_at, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Workspace{}
+	for rows.Next() {
+		var w Workspace
+		if err := rows.Scan(&w.ID, &w.Slug, &w.Name, &w.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
 	var w Workspace
 	err := s.pool.QueryRow(ctx, `SELECT id, slug, name, created_at FROM workspaces WHERE id=$1`, id).Scan(&w.ID, &w.Slug, &w.Name, &w.CreatedAt)
@@ -185,10 +203,15 @@ func (s *Store) AddMember(ctx context.Context, workspaceID, userID uuid.UUID, ro
 type MemberGuard func(actor, target Membership) error
 
 // guardMemberChange runs guard on the current roles. ErrNotFound when either user is not a member.
+// guardMemberChange reads both memberships under the lock. actorID uuid.Nil is an operator (ADR 0019),
+// which acts as an owner without log access.
 func guardMemberChange(ctx context.Context, tx pgx.Tx, workspaceID, actorID, userID uuid.UUID, guard MemberGuard) error {
-	actor, err := membershipOf(ctx, tx, workspaceID, actorID)
-	if err != nil {
-		return err
+	actor := Membership{Role: "owner", Perms: auth.NewPermSet(auth.OperatorPermissions)}
+	if actorID != uuid.Nil {
+		var err error
+		if actor, err = membershipOf(ctx, tx, workspaceID, actorID); err != nil {
+			return err
+		}
 	}
 	target, err := membershipOf(ctx, tx, workspaceID, userID)
 	if err != nil {

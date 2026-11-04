@@ -14,7 +14,7 @@ import (
 // ---------- API tokens ----------
 
 func (a *API) createToken(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -60,7 +60,7 @@ func (a *API) createToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tok, prefix, hash := auth.NewAPIToken(a.secret)
-	t, err := a.Store.CreateToken(r.Context(), p.WorkspaceID, p.ID, u.ID, strings.TrimSpace(req.Name), prefix, hash, req.Scopes, req.ExpiresAt)
+	t, err := a.Store.CreateToken(r.Context(), p.WorkspaceID, p.ID, userRef(u), strings.TrimSpace(req.Name), prefix, hash, req.Scopes, req.ExpiresAt)
 	if err != nil {
 		a.storeError(w, r, err)
 		return
@@ -72,7 +72,7 @@ func (a *API) createToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) listTokens(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -98,7 +98,7 @@ func (a *API) listTokens(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) revokeToken(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -138,7 +138,7 @@ func (a *API) currentToken(w http.ResponseWriter, r *http.Request) {
 
 // adminListAudit returns the instance-level trail: sign-ins, account changes, deleted workspaces.
 func (a *API) adminListAudit(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminRead); !ok {
 		return
 	}
 	events, next, err := a.Store.ListInstanceAudit(r.Context(), queryInt(r, "limit", 50, 200), r.URL.Query().Get("cursor"))

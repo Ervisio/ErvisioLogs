@@ -103,8 +103,10 @@ type Mail struct {
 
 // Config is the validated service configuration.
 type Config struct {
-	Env             Env
-	HTTPAddr        string
+	Env      Env
+	HTTPAddr string
+	// AdminSocket is the path of the local admin unix socket (ADR 0019); empty disables it.
+	AdminSocket     string
 	LogLevel        slog.Level
 	ShutdownTimeout time.Duration
 	// MaxBodyBytes is the global request body limit; ingestion routes will refine it later.
@@ -180,9 +182,10 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	}
 
 	c := Config{
-		FromEnv:  fromEnv,
-		Env:      Env(get("ENV", string(EnvDevelopment))),
-		HTTPAddr: get("HTTP_ADDR", ":8080"),
+		FromEnv:     fromEnv,
+		Env:         Env(get("ENV", string(EnvDevelopment))),
+		HTTPAddr:    get("HTTP_ADDR", ":8080"),
+		AdminSocket: get("ADMIN_SOCKET", ""),
 		ClickHouse: ClickHouse{
 			Addr:     get("CLICKHOUSE_ADDR", "clickhouse:9000"),
 			Database: get("CLICKHOUSE_DATABASE", "ervisio_logs"),
@@ -365,7 +368,7 @@ func (c Config) Redacted() map[string]any {
 		host = u.Host
 	}
 	return map[string]any{
-		"env": c.Env, "http_addr": c.HTTPAddr, "log_level": c.LogLevel.String(),
+		"env": c.Env, "http_addr": c.HTTPAddr, "admin_socket": c.AdminSocket, "log_level": c.LogLevel.String(),
 		"public_url": c.Auth.PublicURL, "open_registration": c.Auth.OpenRegistration,
 		"oauth_google": c.Auth.Google.Enabled(), "oauth_cognito": c.Auth.Cognito.Enabled(), "oauth_discord": c.Auth.Discord.Enabled(),
 		"postgres_host": host, "clickhouse_addr": c.ClickHouse.Addr,

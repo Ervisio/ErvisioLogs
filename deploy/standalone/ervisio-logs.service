@@ -30,6 +30,9 @@ LimitNOFILE=65536
 # is the archive cache. StateDirectory creates both, owned by the service user, and keeps them on uninstall.
 StateDirectory=ervisio-logs ervisio-logs/spool ervisio-logs/cache
 StateDirectoryMode=0750
+# /run/ervisio-logs holds the admin socket (ERVISIO_LOGS_ADMIN_SOCKET): open to the service group only.
+RuntimeDirectory=ervisio-logs
+RuntimeDirectoryMode=0750
 # The archive cache can instead live inside ClickHouse's user_files (see the env file); "-" ignores it when absent.
 ReadWritePaths=-/var/lib/clickhouse/user_files/ervisio-archive
 # The Storage page writes archive credentials here (ADR 0017). Point ERVISIO_LOGS_ARCHIVE_SECRETS_DIR elsewhere and

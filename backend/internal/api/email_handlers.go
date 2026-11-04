@@ -234,7 +234,7 @@ type invitationResp struct {
 
 // createInvitation invites an address whether or not it has an account, so the answer reveals neither.
 func (a *API) createInvitation(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -273,7 +273,7 @@ func (a *API) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	a.purgeExpired(r.Context())
 	secret, hash := auth.NewSessionSecret()
-	inv, err := a.Store.CreateInvitation(r.Context(), id, u.ID, email, req.Role, hash, a.now().Add(invitationTTL))
+	inv, err := a.Store.CreateInvitation(r.Context(), id, userRef(u), email, req.Role, hash, a.now().Add(invitationTTL))
 	if errors.Is(err, store.ErrConflict) {
 		httpx.WriteProblem(w, r, http.StatusConflict, "this address already belongs to a member")
 		return
@@ -284,8 +284,12 @@ func (a *API) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := invitationResp{Invitation: inv}
 	if a.mailEnabled() {
+		inviter := "An administrator"
+		if u != nil {
+			inviter = u.Username
+		}
 		err = a.sendMail(r.Context(), mail.Message{To: email, Subject: "Join " + ws.Name + " on Ervisio Logs",
-			Body: u.Username + " invited you to the workspace " + ws.Name + " on Ervisio Logs as " + req.Role + ".\n\n" +
+			Body: inviter + " invited you to the workspace " + ws.Name + " on Ervisio Logs as " + req.Role + ".\n\n" +
 				"Open this link to accept, with your account or a new one:\n\n" + a.link("invite", secret) +
 				"\n\nThe link works once and expires in 7 days."})
 		if err == nil {
@@ -306,7 +310,7 @@ func (a *API) createInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) listInvitations(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -326,7 +330,7 @@ func (a *API) listInvitations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) deleteInvitation(w http.ResponseWriter, r *http.Request) {
-	u, ok := a.requireUser(w, r)
+	u, ok := a.caller(w, r)
 	if !ok {
 		return
 	}

@@ -36,10 +36,21 @@ func NewRandom(n int) string { return randomString(n) }
 // TokenPrefix marks Ervisio Logs API tokens, which makes leaked ones greppable by secret scanners.
 const TokenPrefix = "evl_"
 
+// AdminTokenPrefix marks instance admin tokens (ADR 0019). No API token starts with it.
+const AdminTokenPrefix = "evl_adm_"
+
 // NewAPIToken returns the full token (shown once), a display prefix and the keyed hash to store.
 func NewAPIToken(key []byte) (token, prefix string, hash []byte) {
-	token = TokenPrefix + randomString(32)
+	for token = AdminTokenPrefix; strings.HasPrefix(token, AdminTokenPrefix); {
+		token = TokenPrefix + randomString(32)
+	}
 	return token, token[:len(TokenPrefix)+6], HashAPIToken(key, token)
+}
+
+// NewAdminToken is NewAPIToken for instance admin tokens.
+func NewAdminToken(key []byte) (token, prefix string, hash []byte) {
+	token = AdminTokenPrefix + randomString(32)
+	return token, token[:len(AdminTokenPrefix)+6], HashAPIToken(key, token)
 }
 
 // HashAPIToken is HMAC-SHA256(key, token). The key never leaves the instance, so a database
@@ -53,4 +64,8 @@ func HashAPIToken(key []byte, token string) []byte {
 // LooksLikeAPIToken is a cheap pre-check before hitting the database.
 func LooksLikeAPIToken(s string) bool {
 	return strings.HasPrefix(s, TokenPrefix) && len(s) > len(TokenPrefix)+20 && len(s) < 200
+}
+
+func LooksLikeAdminToken(s string) bool {
+	return strings.HasPrefix(s, AdminTokenPrefix) && LooksLikeAPIToken(s)
 }

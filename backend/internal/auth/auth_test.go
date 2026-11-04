@@ -68,6 +68,22 @@ func TestAPITokenHashing(t *testing.T) {
 	}
 }
 
+func TestAdminTokens(t *testing.T) {
+	key := []byte(strings.Repeat("k", 32))
+	tok, prefix, hash := NewAdminToken(key)
+	if !LooksLikeAdminToken(tok) || !strings.HasPrefix(prefix, AdminTokenPrefix) || string(HashAPIToken(key, tok)) != string(hash) {
+		t.Fatalf("bad admin token %q %q", tok, prefix)
+	}
+	for range 1000 {
+		if tok, _, _ := NewAPIToken(key); LooksLikeAdminToken(tok) {
+			t.Fatalf("API token %q looks like an admin token", tok)
+		}
+	}
+	if LooksLikeAdminToken("evl_adm_") || LooksLikeAdminToken("evl_abc") {
+		t.Fatal("malformed tokens must not match")
+	}
+}
+
 func TestSessionSecret(t *testing.T) {
 	s, h := NewSessionSecret()
 	if string(HashSession(s)) != string(h) || len(s) < 40 {

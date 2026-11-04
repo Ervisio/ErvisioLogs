@@ -23,5 +23,6 @@ A record only becomes `Accepted` after the listed tests have run and the project
 | [0016](0016-several-workspaces-in-the-ui.md) | Create and switch workspaces from the projects page | Proposed (built, not run) |
 | [0017](0017-credentials-from-the-storage-page.md) | Type archive credentials in the Storage page | Proposed (built, not run) |
 | [0018](0018-runtime-settings.md) | Runtime settings at instance, workspace and project level | Proposed (built, API tests run) |
+| [0019](0019-local-admin-socket-and-admin-tokens.md) | Local admin socket and instance admin tokens | Proposed (built, API tests run) |
 
 D008 (archive encryption) and D009 (replica quorum) stay open.
