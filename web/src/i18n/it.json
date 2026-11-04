@@ -27,7 +27,8 @@
     "soon": "Non ancora disponibile",
     "status": "Stato del sistema",
     "loadFailed": "Impossibile caricare questo progetto.",
-    "allEnvironments": "Tutti"
+    "allEnvironments": "Tutti",
+    "documentation": "Documentazione"
   },
   "theme": {
     "light": "Chiaro",
@@ -675,5 +676,316 @@
     "exportNdjson": "Scarica NDJSON",
     "exportCsv": "Scarica CSV",
     "exportFailed": "Impossibile esportare i log."
+  },
+  "docs": {
+    "title": "Guida a Ervisio Logs",
+    "intro": "Guide pratiche per raccogliere, cercare e conservare i tuoi log. Tutti gli articoli sono inclusi nell’app e disponibili a ogni utente connesso.",
+    "search": "Cerca nella documentazione",
+    "searchPlaceholder": "API, S3, FiveM…",
+    "topics": "Argomenti della documentazione",
+    "allTopics": "Tutti gli argomenti",
+    "copy": "Copia esempio",
+    "copyFailed": "Copia non riuscita. Seleziona e copia l’esempio manualmente.",
+    "results_one": "{{count}} argomento trovato",
+    "results_other": "{{count}} argomenti trovati",
+    "clearSearch": "Cancella ricerca",
+    "noResults": "Nessun argomento corrisponde alla ricerca.",
+    "notFound": "Argomento non trovato",
+    "articles": [
+      {
+        "id": "getting-started",
+        "title": "Primi passi",
+        "summary": "Crea workspace e progetto, invia il primo evento e trovalo nell’explorer.",
+        "sections": [
+          {
+            "title": "Organizza i log",
+            "paragraphs": [
+              "Un workspace raggruppa membri e progetti. Ogni progetto ha token API, stream e ambienti propri. Uno stream raggruppa eventi collegati, come inventario o moderazione; un ambiente distingue produzione e sviluppo."
+            ]
+          },
+          {
+            "title": "Invia il primo evento",
+            "paragraphs": [],
+            "steps": [
+              "Apri Tutti i progetti e crea un progetto nel workspace. Da questa pagina puoi anche creare un workspace; dal menu account puoi cambiarlo.",
+              "Apri il progetto. La guida al primo evento crea un token di ingestione, mostra una richiesta curl e permette di inviare un evento di prova.",
+              "Copia il token prima di lasciare la pagina. Quando arriva l’evento, il progetto apre il Log Explorer.",
+              "Per un progetto esistente, crea un token in Impostazioni → Token API e usa gli esempi API o FiveM di questa guida."
+            ]
+          },
+          {
+            "title": "Navigazione",
+            "paragraphs": [
+              "La barra principale cambia progetto. La colonna del progetto apre explorer, live, avvisi, integrazioni, storage e impostazioni. Ctrl K (⌘K su Mac) apre la ricerca dei comandi di navigazione. La documentazione resta nella barra principale anche senza un progetto.",
+              "Alcune voci sono segnaposto e indicano che la funzione non è ancora disponibile. Questa guida descrive i flussi implementati per explorer, token, membri, avvisi, canali di notifica e storage."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ingest-api",
+        "title": "Inviare log tramite API",
+        "summary": "Usa un token di progetto per inviare eventi JSON dal tuo server.",
+        "sections": [
+          {
+            "title": "Autenticazione ed evento singolo",
+            "paragraphs": [
+              "Crea un token di progetto con logs:ingest in Impostazioni → Token API. Sostituisci URL e token segnaposto con i tuoi. Il token determina il progetto: non usare quello di un altro progetto.",
+              "POST /api/v1/ingest accetta un evento JSON. La risposta 202 indica che è stato accettato nel percorso di ingestione; la visibilità nella ricerca può arrivare in modo asincrono."
+            ],
+            "code": "curl -X POST https://logs.example.com/api/v1/ingest \\\n  -H \"Authorization: Bearer <PROJECT_INGEST_TOKEN>\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"level\":\"INFO\",\"event\":\"server.start\",\"message\":\"Hello from my server\",\"service\":\"my-app\",\"attributes\":{\"player_id\":42,\"action\":\"join\"}}'",
+            "language": "Shell / curl"
+          },
+          {
+            "title": "Invio in batch",
+            "paragraphs": [
+              "POST /api/v1/ingest/batch accetta un oggetto con un array events. Non superare 1000 eventi e 1 MiB per richiesta. Controlla accepted e rejected nella risposta senza presumere che tutti gli eventi siano stati accettati."
+            ],
+            "code": "curl -X POST https://logs.example.com/api/v1/ingest/batch \\\n  -H \"Authorization: Bearer <PROJECT_INGEST_TOKEN>\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"events\":[{\"level\":\"INFO\",\"event\":\"inventory.add\",\"message\":\"bread x2\",\"attributes\":{\"player_id\":42,\"item\":\"bread\",\"count\":2}}]}'",
+            "language": "Shell / curl"
+          },
+          {
+            "title": "Campi evento e tentativi",
+            "paragraphs": [
+              "Usa level, event, message e attributes per descrivere l’evento. Il contesto opzionale comprende timestamp, id, service, host, resource, stream ed environment. Usa timestamp UTC in formato RFC 3339. Un id stabile permette di ritentare lo stesso evento senza creare un nuovo evento logico.",
+              "Con 429 o 503 rispetta Retry-After e aumenta l’attesa. Correggi gli eventi non validi con 422, dividi i batch troppo grandi con 413 e verifica credenziali e scope con 401/403. Evita tentativi immediati continui."
+            ]
+          },
+          {
+            "title": "Riferimento API e OpenTelemetry",
+            "paragraphs": [
+              "Il contratto completo delle API è api/openapi.yaml nel repository Ervisio/ErvisioLogs. Esiste un ricevitore sperimentale OTLP/HTTP su POST /v1/logs (JSON o protobuf, con token di ingestione). Non è stato validato con un exporter OpenTelemetry o Collector reale; per l’integrazione documentata usa gli esempi JSON precedenti."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "explorer",
+        "title": "Ricerca e log live",
+        "summary": "Filtra gli eventi, esamina gli attributi e segui i nuovi log.",
+        "sections": [
+          {
+            "title": "Sintassi della ricerca",
+            "paragraphs": [
+              "Il testo libero cerca nei messaggi. Le espressioni sugli attributi diventano filtri separati; racchiudi tra virgolette i valori con spazi. Gli operatori supportati sono =, !=, ~ (contiene), >, >=, <, <= e has:chiave. Combina espressioni e testo libero nella stessa ricerca."
+            ],
+            "code": "player_id=42 action=add\nitem~bread count>=2 has:player_id\nreason=\"card declined\" payment",
+            "language": "Search"
+          },
+          {
+            "title": "Restringi i risultati",
+            "paragraphs": [
+              "Scegli intervallo temporale, livelli, stream e ambiente per restringere la ricerca nel progetto. Apri una riga per esaminare evento e attributi. Carica altri aggiunge una pagina di risultati. Le viste salvate permettono di riutilizzare una ricerca.",
+              "Le ricerche negli archivi possono essere più lente di quelle sui dati recenti. Se un risultato è parziale, consideralo incompleto e verifica la disponibilità dell’archivio prima di concludere che un evento manchi."
+            ]
+          },
+          {
+            "title": "Live ed esportazione",
+            "paragraphs": [
+              "Live segue gli eventi appena arrivati. Cerca quelli storici nell’explorer con un intervallo appropriato. Una disconnessione del live non dimostra che l’ingestione si sia fermata.",
+              "L’esportazione richiede logs:export e l’accesso al progetto. Restringi intervallo e filtri prima di esportare grandi volumi."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tokens-and-access",
+        "title": "Token e permessi",
+        "summary": "Scegli gli scope dei token e comprendi i ruoli del workspace.",
+        "sections": [
+          {
+            "title": "Token API di progetto",
+            "paragraphs": [
+              "I token sono legati a un progetto. logs:ingest invia eventi, logs:read li legge e logs:export permette di esportarli. Un token non può superare i permessi di chi lo crea.",
+              "Crea token separati per ogni servizio, concedi solo gli scope necessari e imposta una scadenza quando opportuno. Il segreto completo appare una sola volta: copialo nella configurazione riservata del server. Revoca un token perso o esposto e creane uno nuovo.",
+              "Conserva i token sul server. Non inserirli in codice browser, script client, repository pubblici o messaggi di log."
+            ]
+          },
+          {
+            "title": "Ruoli del workspace",
+            "paragraphs": [
+              "Owner gestisce workspace e membri. Admin gestisce progetti, token, membri e avvisi ma non può assegnare la proprietà o modificare gli owner. Developer può creare progetti, gestire token e avvisi, leggere ed esportare log. Analyst legge ed esporta; Viewer legge.",
+              "In Impostazioni → Utenti puoi aggiungere un account esistente tramite email o cambiarne il ruolo. Deve rimanere almeno un owner. L’amministrazione dell’istanza è distinta dall’appartenenza ai workspace e non dà automaticamente accesso ai loro log."
+            ]
+          },
+          {
+            "title": "Amministrazione dello storage",
+            "paragraphs": [
+              "La pagina Storage è riservata agli amministratori dell’istanza perché destinazioni degli archivi e budget della cache locale riguardano tutto il server. Essere owner del workspace non basta."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "storage",
+        "title": "Storage e retention",
+        "summary": "Configura S3, SFTP o una cartella locale e controlla l’uso del disco.",
+        "sections": [
+          {
+            "title": "Dati recenti, archivio e cache",
+            "paragraphs": [
+              "I dati hot supportano le ricerche recenti; i segmenti di archivio conservano gli eventi più vecchi nella destinazione selezionata. La cache dell’archivio contiene copie locali usate dalle query. L’utilizzo locale comprende dati hot e questa cache.",
+              "I giorni sul disco locale determinano quando i dati hot idonei possono lasciare il livello locale dopo l’archiviazione sicura. I giorni prima della cancellazione sono l’intero periodo di retention. Il limite della cache è un budget, non una retention aggiuntiva né un limite istantaneo su tutto lo spazio occupato."
+            ]
+          },
+          {
+            "title": "Aggiungi e attiva una destinazione",
+            "paragraphs": [],
+            "steps": [
+              "Come amministratore dell’istanza, apri Storage da un progetto.",
+              "Aggiungi bucket S3, destinazione SFTP o percorso assoluto di una cartella sul server. Per una cartella, il servizio deve avere i permessi necessari.",
+              "Inserisci le credenziali nel modulo, carica un file dal computer o indica un file già presente nella directory dei segreti configurata.",
+              "Prova la destinazione e poi attivala. L’attivazione indirizza i nuovi segmenti di archivio; non migra quelli vecchi.",
+              "Imposta retention e budget cache dell’istanza. Applica un override al progetto solo se richiede una retention diversa."
+            ]
+          },
+          {
+            "title": "Campi S3",
+            "paragraphs": [
+              "Bucket è il nome del bucket esistente, non il suo URL. Regione ed endpoint sono forniti dal provider. Per servizi compatibili S3 inserisci il loro endpoint HTTPS e abilita path-style solo se lo richiedono. Prefix è un prefisso opzionale per le chiavi, come ervisio-logs/.",
+              "Access key e secret key sono credenziali object storage autorizzate sul bucket; non sono il login della console o il nome del bucket. Il selettore file accetta JSON con access_key e secret_key. L’app salva le credenziali nella cartella dei segreti e non ne mostra più il contenuto.",
+              "Usa il test della destinazione per verificare l’accesso. Una credenziale che scrive ma non legge o cancella può impedire le query sugli archivi o la pulizia a fine retention."
+            ]
+          },
+          {
+            "title": "SFTP e Hetzner Storage Box",
+            "paragraphs": [
+              "Scegli SFTP per uno Storage Box raggiungibile via SSH. Inserisci host, porta SSH, utente e directory base, poi scegli password o chiave privata. Usa la porta SSH supportata e abilitata dal provider; è indipendente dalla porta SMB.",
+              "Fissa la chiave host del server ottenuta da una fonte affidabile. La chiave host identifica il server di storage ed è diversa dalla tua chiave privata di accesso. Il servizio dell’app deve poter leggere le credenziali configurate."
+            ]
+          },
+          {
+            "title": "Retention e destinazioni precedenti",
+            "paragraphs": [
+              "La retention del progetto eredita i valori dell’istanza salvo override. Controlla la policy effettiva prima di salvare: la scadenza della retention completa elimina definitivamente i dati.",
+              "Mantieni raggiungibili le vecchie destinazioni finché esistono segmenti catalogati che le usano. Cambiare destinazione attiva non migra i dati. Se l’archiver è disattivato, configuralo sul server prima di aspettarti archivi remoti o rimozione dei dati locali."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "fivem",
+        "title": "Integrazione FiveM",
+        "summary": "Installa la risorsa server e invia eventi da ESX, ox_inventory o dai tuoi script.",
+        "sections": [
+          {
+            "title": "Installa la risorsa",
+            "paragraphs": [
+              "Copia integrations/fivem/ervisio_logs dal repository ErvisioLogs nelle risorse del server. Crea un token API di progetto con il solo scope logs:ingest e metti queste convar prima di ensure ervisio_logs nel server.cfg.",
+              "Usa set per il token, mai setr (replicato ai client) o sets (pubblicato nelle informazioni server). Avvia questa risorsa prima di quelle che chiamano i suoi export."
+            ],
+            "code": "set ervisio_logs_url \"https://logs.example.com\"\nset ervisio_logs_token \"<PROJECT_INGEST_TOKEN>\"\nset ervisio_logs_environment \"production\"\nensure ervisio_logs",
+            "language": "server.cfg"
+          },
+          {
+            "title": "Invia un evento da uno script server",
+            "paragraphs": [
+              "Log(stream, level, event, message, attributes) accoda un evento. LogBatch(events) ne accoda più di uno. Uno stream nil usa la mappatura per prefisso di config.lua e poi lo stream predefinito.",
+              "La cartella examples include adattatori per ESX, ox_inventory e moderazione. Sono esempi da adattare, non integrazioni caricate automaticamente. Verifica hook e payload rispetto alle risorse del tuo server."
+            ],
+            "code": "exports.ervisio_logs:Log('inventory', 'INFO', 'inventory.add', 'bread x2', {\n    player_id = source,\n    action = 'add',\n    item = 'bread',\n    count = 2,\n})",
+            "language": "Lua / server"
+          },
+          {
+            "title": "Coda e diagnostica",
+            "paragraphs": [
+              "Gli eventi vengono inviati in batch con tentativi successivi. La coda è in memoria: gli eventi ancora accodati possono andare persi se il server si ferma o termina inaspettatamente. Gli identificatori dei giocatori sono opzionali e le chiavi sensibili degli attributi vengono oscurate per impostazione predefinita.",
+              "Esegui ervisio_logs_status nella console server per vedere i contatori. Un 401/403 interrompe l’invio: correggi il token e usa ervisio_logs_resume.",
+              "L’integrazione e gli adattatori di esempio non sono stati verificati in game. Provali sul server di sviluppo prima di usarli in produzione."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "alerts",
+        "title": "Avvisi e webhook",
+        "summary": "Avvisa un webhook Discord, Slack o personalizzato quando gli eventi superano una soglia.",
+        "sections": [
+          {
+            "title": "Crea un canale di notifica",
+            "paragraphs": [
+              "In Integrazioni aggiungi un canale con URL webhook HTTPS. Scegli Discord, Slack o JSON firmato per un tuo endpoint. Invia una prova e controlla lo stato dell’ultima consegna.",
+              "I canali JSON firmati mostrano il segreto di firma una volta sola. Salvalo sull’endpoint ricevente; la rotazione invalida il valore precedente. Il webhook riceve notifiche degli avvisi, non una copia di ogni evento acquisito."
+            ]
+          },
+          {
+            "title": "Crea un avviso",
+            "paragraphs": [],
+            "steps": [
+              "Apri Avvisi e crea una regola con la stessa sintassi dell’explorer. Se necessario, scegli stream e livelli degli eventi.",
+              "Scegli finestra temporale, soglia e intervallo di controllo. La regola scatta quando il numero di eventi corrispondenti supera la soglia.",
+              "Seleziona i canali e salva. Senza canali la regola cambia stato solo nell’app.",
+              "Consulta lo storico per attivazione, risoluzione ed errori di valutazione. Metti in pausa la regola quando le notifiche non servono temporaneamente."
+            ]
+          },
+          {
+            "title": "Problemi di consegna",
+            "paragraphs": [
+              "Verifica che il canale sia attivo, che il test riesca e che il servizio remoto accetti il webhook. Se la regola è in errore, consulta lo storico prima di cambiare la soglia."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "deployment",
+        "title": "Installazione e aggiornamento",
+        "summary": "Usa il plugin Ervisio, Docker Compose o un servizio standalone.",
+        "sections": [
+          {
+            "title": "Plugin Ervisio",
+            "paragraphs": [
+              "Installa il plugin firmato Ervisio Logs da Plugin → Sfoglia. Può distribuire Docker Compose o un servizio standalone e configurare l’indirizzo tramite un’installazione Caddy esistente. Apri avvia l’app, che ha account propri.",
+              "Per aggiornare, aggiorna il plugin in Ervisio e poi premi Aggiorna nella pagina del plugin Ervisio Logs. Aggiornare solo il pacchetto del plugin non sostituisce l’app in esecuzione. Il plugin distribuisce la versione dell’app inclusa nel suo pacchetto."
+            ]
+          },
+          {
+            "title": "Docker e standalone",
+            "paragraphs": [
+              "Le installazioni Docker usano il bundle Compose della release. Le standalone usano l’archivio per l’architettura del server e il relativo install.sh, con PostgreSQL e ClickHouse configurati separatamente. La cartella docs/deploy del repository contiene le istruzioni operative complete.",
+              "Usa HTTPS per l’URL pubblico. La modalità produzione richiede anche una connessione PostgreSQL con TLS. Configura consapevolmente il reverse proxy fidato; non esporre le porte interne dei database."
+            ]
+          },
+          {
+            "title": "Primo accesso e recupero",
+            "paragraphs": [
+              "Il primo amministratore dell’app usa il codice di setup configurato sul server o stampato nei log di avvio. Ervisio non passa all’app l’identità dell’utente connesso.",
+              "Rimuovere il plugin non arresta o disinstalla l’app. La disinstallazione dell’app conserva database e dati. Prima delle operazioni di manutenzione, salva database e configurazione necessaria."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "troubleshooting",
+        "title": "Risoluzione dei problemi",
+        "summary": "Diagnostica eventi mancanti, permessi, errori degli archivi e servizi non disponibili.",
+        "sections": [
+          {
+            "title": "Gli eventi non compaiono",
+            "paragraphs": [],
+            "steps": [
+              "Controlla URL di invio e progetto proprietario del token. Esamina lo stato HTTP di ingestione e gli eventi rifiutati.",
+              "Rimuovi testo e filtri, seleziona ambiente e stream corretti e allarga l’intervallo temporale. Controlla l’orologio del mittente e i timestamp.",
+              "Se l’ingestione è accettata ma la visibilità tarda, controlla Stato del sistema, log del servizio e connessioni ai database.",
+              "Per FiveM consulta ervisio_logs_status; dopo aver corretto un token rifiutato, esegui ervisio_logs_resume."
+            ]
+          },
+          {
+            "title": "Errori HTTP",
+            "paragraphs": [
+              "401: credenziale assente, non valida, scaduta o revocata. 403: scope o accesso al workspace insufficienti. 413: riduci il payload. 422: correggi i campi degli eventi rifiutati. 429/503: aumenta l’attesa e rispetta Retry-After.",
+              "Una risposta batch 202 può comunque contenere eventi rifiutati. Leggi contatori ed errori nel corpo della risposta."
+            ]
+          },
+          {
+            "title": "Problemi di storage e accesso",
+            "paragraphs": [
+              "Un owner che non può aprire Storage ha bisogno del ruolo separato di amministratore dell’istanza. Se le credenziali non si salvano, fai controllare all’operatore la directory dei segreti configurata e i permessi di scrittura del servizio.",
+              "Per S3 verifica bucket, regione, endpoint e permessi delle chiavi. Per SFTP verifica porta, chiave host, autenticazione e permessi della directory. Prova la destinazione e mantieni accessibili quelle che conservano segmenti precedenti.",
+              "Usa Stato del sistema e log del backend per problemi delle dipendenze. Quando chiedi assistenza, copia gli errori senza includere token, password o chiavi private."
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

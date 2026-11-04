@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Activity, ChevronDown, ChevronsLeft, ChevronsRight, Hash, LayoutGrid, LogOut, Menu, Plus, Search, SunMoon, X } from 'lucide-react';
+import { Activity, BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, Hash, LayoutGrid, LogOut, Menu, Plus, Search, SunMoon, X } from 'lucide-react';
 import { api, ApiError, type Environment, type Stream } from '../lib/api';
 import { useAuth, useSession } from '../lib/auth';
 import { cn } from '../lib/cn';
@@ -132,6 +132,7 @@ export default function Shell() {
       for (const s of SECTIONS) out.push({ id: `n-${s.key}`, group: t('palette.sections'), label: t(`nav.${s.key}`), icon: s.icon, run: go(sectionPath(knownProjectId, s.key)) });
     }
     out.push(
+      { id: 'docs', group: t('palette.actions'), label: t('nav.documentation'), icon: BookOpen, run: go('/docs') },
       { id: 'status', group: t('palette.actions'), label: t('nav.status'), icon: Activity, run: go('/status') },
       { id: 'theme', group: t('palette.actions'), label: t('theme.toggle'), icon: SunMoon, run: () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark') },
       { id: 'out', group: t('palette.actions'), label: t('account.signOut'), icon: LogOut, run: () => void logout().catch(() => undefined) },
@@ -200,6 +201,11 @@ export default function Shell() {
           </NavLink>
 
           <div className="min-h-2 flex-1" />
+
+          <NavLink to="/docs" aria-label={t('nav.documentation')} {...tipProps(t('nav.documentation'))} className={({ isActive }) => cn(railRow, 'min-h-11', isActive ? 'text-hue' : 'text-ink2 hover:text-ink')}>
+            <span className="grid w-11 flex-none place-items-center"><BookOpen className="size-5" aria-hidden /></span>
+            {wide && <span className="ml-3 whitespace-nowrap max-md:hidden">{t('nav.documentation')}</span>}
+          </NavLink>
 
           <button type="button" onClick={toggleRail} aria-expanded={wide} aria-label={wide ? t('nav.collapse') : t('nav.expand')} {...tipProps(t('nav.expand'))} className={cn(railRow, 'text-ink2 hover:text-ink h-11 max-md:hidden')}>
             <span className="grid w-11 flex-none place-items-center">{wide ? <ChevronsLeft className="size-5" aria-hidden /> : <ChevronsRight className="size-5" aria-hidden />}</span>

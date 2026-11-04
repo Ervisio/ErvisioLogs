@@ -5,6 +5,12 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version to release from main (for example 0.1.5)
+        required: true
+        type: string
 permissions:
   contents: write
   packages: write
@@ -22,10 +28,27 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
       - name: Version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           v="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            [ "$GITHUB_REF" = refs/heads/main ] || { echo 'Manual releases must run from main' >&2; exit 1; }
+            v="$REQUESTED_VERSION"
+            [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Manual releases require a stable X.Y.Z version' >&2; exit 1; }
+          fi
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "tag $GITHUB_REF_NAME is not semver" >&2; exit 1; }
+          VERSION="$v" node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          for (const file of ['integrations/ervisio-plugin/package.json', 'integrations/ervisio-plugin/plugin/manifest.json']) {
+            if (JSON.parse(fs.readFileSync(file, 'utf8')).version !== process.env.VERSION) {
+              throw new Error(`${file} must match release version ${process.env.VERSION}`);
+            }
+          }
+          if (!fs.existsSync(`docs/releases/${process.env.VERSION}.md`)) throw new Error('Release notes are missing');
+          JS
           echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v$v" >> "$GITHUB_ENV"
           echo "IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       - name: Image
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
@@ -45,6 +68,15 @@ jobs:
       - name: GitHub release
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
+          # A manual run tags the exact checkout only after all artifacts have built.
+          # GITHUB_TOKEN does not trigger another tag workflow.
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if git rev-parse --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+              [ "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA" ] || { echo 'Release tag points to another commit' >&2; exit 1; }
+            else
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA"
+            fi
+          fi
+          gh release create "$RELEASE_TAG" --verify-tag --draft \
             --title "Ervisio Logs $VERSION" --notes-file "docs/releases/$VERSION.md" \
             dist/"$VERSION"/*
