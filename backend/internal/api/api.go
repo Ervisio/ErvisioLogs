@@ -36,7 +36,7 @@ const (
 	SessionCookie = "ervisio_logs_session"
 	CSRFHeader    = "X-CSRF-Token"
 	maxJSONBody   = 64 << 10
-	// purgeInterval spaces the opportunistic deletion of expired sessions and OAuth states.
+	// purgeInterval spaces the opportunistic deletion of expired sessions, OAuth states and email links.
 	purgeInterval = 10 * time.Minute
 )
 
@@ -56,6 +56,7 @@ type API struct {
 	Storage *Storage
 	// Integrations enables alerts, notification channels and export limits (ADR 0010).
 	Integrations *Integrations
+	Mail         *Mail
 
 	catalog   catalog
 	tailCount atomic.Int64
@@ -73,6 +74,9 @@ type API struct {
 	loginAccountGlobal *auth.Limiter
 	oauthCallbackIP    *auth.Limiter
 	registerIP         *auth.Limiter
+	forgotIP           *auth.Limiter
+	forgotEmail        *auth.Limiter
+	verifyUser         *auth.Limiter
 	countUsers         func(context.Context) (int, error)
 	lastPurge          atomic.Int64 // unix seconds
 	now                func() time.Time
@@ -90,6 +94,9 @@ func New(s *store.Store, h *auth.Hasher, cfg config.Auth, sets *settings.Service
 		loginAccountGlobal: auth.NewLimiter(100, 15*time.Minute),
 		oauthCallbackIP:    auth.NewLimiter(30, time.Minute),
 		registerIP:         auth.NewLimiter(10, time.Hour),
+		forgotIP:           auth.NewLimiter(10, time.Hour),
+		forgotEmail:        auth.NewLimiter(3, time.Hour),
+		verifyUser:         auth.NewLimiter(3, time.Hour),
 		countUsers:         s.CountUsers,
 		now:                time.Now,
 	}
@@ -138,6 +145,10 @@ func (a *API) Routes(r chi.Router) {
 	r.Post("/auth/logout", a.logout)
 	r.Get("/auth/me", a.me)
 	r.Put("/auth/password", a.changePassword)
+	r.Post("/auth/password/forgot", a.forgotPassword)
+	r.Post("/auth/password/reset", a.resetPassword)
+	r.Post("/auth/email/verify", a.verifyEmail)
+	r.Post("/auth/email/verification", a.resendVerification)
 	r.Get("/auth/sessions", a.listOwnSessions)
 	r.Delete("/auth/sessions", a.revokeOtherSessions)
 	r.Delete("/auth/sessions/{sessionId}", a.revokeOwnSession)
@@ -153,6 +164,12 @@ func (a *API) Routes(r chi.Router) {
 	r.Post("/workspaces/{id}/members", a.addMember)
 	r.Patch("/workspaces/{id}/members/{userId}", a.updateMember)
 	r.Delete("/workspaces/{id}/members/{userId}", a.removeMember)
+	r.Get("/workspaces/{id}/invitations", a.listInvitations)
+	r.Post("/workspaces/{id}/invitations", a.createInvitation)
+	r.Delete("/workspaces/{id}/invitations/{invitationId}", a.deleteInvitation)
+	r.Post("/invitations/preview", a.previewInvitation)
+	r.Post("/invitations/accept", a.acceptInvitation)
+	r.Post("/invitations/register", a.registerWithInvitation)
 	r.Get("/workspaces/{id}/audit", a.listAudit)
 	r.Get("/workspaces/{id}/settings", a.listSettings(a.workspaceSettings))
 	r.Put("/workspaces/{id}/settings/{key}", a.putSetting(a.workspaceSettings))
@@ -389,7 +406,7 @@ func (a *API) keyedDigest(domain, value string) string {
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-// purgeExpired deletes expired sessions and OAuth states, at most once per purgeInterval. It runs on
+// purgeExpired deletes expired sessions, OAuth states and email links, at most once per purgeInterval. It runs on
 // the paths that create them, so the tables stay bounded by the sign-in rate. Failure is not fatal.
 func (a *API) purgeExpired(ctx context.Context) {
 	now, last := a.now().Unix(), a.lastPurge.Load()

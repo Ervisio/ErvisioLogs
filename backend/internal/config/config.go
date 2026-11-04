@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"net/url"
 	"os"
 	"strconv"
@@ -88,6 +89,18 @@ type Auth struct {
 	Discord    OAuthProvider
 }
 
+// Mail holds the SMTP server for outgoing email (invitations, password reset, verification). The
+// values here are the defaults of the email.* runtime settings; Password is the only secret and is
+// never a setting. Empty Host means email is off.
+type Mail struct {
+	Host     string
+	Port     int
+	Security string // starttls, tls or none
+	Username string
+	Password string
+	From     string
+}
+
 // Config is the validated service configuration.
 type Config struct {
 	Env             Env
@@ -102,6 +115,7 @@ type Config struct {
 	Ingest       Ingest
 	Archive      Archive
 	Alerts       Alerts
+	Mail         Mail
 	// ExportMaxRows caps the rows of one export (ADR 0010).
 	ExportMaxRows int
 	// FromEnv holds the variables that were set, by full name. A runtime setting backed by one of
@@ -194,6 +208,8 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	c.Archive.ClickHousePath = strings.Trim(get("ARCHIVE_CLICKHOUSE_PATH", "ervisio-archive"), "/")
 	c.Archive.SecretsDir = get("ARCHIVE_SECRETS_DIR", "")
 	c.Ingest.MetricsToken = secret("METRICS_TOKEN")
+	c.Mail = Mail{Host: get("SMTP_HOST", ""), Security: get("SMTP_SECURITY", "starttls"),
+		Username: get("SMTP_USERNAME", ""), Password: secret("SMTP_PASSWORD"), From: get("SMTP_FROM", "")}
 	var perr error
 	if c.Ingest.SpoolMaxBytes, perr = strconv.ParseInt(get("SPOOL_MAX_BYTES", "1073741824"), 10, 64); perr != nil || c.Ingest.SpoolMaxBytes < 1<<20 {
 		errs = append(errs, fmt.Errorf("%sSPOOL_MAX_BYTES must be an integer of at least 1048576", prefix))
@@ -224,6 +240,12 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	}
 	if c.ExportMaxRows, perr = strconv.Atoi(get("EXPORT_MAX_ROWS", "1000000")); perr != nil || c.ExportMaxRows < 1 || c.ExportMaxRows > 50000000 {
 		errs = append(errs, fmt.Errorf("%sEXPORT_MAX_ROWS must be an integer between 1 and 50000000", prefix))
+	}
+	if c.Mail.Port, perr = strconv.Atoi(get("SMTP_PORT", "587")); perr != nil || c.Mail.Port < 1 || c.Mail.Port > 65535 {
+		errs = append(errs, fmt.Errorf("%sSMTP_PORT must be a port number", prefix))
+	}
+	if c.Mail.Security != "starttls" && c.Mail.Security != "tls" && c.Mail.Security != "none" {
+		errs = append(errs, fmt.Errorf("%sSMTP_SECURITY must be starttls, tls or none", prefix))
 	}
 	if c.Auth.OpenRegistration, perr = strconv.ParseBool(get("OPEN_REGISTRATION", "false")); perr != nil {
 		errs = append(errs, fmt.Errorf("%sOPEN_REGISTRATION must be a boolean", prefix))
@@ -287,6 +309,11 @@ func (c Config) validate() []error {
 	if c.Archive.ClickHousePath == "" || strings.Contains(c.Archive.ClickHousePath, "..") || strings.ContainsAny(c.Archive.ClickHousePath, "'\\") {
 		errs = append(errs, fmt.Errorf("%sARCHIVE_CLICKHOUSE_PATH must be a plain relative path", prefix))
 	}
+	if c.Mail.From != "" {
+		if _, err := mail.ParseAddress(c.Mail.From); err != nil {
+			errs = append(errs, fmt.Errorf("%sSMTP_FROM must be an address such as Ervisio Logs <logs@example.com>", prefix))
+		}
+	}
 	errs = append(errs, c.validateAuth()...)
 	if c.Env == EnvProduction {
 		if u, err := url.Parse(c.Postgres.DSN); err == nil && u.Query().Get("sslmode") == "disable" {
@@ -346,6 +373,6 @@ func (c Config) Redacted() map[string]any {
 		"spool_dir": c.Ingest.SpoolDir, "spool_max_bytes": c.Ingest.SpoolMaxBytes,
 		"metrics_protected": c.Ingest.MetricsToken != "",
 		"alerts_interval":   c.Alerts.Interval.String(), "webhook_allow_private": c.Alerts.WebhookAllowPrivate,
-		"export_max_rows": c.ExportMaxRows,
+		"export_max_rows": c.ExportMaxRows, "smtp_host": c.Mail.Host,
 	}
 }

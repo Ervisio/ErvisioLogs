@@ -20,6 +20,7 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/db"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/ingest"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/mail"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/migrate"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
@@ -204,6 +205,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	apiHandlers := api.New(st, auth.NewHasher(auth.DefaultParams, 4), cfg.Auth, sets, providers, log)
 	apiHandlers.TrustProxy = cfg.Auth.TrustProxy
 	apiHandlers.Storage = &api.Storage{SecretsDir: cfg.Archive.SecretsDir}
+	apiHandlers.Mail = &api.Mail{Sender: mail.SMTP{}, Password: cfg.Mail.Password}
 	// The setup code is only meaningful once the schema exists; before `migrate up` the query fails and
 	// the code is created on the next start.
 	if err := apiHandlers.EnsureSetupCode(ctx); err != nil {

@@ -50,6 +50,7 @@ func (a *API) listProviders(w http.ResponseWriter, r *http.Request) {
 		"providers":         names,
 		"open_registration": a.Settings.Bool(settings.OpenRegistration),
 		"setup_required":    setup,
+		"email":             a.mailEnabled(),
 	})
 }
 
@@ -124,6 +125,11 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 	a.audit(r, nil, "auth.register", "user", u.ID.String(), map[string]any{"first_admin": setup})
 	if setup {
 		a.clearSetupCode() // single use
+	}
+	if a.mailEnabled() {
+		if err := a.sendVerification(r.Context(), u); err != nil {
+			a.Log.Warn("could not start email verification", "user_id", u.ID, "error", err)
+		}
 	}
 	if !a.startSession(w, r, u) {
 		return

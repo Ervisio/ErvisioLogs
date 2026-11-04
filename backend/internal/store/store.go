@@ -424,13 +424,15 @@ func (s *Store) RevokeSessions(ctx context.Context, userID, keep uuid.UUID) (int
 	return tag.RowsAffected(), err
 }
 
-// PurgeExpired deletes expired sessions (revoked ones included) and expired OAuth states.
+// PurgeExpired deletes expired sessions (revoked ones included), OAuth states, account tokens and
+// invitations.
 func (s *Store) PurgeExpired(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at < now()`); err != nil {
-		return err
+	for _, table := range []string{"sessions", "oauth_states", "account_tokens", "invitations"} {
+		if _, err := s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE expires_at < now()`); err != nil {
+			return err
+		}
 	}
-	_, err := s.pool.Exec(ctx, `DELETE FROM oauth_states WHERE expires_at < now()`)
-	return err
+	return nil
 }
 
 // ---------- OAuth state ----------

@@ -108,7 +108,7 @@ paths:
       tags: [auth]
       operationId: register
       summary: "Create an account with email, username and password"
-      description: "On a fresh install (no users) `setup_code` is required and the account becomes the instance administrator. Afterwards registration works only when `open_registration` is true; otherwise an administrator creates accounts. Password: 10 to 128 bytes."
+      description: "On a fresh install (no users) `setup_code` is required and the account becomes the instance administrator. Afterwards registration works only when `open_registration` is true; otherwise an administrator creates accounts or invites addresses. When email is configured a verification link is sent. Password: 10 to 128 bytes."
       requestBody:
         required: true
         content:
@@ -323,6 +323,122 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/auth/password/forgot:
+    post:
+      tags: [auth]
+      operationId: forgotPassword
+      summary: Email a password reset link
+      description: "The answer is `202` whether or not the address has an account. The link (`/reset-password#token=...`) works once, for one hour, and replaces earlier ones. Limited per IP and per address."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+              additionalProperties: false
+      security: []
+      responses:
+        "202":
+          description: Accepted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email is not configured on this instance.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/TooMany"
+  /api/v1/auth/password/reset:
+    post:
+      tags: [auth]
+      operationId: resetPassword
+      summary: Set a new password with a reset link
+      description: "Uses the token from the link fragment. Every session of the account is revoked and the address counts as verified."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 10
+                  maxLength: 128
+              additionalProperties: false
+      security: []
+      responses:
+        "204":
+          description: Password changed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/Gone"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/v1/auth/email/verify:
+    post:
+      tags: [auth]
+      operationId: verifyEmail
+      summary: Confirm an email address with a verification link
+      description: "Uses the token from the link fragment (`/verify-email#token=...`). The link works once, for 48 hours."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      security: []
+      responses:
+        "204":
+          description: Verified.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/Gone"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+  /api/v1/auth/email/verification:
+    post:
+      tags: [auth]
+      operationId: resendVerification
+      summary: Send a new verification link to the signed-in account
+      description: "Replaces the earlier link. Limited to three an hour per account."
+      security:
+        - sessionCookie: []
+      responses:
+        "202":
+          description: Sent.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: "The address is already verified, or email is not configured."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "429":
+          $ref: "#/components/responses/TooMany"
   "/api/v1/auth/oauth/{provider}/start":
     get:
       tags: [auth]
@@ -648,6 +764,236 @@ paths:
           $ref: "#/components/responses/Invalid"
         "409":
           $ref: "#/components/responses/Conflict"
+  "/api/v1/workspaces/{id}/invitations":
+    get:
+      tags: [members]
+      operationId: listInvitations
+      summary: "Pending invitations, newest first (needs members:manage)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Invitations.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Invitation"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [members]
+      operationId: createInvitation
+      summary: "Invite an email address, with or without an account (needs members:manage)"
+      description: "When email is configured the link goes to the address and `url` is absent; accepting an emailed link verifies the address. Otherwise, or when delivery fails (`mail_error`), the response carries `url` for the inviter to share. Inviting the same address again replaces the earlier link. The link (`/invite#token=...`) works once, for 7 days. Only an owner can grant the owner role."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: "#/components/schemas/Role"
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "201":
+          description: Invited.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedInvitation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The address already belongs to a member.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  "/api/v1/workspaces/{id}/invitations/{invitationId}":
+    delete:
+      tags: [members]
+      operationId: deleteInvitation
+      summary: "Revoke an invitation (needs members:manage)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/invitations/preview:
+    post:
+      tags: [members]
+      operationId: previewInvitation
+      summary: What an invitation link is for
+      description: "Public. `has_account` tells the page whether to offer sign-in or sign-up."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      security: []
+      responses:
+        "200":
+          description: The invitation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationPreview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/Gone"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+  /api/v1/invitations/accept:
+    post:
+      tags: [members]
+      operationId: acceptInvitation
+      summary: Join the workspace with the signed-in account
+      description: "The account's address must be the invited one. An existing membership keeps its role."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Joined.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "The invitation is for another address, or the CSRF check failed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "410":
+          $ref: "#/components/responses/Gone"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+  /api/v1/invitations/register:
+    post:
+      tags: [members]
+      operationId: registerWithInvitation
+      summary: Create an account for the invited address and join
+      description: "Works even with registration closed. The account gets the invited address, verified only when the link was emailed. Signs in and sets the session cookie."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, username, password]
+              properties:
+                token:
+                  type: string
+                username:
+                  type: string
+                  pattern: "^[a-z0-9][a-z0-9_.-]{2,31}$"
+                password:
+                  type: string
+                  minLength: 10
+                  maxLength: 128
+              additionalProperties: false
+      security: []
+      responses:
+        "201":
+          description: Account created and signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: The address or the username is taken.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "410":
+          $ref: "#/components/responses/Gone"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/TooMany"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   "/api/v1/workspaces/{id}/members/{userId}":
     patch:
       tags: [members]
@@ -3412,6 +3758,12 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+    Gone:
+      description: "The link was used, replaced, revoked or has expired."
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     TooMany:
       description: Rate limited.
       content:
@@ -3762,6 +4114,71 @@ components:
         role:
           $ref: "#/components/schemas/Role"
       additionalProperties: false
+    TokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: "The `token` from the link's URL fragment."
+      additionalProperties: false
+    Invitation:
+      type: object
+      required: [id, workspace_id, email, role, invited_by, emailed, expires_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/Role"
+        invited_by:
+          type: [string, "null"]
+          format: uuid
+        emailed:
+          type: boolean
+          description: The link went to the invited address only.
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+    CreatedInvitation:
+      allOf:
+        - $ref: "#/components/schemas/Invitation"
+        - type: object
+          properties:
+            url:
+              type: string
+              format: uri
+              description: The link to share; present only when it was not emailed.
+            mail_error:
+              type: string
+              description: Why the email was not sent.
+    InvitationPreview:
+      type: object
+      required: [workspace_name, email, role, expires_at, has_account]
+      properties:
+        workspace_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/Role"
+        expires_at:
+          type: string
+          format: date-time
+        has_account:
+          type: boolean
+      additionalProperties: false
     Member:
       type: object
       required: [user_id, email, username, role, joined_at]
@@ -3910,10 +4327,13 @@ components:
       additionalProperties: false
     AuthProviders:
       type: object
-      required: [local, providers, open_registration, setup_required]
+      required: [local, providers, open_registration, setup_required, email]
       properties:
         local:
           type: boolean
+        email:
+          type: boolean
+          description: "Email is configured: password reset links and emailed invitations work."
         providers:
           type: array
           items:
@@ -4084,7 +4504,7 @@ components:
           type: string
         type:
           type: string
-          enum: [bool, int, duration, choice]
+          enum: [bool, int, duration, choice, string]
         value:
           type: [boolean, integer, string]
           description: "Effective value. Durations are whole seconds."

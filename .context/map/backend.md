@@ -6,7 +6,7 @@ Entry points:
 - backend/internal/config/config.go:Load (all env `ERVISIO_LOGS_*`, `_FILE` suffix = read secret from file)
 - backend/internal/server/server.go (/healthz /readyz /metrics, OTLP mount, webui fallback)
 - backend/internal/api/api.go:Routes (all /api/v1 routes + `authenticate`), otlp.go:OTLPRoutes (POST /v1/logs, outside /api/v1)
-Layout: api (handlers) | store (pgx SQL, one file per domain) | ingest (Validator, Writer, Hub) | wal | archive | auth | notify | oauth | migrate | httpx (RFC7807 problems, request id) | webui (go:embed dist) | migrations/{postgres,clickhouse} (embed.go)
+Layout: api (handlers) | mail (SMTP Sender, Build) | store (pgx SQL, one file per domain) | ingest (Validator, Writer, Hub) | wal | archive | auth | notify | oauth | migrate | httpx (RFC7807 problems, request id) | webui (go:embed dist) | migrations/{postgres,clickhouse} (embed.go)
 Flow ingest: POST /ingest|/ingest/batch|/v1/logs → api/logs.go:ingestToken (bearer token, scope logs:ingest) → queueEvents → ingest.Validator.Normalize → ingest.EncodeRecord → wal.Segmented.Append (fsync group commit) → 202 "durably_queued" → ingest.Writer.Run reads WAL → ClickHouse insert (dedup token from spool id+seq range; inflight file for crash resend) → wal.Commit; ingest.Hub.Publish feeds live tail.
 Flow read: POST /logs/search (api/logs_search.go) = hot ClickHouse UNION archived Parquet via archive.ReadSources (dedup by event_id); GET /logs/tail (SSE, logs_tail.go, Hub ring + `after` cursor); POST /logs/export; saved /queries.
 Flow archive: archive.Archiver.Run (interval; Postgres advisory lock → one pass per instance) → closed stream-days → Parquet (chexport.go) → provider (s3.go/sftp.go/localfs.go) → catalog `segments` (store/archive.go, states incl. REMOTE_EXPIRED/DELETING/DELETED/FAILED) → evict.go:maintain (global expiry, covered-hot eviction, cache budget watermarks) → orphans.go:ReconcileOrphans (>1 day old).
@@ -24,10 +24,11 @@ Invariants:
 - Event limits (attributes depth/keys, clip, future skew/past age) live in ingest/event.go + config (INGEST_MAX_FUTURE_SKEW/PAST_AGE).
 - Retention policy scopes instance>workspace>project>stream, NULL inherits (retention_policies table); no CH TTL, retention manager alone deletes.
 - Evict order: mark segment as read source FIRST, then delete hot rows (else search briefly misses rows).
-- Migrations: NNNN_name.up/down.sql, checksum recorded; editing an applied migration errors; no down file = irreversible. PG 0001-0006 (instance, tenancy_auth, archive, integrations, settings, account_sessions), CH 0001-0003 (events, dedup, inserted_at). Add new ones with next number, never edit.
+- Migrations: NNNN_name.up/down.sql, checksum recorded; editing an applied migration errors; no down file = irreversible. PG 0001-0007 (instance, tenancy_auth, archive, integrations, settings, account_sessions, email), CH 0001-0003 (events, dedup, inserted_at). Add new ones with next number, never edit.
 - Webhooks refuse private/loopback/CGNAT/link-local dests unless alerts.webhook_allow_private (notify.NewClient takes a func, read per dial).
 - Runtime settings (ADR 0018): internal/settings Service (snapshot, reload 30s, OnLoad sets slog LevelVar); handlers read a.Settings.Bool/Int/Duration/ProjectInt, never cfg, for keys in settings.defs. Env-set key = locked (cfg.FromEnv). Routes in api/settings_handlers.go. api.New(store, hasher, cfgAuth, sets, providers, log).
 - Ingest auto-creates unknown streams (logs.go:streamCreator) per project setting + max_streams; createStream 409 at the limit.
+- Email links (api/email_handlers.go, store/email.go): token only in POST body + URL fragment `origin/page#token=` (never in paths: middleware logs them); single use via DELETE...RETURNING in tx. Forgot-password always 202 + async send. Invitation url returned only when NOT emailed; emailed link verifies the address on accept; accept needs user email == invited email. SMTP config from settings email.*, password env or file in ARCHIVE_SECRETS_DIR.
 - Archive credentials never in DB: storage_providers.secret_file names a file in ARCHIVE_SECRETS_DIR (storage_secrets.go writes them); only one active provider (unique partial index).
 Gotchas:
 - Integration archive tests fail on Docker Desktop macOS (bind mount shows 0-byte Parquet to CH); also on clean HEAD. Run them on Linux.

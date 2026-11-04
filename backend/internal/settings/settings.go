@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -36,6 +38,12 @@ const (
 	AlertsHistory       = "alerts.history_retention"
 	WebhookAllowPrivate = "alerts.webhook_allow_private"
 	ExportMaxRows       = "export.max_rows"
+	SMTPHost            = "email.smtp_host"
+	SMTPPort            = "email.smtp_port"
+	SMTPSecurity        = "email.smtp_security"
+	SMTPUsername        = "email.smtp_username"
+	SMTPPasswordFile    = "email.smtp_password_file"
+	MailFrom            = "email.from"
 )
 
 type Kind string
@@ -45,9 +53,10 @@ const (
 	Int      Kind = "int"
 	Duration Kind = "duration" // whole seconds on the wire and in the database
 	Choice   Kind = "choice"
+	String   Kind = "string"
 )
 
-// Def describes a setting. Values are bool, int64 (Int and Duration) or string (Choice).
+// Def describes a setting. Values are bool, int64 (Int and Duration) or string (Choice, String).
 type Def struct {
 	Key      string
 	Kind     Kind
@@ -55,6 +64,8 @@ type Def struct {
 	Default  any
 	Min, Max int64
 	Options  []string
+	// Check validates a non-empty String value; Max bounds its length.
+	Check func(string) error
 	// PerProject settings can also be stored for a workspace and for a project.
 	PerProject bool
 }
@@ -80,7 +91,36 @@ func defs(c config.Config) []Def {
 		{Key: AlertsHistory, Kind: Duration, Env: "ALERTS_HISTORY_RETENTION", Default: secs(c.Alerts.HistoryRetention), Min: 3600, Max: 3660 * day},
 		{Key: WebhookAllowPrivate, Kind: Bool, Env: "WEBHOOK_ALLOW_PRIVATE", Default: c.Alerts.WebhookAllowPrivate},
 		{Key: ExportMaxRows, Kind: Int, Env: "EXPORT_MAX_ROWS", Default: int64(c.ExportMaxRows), Min: 1, Max: 50_000_000},
+		// An empty host turns email off.
+		{Key: SMTPHost, Kind: String, Env: "SMTP_HOST", Default: c.Mail.Host, Max: 253, Check: checkHost},
+		{Key: SMTPPort, Kind: Int, Env: "SMTP_PORT", Default: int64(c.Mail.Port), Min: 1, Max: 65535},
+		{Key: SMTPSecurity, Kind: Choice, Env: "SMTP_SECURITY", Default: c.Mail.Security, Options: []string{"starttls", "tls", "none"}},
+		{Key: SMTPUsername, Kind: String, Env: "SMTP_USERNAME", Default: c.Mail.Username, Max: 256},
+		// The password is a file in the secrets directory, unless ERVISIO_LOGS_SMTP_PASSWORD is set.
+		{Key: SMTPPasswordFile, Kind: String, Default: "", Max: 100, Check: checkFileName},
+		{Key: MailFrom, Kind: String, Env: "SMTP_FROM", Default: c.Mail.From, Max: 320, Check: checkAddress},
 	}
+}
+
+func checkHost(v string) error {
+	if strings.ContainsAny(v, " /:@") {
+		return errors.New("must be a host name or address, without port")
+	}
+	return nil
+}
+
+func checkFileName(v string) error {
+	if strings.HasPrefix(v, ".") || strings.ContainsAny(v, "/\\") {
+		return errors.New("must be a file name in the secrets directory")
+	}
+	return nil
+}
+
+func checkAddress(v string) error {
+	if _, err := mail.ParseAddress(v); err != nil {
+		return errors.New("must be an address such as Ervisio Logs <logs@example.com>")
+	}
+	return nil
 }
 
 // Scope is where a value applies: the zero Scope is the instance, a Scope without Project is a
@@ -310,8 +350,11 @@ func (s *Service) entry(d Def, sc Scope) (Entry, bool) {
 	if d.Env != "" {
 		e.Env = "ERVISIO_LOGS_" + d.Env
 	}
-	if d.Kind == Int || d.Kind == Duration {
+	switch d.Kind {
+	case Int, Duration:
 		e.Min, e.Max = &d.Min, &d.Max
+	case String:
+		e.Max = &d.Max
 	}
 	return e, true
 }
@@ -385,6 +428,18 @@ func (d Def) parse(raw json.RawMessage) (any, error) {
 			return nil, Invalid(d.Key + " must be one of " + strings.Join(d.Options, ", "))
 		}
 		return c, nil
+	case String:
+		var v string
+		if json.Unmarshal(raw, &v) != nil || int64(len(v)) > d.Max || strings.ContainsFunc(v, unicode.IsControl) {
+			return nil, Invalid(fmt.Sprintf("%s must be text of at most %d characters", d.Key, d.Max))
+		}
+		v = strings.TrimSpace(v)
+		if v != "" && d.Check != nil {
+			if err := d.Check(v); err != nil {
+				return nil, Invalid(d.Key + " " + err.Error())
+			}
+		}
+		return v, nil
 	}
 	return nil, Invalid("unsupported setting")
 }

@@ -233,8 +233,8 @@ func (a *API) addMember(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := a.Store.UserByEmail(r.Context(), email)
 	if errors.Is(err, store.ErrNotFound) {
-		// This answer tells a holder of members:manage whether an address has an account. Closing that
-		// needs invitations, which await a decision of the project owner.
+		// This answer tells a holder of members:manage whether an address has an account; invitations
+		// reveal nothing, so clients should prefer them.
 		httpx.WriteProblem(w, r, http.StatusNotFound, "no account with this email; ask an administrator to create it first")
 		return
 	}
