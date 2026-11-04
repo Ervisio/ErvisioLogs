@@ -30,6 +30,9 @@ export interface Ctx {
   runner: Runner;
   go(s: SectionId): void;
   changeMode(): void;
+  /** Unsaved edits of the Settings fields, kept here so they survive a change of section. */
+  settingsEdits: Record<string, string>;
+  setSettingsEdits(e: Record<string, string>): void;
 }
 
 export function LogsPage() {
@@ -67,6 +70,7 @@ function Installed({ mode, onModeReset }: { mode: logs.Mode; onModeReset(): void
   const st = useLoad(() => logs.status(mode), [mode]);
   const runner = useRunner(st.reload);
   const [section, setSection] = useState<SectionId>('overview');
+  const [settingsEdits, setSettingsEdits] = useState<Record<string, string>>({});
 
   if (!st.data) {
     if (st.loading) return <Loading />;
@@ -79,7 +83,7 @@ function Installed({ mode, onModeReset }: { mode: logs.Mode; onModeReset(): void
   }
 
   const s = st.data;
-  const ctx: Ctx = { mode, status: s, reload: st.reload, runner, go: setSection, changeMode: onModeReset };
+  const ctx: Ctx = { mode, status: s, reload: st.reload, runner, go: setSection, changeMode: onModeReset, settingsEdits, setSettingsEdits };
   const host = hostOf(s.publicUrl);
   const tone = !s.installed ? 'neutral' : !s.running ? 'warn' : s.healthy === false ? 'err' : 'ok';
   const label = !s.installed ? t('status.notInstalled') : !s.running ? t('status.stopped') : s.healthy === false ? t('status.unhealthy') : t('status.running');

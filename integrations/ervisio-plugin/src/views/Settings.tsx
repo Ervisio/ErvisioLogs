@@ -3,7 +3,7 @@
  * when something changed. Secrets are never shown: an empty field keeps the current value. Production is refused
  * while the backend would refuse to start with these values.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { envGet, envSet, oneLine } from '../api/env';
 import * as logs from '../api/logs';
 import { Badge, Button, Icon, Input, Segmented, Skeleton, Switch } from '../kit';
@@ -41,11 +41,10 @@ const STANDALONE: FieldDef[] = [
 
 type Draft = Record<string, string>;
 
-/** The values shown: secrets start empty (empty = keep). */
+/** The values in the file: secrets start empty (empty = keep), an unset key stays empty. */
 function initial(fields: FieldDef[], env: string): Draft {
   const d: Draft = {};
   for (const f of fields) d[f.key] = f.kind === 'secret' ? '' : (envGet(env, f.key) ?? '');
-  if (!d.ERVISIO_LOGS_ENV) d.ERVISIO_LOGS_ENV = 'development';
   return d;
 }
 
@@ -61,17 +60,16 @@ function apply(fields: FieldDef[], env: string, d: Draft): string {
 }
 
 export function Settings({ ctx }: { ctx: Ctx }) {
-  const { mode, runner } = ctx;
+  const { mode, runner, settingsEdits: edits, setSettingsEdits: setEdits } = ctx;
   const file = useLoad(() => logs.readEnv(mode), [mode]);
   const fields = mode === 'docker' ? DOCKER : STANDALONE;
   const env = file.data ?? null;
   const base = useMemo(() => (env == null ? null : initial(fields, env)), [env, fields]);
-  const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => setDraft(base), [base]);
+  const ignored = useLoad(() => logs.ignoredEnvKeys(mode, env), [mode, env]);
 
   if (file.loading && !file.data) {
     return (
@@ -89,7 +87,7 @@ export function Settings({ ctx }: { ctx: Ctx }) {
       </section>
     );
   }
-  if (env == null || !draft || !base) {
+  if (env == null || !base) {
     return (
       <section className="el-card">
         <h3><Icon name="cog" />{t('set.title')}</h3>
@@ -98,18 +96,22 @@ export function Settings({ ctx }: { ctx: Ctx }) {
     );
   }
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(base);
+  // The edits sit on top of the file, so a reload of the file keeps what the user has typed.
+  const draft: Draft = { ...base, ...edits };
+  const dirty = fields.some((f) => draft[f.key] !== base[f.key]);
   const next = apply(fields, env, draft);
   const problems = logs.productionProblems(mode, envSet(next, 'ERVISIO_LOGS_ENV', 'production'));
   const wantsProd = draft.ERVISIO_LOGS_ENV === 'production';
   const blocked = wantsProd && problems.length > 0;
-  const set = (k: string, v: string) => { setSaved(false); setDraft({ ...draft, [k]: v }); };
+  const set = (k: string, v: string) => { setSaved(false); setEdits({ ...edits, [k]: v }); };
 
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
       await logs.writeEnv(mode, next);
+      // Typed secrets are written and forgotten; the other fields match the file once it is read again.
+      setEdits(Object.fromEntries(fields.filter((f) => f.kind !== 'secret' && f.key in edits).map((f) => [f.key, edits[f.key]])));
       setSaved(true);
       file.reload();
     } catch (e) {
@@ -137,7 +139,7 @@ export function Settings({ ctx }: { ctx: Ctx }) {
                   {f.kind === 'env' ? (
                     <Segmented
                       aria-label={t(f.label)}
-                      value={draft[f.key]}
+                      value={draft[f.key] || 'development'}
                       onChange={(v) => set(f.key, v)}
                       options={[{ value: 'development', label: t('set.dev') }, { value: 'production', label: t('set.prod') }]}
                     />
@@ -172,6 +174,12 @@ export function Settings({ ctx }: { ctx: Ctx }) {
         {!problems.length && !wantsProd && (
           <div className="el-note is-info"><Icon name="shield" /><span>{t('prod.ready')}</span></div>
         )}
+        {ignored.data && ignored.data.length > 0 && (
+          <div className="el-note is-warn">
+            <Icon name="alert" />
+            <span>{t('set.ignored', { keys: ignored.data.join(', ') })}</span>
+          </div>
+        )}
         <p className="el-muted">{t('set.otherKeys')}</p>
       </section>
 
@@ -194,7 +202,7 @@ export function Settings({ ctx }: { ctx: Ctx }) {
           <Badge tone="warn" dot>{t('set.unsaved')}</Badge>
           {blocked && <span className="el-muted">{t('prod.fixFirst')}</span>}
           <span className="el-sp" />
-          <Button variant="ghost" disabled={saving} onClick={() => setDraft(base)}>{t('set.restore')}</Button>
+          <Button variant="ghost" disabled={saving} onClick={() => setEdits({})}>{t('set.restore')}</Button>
           <Button variant="primary" icon="check" loading={saving} disabled={saving || blocked} onClick={save}>{t('set.save')}</Button>
         </div>
       )}

@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --noEmit && vite build && ervisio-plugin-pack copy",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
   },
   "devDependencies": {
     "@ervisio/plugin-sdk": "github:Ervisio/plugin-sdk#v0.3.0",

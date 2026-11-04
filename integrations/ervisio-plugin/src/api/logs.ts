@@ -5,7 +5,7 @@
 import { getSdk, type PluginError } from '../sdk';
 import { BUNDLE } from '../bundle.generated';
 import type { Upstream } from './caddy-core';
-import { envGet, envSet, isPlaceholder, randomSecret } from './env';
+import { ensureSecrets, envGet, envSet, unpassedKeys } from './env';
 
 export type Mode = 'docker' | 'standalone';
 
@@ -196,26 +196,19 @@ export async function dockerInstall(log: Log): Promise<void> {
   log(`wrote ${STACK_DIR}/compose.yaml`);
   let env = await readText(`${STACK_DIR}/.env`);
   if (env == null) {
-    env = BUNDLE.envExample!;
-    env = envSet(env, 'POSTGRES_PASSWORD', randomSecret(32));
-    env = envSet(env, 'CLICKHOUSE_PASSWORD', randomSecret(32));
-    env = envSet(env, 'ERVISIO_LOGS_SECRET_KEY', randomSecret(48));
+    env = ensureSecrets(BUNDLE.envExample!, () => {});
     log(`created ${STACK_DIR}/.env with random secrets`);
   } else {
-    for (const [k, n] of [['POSTGRES_PASSWORD', 32], ['CLICKHOUSE_PASSWORD', 32], ['ERVISIO_LOGS_SECRET_KEY', 48]] as const) {
-      if (isPlaceholder(envGet(env, k))) {
-        env = envSet(env, k, randomSecret(n));
-        log(`set a random ${k} in .env`);
-      }
-    }
+    env = ensureSecrets(env, log);
     // 0.1.0 ran PostgreSQL without TLS; the bundled database now serves it, so a leftover sslmode=disable goes.
     if (envGet(env, 'POSTGRES_SSLMODE') === 'disable') {
       env = envSet(env, 'POSTGRES_SSLMODE', 'verify-full');
       log('switched POSTGRES_SSLMODE to verify-full (the bundled PostgreSQL serves TLS)');
     }
   }
-  // Production needs an https address: until Caddy (or another proxy) publishes one, the stack runs in development.
-  env = guardProduction('docker', env, log);
+  warnProduction('docker', env, log);
+  const ignored = unpassedKeys(env, BUNDLE.compose);
+  if (ignored.length) log(`warning: compose.yaml does not pass ${ignored.join(', ')} to the container: ${STACK_DIR}/.env values for them are ignored`);
   await files.write(`${STACK_DIR}/.env`, env.endsWith('\n') ? env : env + '\n');
   // compose.yaml mounts ./secrets; made here so Docker does not create it as root.
   await run('secrets-init', log);
@@ -266,17 +259,21 @@ export function productionProblems(mode: Mode, env: string): Problem[] {
   return out;
 }
 
-/** Keeps the app startable: production with problems falls back to development, and says so in the log. */
-function guardProduction(mode: Mode, env: string, log: Log): string {
-  if (envGet(env, 'ERVISIO_LOGS_ENV') !== 'production') return env;
+/** ERVISIO_LOGS_ENV is the user's choice and stays as it is; production the app would refuse is only reported. */
+function warnProduction(mode: Mode, env: string, log: Log) {
+  if (envGet(env, 'ERVISIO_LOGS_ENV') !== 'production') return;
   const p = productionProblems(mode, env);
-  if (!p.length) return env;
-  log(`ERVISIO_LOGS_ENV=development until these are fixed: ${p.join(', ')}`);
-  return envSet(env, 'ERVISIO_LOGS_ENV', 'development');
+  if (p.length) log(`warning: ERVISIO_LOGS_ENV=production but Ervisio Logs will refuse to start until these are fixed: ${p.join(', ')}`);
 }
 
 export async function readEnv(mode: Mode): Promise<string | null> {
   return readText(envPathFor(mode));
+}
+
+/** Docker: ERVISIO_LOGS_* values in .env that the installed compose.yaml does not pass to the container. */
+export async function ignoredEnvKeys(mode: Mode, env: string | null): Promise<string[]> {
+  if (mode !== 'docker') return [];
+  return unpassedKeys(env, await readText(`${STACK_DIR}/compose.yaml`));
 }
 
 export async function writeEnv(mode: Mode, text: string): Promise<void> {
@@ -293,7 +290,8 @@ export async function setPublicUrl(mode: Mode, url: string, log: Log): Promise<{
   env = envSet(env, 'ERVISIO_LOGS_PUBLIC_URL', url);
   env = envSet(env, 'ERVISIO_LOGS_TRUST_PROXY', 'true');
   const problems = productionProblems(mode, env);
-  env = envSet(env, 'ERVISIO_LOGS_ENV', problems.length ? 'development' : 'production');
+  // Only ever switches production on: an environment the user chose is not turned back to development.
+  if (!problems.length) env = envSet(env, 'ERVISIO_LOGS_ENV', 'production');
   await writeEnv(mode, env);
   log(`set ERVISIO_LOGS_PUBLIC_URL=${url} in ${envPathFor(mode)}`);
   await restart(mode, log);

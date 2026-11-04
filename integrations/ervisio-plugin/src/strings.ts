@@ -177,6 +177,7 @@ const en: Record<string, string> = {
   'set.secretEmpty': 'Not set',
   'set.noFile': 'Install first: the settings file does not exist yet.',
   'set.otherKeys': 'Other settings stay in the file as they are: edit it by hand for OAuth providers and limits.',
+  'set.ignored': 'compose.yaml does not pass these values of the env file to the container, so Ervisio Logs ignores them: {keys}.',
 
   'sec.title': 'Archive credentials',
   'sec.intro': 'Password or SSH key of an off-site archive, such as a Hetzner Storage Box. Each one goes into its own file, readable only by Ervisio Logs.',
@@ -386,6 +387,7 @@ const it: Record<string, string> = {
   'set.secretEmpty': 'Non impostato',
   'set.noFile': 'Installa prima: il file delle impostazioni non esiste ancora.',
   'set.otherKeys': 'Le altre impostazioni restano nel file come sono: modificalo a mano per provider OAuth e limiti.',
+  'set.ignored': 'compose.yaml non passa al container questi valori del file env, quindi Ervisio Logs li ignora: {keys}.',
 
   'sec.title': 'Credenziali dell\'archivio',
   'sec.intro': 'Password o chiave SSH di un archivio esterno, come una Hetzner Storage Box. Ognuna va in un file a parte, leggibile solo da Ervisio Logs.',
