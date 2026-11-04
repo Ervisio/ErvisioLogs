@@ -1499,6 +1499,12 @@ paths:
                 name:
                   type: string
                   pattern: "^[a-z0-9][a-z0-9-]{0,38}$"
+                display_name:
+                  $ref: "#/components/schemas/DisplayName"
+                description:
+                  $ref: "#/components/schemas/Description"
+                color:
+                  $ref: "#/components/schemas/Color"
               additionalProperties: false
       security:
         - sessionCookie: []
@@ -1524,6 +1530,53 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   "/api/v1/projects/{id}/environments/{envId}":
+    patch:
+      tags: [projects]
+      operationId: updateEnvironment
+      summary: "Change the display metadata of an environment (needs projects:write)"
+      description: "Absent fields stay unchanged; an empty string clears one. The name cannot change: events refer to it."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: envId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Environment id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisplayMetaUpdate"
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
     delete:
       tags: [projects]
       operationId: deleteEnvironment
@@ -1735,6 +1788,12 @@ paths:
                 name:
                   type: string
                   pattern: "^[a-z0-9][a-z0-9._-]{0,62}$"
+                display_name:
+                  $ref: "#/components/schemas/DisplayName"
+                description:
+                  $ref: "#/components/schemas/Description"
+                color:
+                  $ref: "#/components/schemas/Color"
               additionalProperties: false
       security:
         - sessionCookie: []
@@ -1760,6 +1819,53 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   "/api/v1/projects/{id}/streams/{streamId}":
+    patch:
+      tags: [projects]
+      operationId: updateStream
+      summary: "Change the display metadata of a stream (needs projects:write)"
+      description: "Absent fields stay unchanged; an empty string clears one. The name cannot change: events refer to it."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Stream id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisplayMetaUpdate"
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stream"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
     delete:
       tags: [projects]
       operationId: deleteStream
@@ -4214,9 +4320,30 @@ components:
           type: string
           format: date-time
       additionalProperties: false
+    DisplayName:
+      type: string
+      maxLength: 100
+      description: "Name shown in the UI; empty means show `name`."
+    Description:
+      type: string
+      maxLength: 500
+    Color:
+      type: string
+      pattern: "^(#[0-9a-fA-F]{6})?$"
+      description: "Hex color, stored lowercase; empty means unset."
+    DisplayMetaUpdate:
+      type: object
+      properties:
+        display_name:
+          $ref: "#/components/schemas/DisplayName"
+        description:
+          $ref: "#/components/schemas/Description"
+        color:
+          $ref: "#/components/schemas/Color"
+      additionalProperties: false
     Environment:
       type: object
-      required: [id, project_id, name, created_at]
+      required: [id, project_id, name, display_name, description, color, created_at]
       properties:
         id:
           type: string
@@ -4226,13 +4353,19 @@ components:
           format: uuid
         name:
           type: string
+        display_name:
+          $ref: "#/components/schemas/DisplayName"
+        description:
+          $ref: "#/components/schemas/Description"
+        color:
+          $ref: "#/components/schemas/Color"
         created_at:
           type: string
           format: date-time
       additionalProperties: false
     Stream:
       type: object
-      required: [id, project_id, name, type, created_at]
+      required: [id, project_id, name, type, display_name, description, color, created_at]
       properties:
         id:
           type: string
@@ -4245,6 +4378,12 @@ components:
         type:
           type: string
           enum: [logs]
+        display_name:
+          $ref: "#/components/schemas/DisplayName"
+        description:
+          $ref: "#/components/schemas/Description"
+        color:
+          $ref: "#/components/schemas/Color"
         created_at:
           type: string
           format: date-time

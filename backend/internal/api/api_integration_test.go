@@ -186,9 +186,9 @@ func TestTenantIsolation(t *testing.T) {
 		{"GET", "/projects?workspace_id=" + wsA}, {"GET", "/projects/" + projA}, {"PATCH", "/projects/" + projA},
 		{"DELETE", "/projects/" + projA},
 		{"GET", "/projects/" + projA + "/environments"}, {"POST", "/projects/" + projA + "/environments"},
-		{"DELETE", "/projects/" + projA + "/environments/" + envID},
+		{"PATCH", "/projects/" + projA + "/environments/" + envID}, {"DELETE", "/projects/" + projA + "/environments/" + envID},
 		{"GET", "/projects/" + projA + "/streams"}, {"POST", "/projects/" + projA + "/streams"},
-		{"DELETE", "/projects/" + projA + "/streams/" + streamID},
+		{"PATCH", "/projects/" + projA + "/streams/" + streamID}, {"DELETE", "/projects/" + projA + "/streams/" + streamID},
 		{"GET", "/tokens?project_id=" + projA}, {"DELETE", "/tokens/" + tokID},
 	}
 	missing := mallory.get("/workspaces/" + "00000000-0000-7000-8000-000000000000")
@@ -284,6 +284,46 @@ func TestRBAC(t *testing.T) {
 	// A token cannot carry a scope its creator lacks, nor an unknown one.
 	expect(t, roles["developer"].post("/tokens", map[string]any{"project_id": proj, "name": "t", "scopes": []string{"logs:delete"}}), 422)
 	expect(t, roles["developer"].post("/tokens", map[string]any{"project_id": proj, "name": "t", "scopes": []string{}}), 422)
+}
+
+func TestStreamAndEnvironmentMetadata(t *testing.T) {
+	e := newEnv(t, nil, nil)
+	admin := e.setupAdmin()
+	owner, viewer := e.newUser(admin, "owner1"), e.newUser(admin, "uviewer")
+	ws := id(expect(t, owner.post("/workspaces", map[string]string{"name": "Team"}), 201), "id")
+	expect(t, owner.post("/workspaces/"+ws+"/members", map[string]string{"email": "uviewer@example.com", "role": "viewer"}), 201)
+	proj := id(expect(t, owner.post("/projects", map[string]string{"workspace_id": ws, "name": "P"}), 201), "id")
+
+	s := expect(t, owner.post("/projects/"+proj+"/streams", map[string]any{
+		"name": "economy", "display_name": " Economia ", "description": "Soldi e transazioni", "color": "#22C55E"}), 201).JSON()
+	if s["display_name"] != "Economia" || s["color"] != "#22c55e" || s["description"] != "Soldi e transazioni" {
+		t.Fatalf("created stream %v", s)
+	}
+	sid := s["id"].(string)
+	path := "/projects/" + proj + "/streams/" + sid
+	expect(t, owner.patch(path, map[string]any{"color": "green"}), 422)
+	expect(t, owner.patch(path, map[string]any{"display_name": strings.Repeat("x", 101)}), 422)
+	expect(t, owner.patch(path, map[string]any{"name": "renamed"}), 400)
+	expect(t, viewer.patch(path, map[string]any{"color": ""}), 403)
+	expect(t, owner.patch("/projects/"+proj+"/streams/00000000-0000-7000-8000-000000000000", map[string]any{}), 404)
+
+	// Absent fields stay, empty strings clear.
+	s = expect(t, owner.patch(path, map[string]any{"color": ""}), 200).JSON()
+	if s["color"] != "" || s["display_name"] != "Economia" || s["name"] != "economy" {
+		t.Fatalf("patched stream %v", s)
+	}
+	items := expect(t, owner.get("/projects/"+proj+"/streams"), 200).JSON()["items"].([]any)
+	if last := items[len(items)-1].(map[string]any); last["display_name"] != "Economia" || last["color"] != "" {
+		t.Fatalf("listed stream %v", last)
+	}
+
+	envs := expect(t, owner.get("/projects/"+proj+"/environments"), 200).JSON()["items"].([]any)
+	envPath := "/projects/" + proj + "/environments/" + envs[0].(map[string]any)["id"].(string)
+	env := expect(t, owner.patch(envPath, map[string]any{"display_name": "Produzione", "color": "#ef4444"}), 200).JSON()
+	if env["name"] != "production" || env["display_name"] != "Produzione" || env["color"] != "#ef4444" || env["description"] != "" {
+		t.Fatalf("patched environment %v", env)
+	}
+	expect(t, owner.post("/projects/"+proj+"/environments", map[string]any{"name": "staging", "description": strings.Repeat("x", 501)}), 422)
 }
 
 func TestLastOwnerProtection(t *testing.T) {

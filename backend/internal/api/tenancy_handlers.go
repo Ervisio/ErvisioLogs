@@ -18,6 +18,7 @@ var (
 	slugRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}$`)
 	envRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}$`)
 	streamRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,62}$`)
+	colorRe  = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 	dashes   = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
@@ -483,6 +484,41 @@ func (a *API) deleteProject(w http.ResponseWriter, r *http.Request) {
 
 // ---------- environments and streams ----------
 
+// metaReq is the display metadata accepted on create and update; absent fields stay unchanged and
+// an empty string clears one.
+type metaReq struct {
+	DisplayName *string `json:"display_name"`
+	Description *string `json:"description"`
+	Color       *string `json:"color"`
+}
+
+func validMeta(w http.ResponseWriter, r *http.Request, m metaReq) (store.MetaPatch, bool) {
+	trim := func(v *string) *string {
+		if v == nil {
+			return nil
+		}
+		t := strings.TrimSpace(*v)
+		return &t
+	}
+	p := store.MetaPatch{DisplayName: trim(m.DisplayName), Description: trim(m.Description), Color: trim(m.Color)}
+	if p.DisplayName != nil && (len([]rune(*p.DisplayName)) > 100 || hasNUL(*p.DisplayName)) {
+		invalid(w, r, "display_name must be at most 100 characters")
+		return p, false
+	}
+	if p.Description != nil && (len([]rune(*p.Description)) > 500 || hasNUL(*p.Description)) {
+		invalid(w, r, "description must be at most 500 characters")
+		return p, false
+	}
+	if p.Color != nil {
+		*p.Color = strings.ToLower(*p.Color)
+		if *p.Color != "" && !colorRe.MatchString(*p.Color) {
+			invalid(w, r, "color must be a hex color like #3b82f6, or empty")
+			return p, false
+		}
+	}
+	return p, true
+}
+
 func (a *API) listEnvironments(w http.ResponseWriter, r *http.Request) {
 	p, _, ok := a.projectAccess(w, r, "")
 	if !ok {
@@ -503,6 +539,7 @@ func (a *API) createEnvironment(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Name string `json:"name"`
+		metaReq
 	}
 	if !decode(w, r, &req) {
 		return
@@ -511,7 +548,11 @@ func (a *API) createEnvironment(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "environment name: lowercase letters, digits and dashes, up to 39 characters")
 		return
 	}
-	e, err := a.Store.CreateEnvironment(r.Context(), p.WorkspaceID, p.ID, req.Name)
+	meta, ok := validMeta(w, r, req.metaReq)
+	if !ok {
+		return
+	}
+	e, err := a.Store.CreateEnvironment(r.Context(), p.WorkspaceID, p.ID, req.Name, meta.Meta())
 	if err != nil {
 		a.storeError(w, r, err)
 		return
@@ -519,6 +560,32 @@ func (a *API) createEnvironment(w http.ResponseWriter, r *http.Request) {
 	a.forgetCatalog(p.ID)
 	a.audit(r, &p.WorkspaceID, "environment.create", "environment", e.ID.String(), nil)
 	httpx.WriteJSON(w, http.StatusCreated, e)
+}
+
+func (a *API) updateEnvironment(w http.ResponseWriter, r *http.Request) {
+	p, _, ok := a.projectAccess(w, r, auth.ProjectsWrite)
+	if !ok {
+		return
+	}
+	envID, ok := idParam(w, r, "envId")
+	if !ok {
+		return
+	}
+	var req metaReq
+	if !decode(w, r, &req) {
+		return
+	}
+	patch, ok := validMeta(w, r, req)
+	if !ok {
+		return
+	}
+	e, err := a.Store.UpdateEnvironment(r.Context(), p.WorkspaceID, p.ID, envID, patch)
+	if err != nil {
+		a.storeError(w, r, err)
+		return
+	}
+	a.audit(r, &p.WorkspaceID, "environment.update", "environment", envID.String(), nil)
+	httpx.WriteJSON(w, http.StatusOK, e)
 }
 
 func (a *API) deleteEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -559,12 +626,17 @@ func (a *API) createStream(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Name string `json:"name"`
+		metaReq
 	}
 	if !decode(w, r, &req) {
 		return
 	}
 	if !streamRe.MatchString(req.Name) {
 		invalid(w, r, "stream name: lowercase letters, digits, dot, dash or underscore, up to 63 characters")
+		return
+	}
+	meta, ok := validMeta(w, r, req.metaReq)
+	if !ok {
 		return
 	}
 	cat, err := a.projectCatalog(r.Context(), p.WorkspaceID, p.ID)
@@ -576,7 +648,7 @@ func (a *API) createStream(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteProblem(w, r, http.StatusConflict, errStreamLimit.Error())
 		return
 	}
-	s, err := a.Store.CreateStream(r.Context(), p.WorkspaceID, p.ID, req.Name)
+	s, err := a.Store.CreateStream(r.Context(), p.WorkspaceID, p.ID, req.Name, meta.Meta())
 	if err != nil {
 		a.storeError(w, r, err)
 		return
@@ -584,6 +656,32 @@ func (a *API) createStream(w http.ResponseWriter, r *http.Request) {
 	a.forgetCatalog(p.ID)
 	a.audit(r, &p.WorkspaceID, "stream.create", "stream", s.ID.String(), nil)
 	httpx.WriteJSON(w, http.StatusCreated, s)
+}
+
+func (a *API) updateStream(w http.ResponseWriter, r *http.Request) {
+	p, _, ok := a.projectAccess(w, r, auth.ProjectsWrite)
+	if !ok {
+		return
+	}
+	sid, ok := idParam(w, r, "streamId")
+	if !ok {
+		return
+	}
+	var req metaReq
+	if !decode(w, r, &req) {
+		return
+	}
+	patch, ok := validMeta(w, r, req)
+	if !ok {
+		return
+	}
+	s, err := a.Store.UpdateStream(r.Context(), p.WorkspaceID, p.ID, sid, patch)
+	if err != nil {
+		a.storeError(w, r, err)
+		return
+	}
+	a.audit(r, &p.WorkspaceID, "stream.update", "stream", sid.String(), nil)
+	httpx.WriteJSON(w, http.StatusOK, s)
 }
 
 func (a *API) deleteStream(w http.ResponseWriter, r *http.Request) {

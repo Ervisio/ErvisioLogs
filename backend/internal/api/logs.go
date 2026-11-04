@@ -152,7 +152,7 @@ func (c *streamCreator) Stream(n string) (uuid.UUID, bool, error) {
 	}
 	ctx := c.r.Context()
 	c.a.forgetCatalog(c.project)
-	s, err := c.a.Store.CreateStream(ctx, c.ws, c.project, n)
+	s, err := c.a.Store.CreateStream(ctx, c.ws, c.project, n, store.Meta{})
 	if errors.Is(err, store.ErrConflict) {
 		// Another request created it first.
 		if cat, err := c.a.projectCatalog(ctx, c.ws, c.project); err == nil {

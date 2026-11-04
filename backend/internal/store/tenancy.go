@@ -329,10 +329,34 @@ func (s *Store) DeleteProject(ctx context.Context, workspaceID, id uuid.UUID) er
 	return affected(s.pool.Exec(ctx, `DELETE FROM projects WHERE id=$2 AND workspace_id=$1`, workspaceID, id))
 }
 
+// Meta is the display metadata of an environment or stream. Empty strings mean unset.
+type Meta struct {
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
+	Color       string `json:"color"`
+}
+
+// MetaPatch changes the fields that are not nil.
+type MetaPatch struct {
+	DisplayName, Description, Color *string
+}
+
+// Meta returns the patch as metadata for a new row, with absent fields unset.
+func (p MetaPatch) Meta() Meta {
+	deref := func(v *string) string {
+		if v == nil {
+			return ""
+		}
+		return *v
+	}
+	return Meta{DisplayName: deref(p.DisplayName), Description: deref(p.Description), Color: deref(p.Color)}
+}
+
 type Environment struct {
 	ID        uuid.UUID `json:"id"`
 	ProjectID uuid.UUID `json:"project_id"`
 	Name      string    `json:"name"`
+	Meta
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -341,18 +365,21 @@ type Stream struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
+	Meta
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func (s *Store) CreateEnvironment(ctx context.Context, workspaceID, projectID uuid.UUID, name string) (Environment, error) {
-	e := Environment{ID: newID(), ProjectID: projectID, Name: name}
-	err := s.pool.QueryRow(ctx, `INSERT INTO environments (id, workspace_id, project_id, name) VALUES ($1,$2,$3,$4) RETURNING created_at`,
-		e.ID, workspaceID, projectID, name).Scan(&e.CreatedAt)
+func (s *Store) CreateEnvironment(ctx context.Context, workspaceID, projectID uuid.UUID, name string, m Meta) (Environment, error) {
+	e := Environment{ID: newID(), ProjectID: projectID, Name: name, Meta: m}
+	err := s.pool.QueryRow(ctx, `INSERT INTO environments (id, workspace_id, project_id, name, display_name, description, color)
+		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING created_at`,
+		e.ID, workspaceID, projectID, name, m.DisplayName, m.Description, m.Color).Scan(&e.CreatedAt)
 	return e, mapErr(err)
 }
 
 func (s *Store) ListEnvironments(ctx context.Context, workspaceID, projectID uuid.UUID) ([]Environment, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, project_id, name, created_at FROM environments WHERE workspace_id=$1 AND project_id=$2 ORDER BY created_at, id`, workspaceID, projectID)
+	rows, err := s.pool.Query(ctx, `SELECT id, project_id, name, display_name, description, color, created_at
+		FROM environments WHERE workspace_id=$1 AND project_id=$2 ORDER BY created_at, id`, workspaceID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +387,7 @@ func (s *Store) ListEnvironments(ctx context.Context, workspaceID, projectID uui
 	out := []Environment{}
 	for rows.Next() {
 		var e Environment
-		if err := rows.Scan(&e.ID, &e.ProjectID, &e.Name, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.ProjectID, &e.Name, &e.DisplayName, &e.Description, &e.Color, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -368,19 +395,32 @@ func (s *Store) ListEnvironments(ctx context.Context, workspaceID, projectID uui
 	return out, rows.Err()
 }
 
+func (s *Store) UpdateEnvironment(ctx context.Context, workspaceID, projectID, id uuid.UUID, p MetaPatch) (Environment, error) {
+	var e Environment
+	err := s.pool.QueryRow(ctx, `UPDATE environments SET display_name=COALESCE($4, display_name),
+		description=COALESCE($5, description), color=COALESCE($6, color)
+		WHERE id=$3 AND project_id=$2 AND workspace_id=$1
+		RETURNING id, project_id, name, display_name, description, color, created_at`,
+		workspaceID, projectID, id, p.DisplayName, p.Description, p.Color).
+		Scan(&e.ID, &e.ProjectID, &e.Name, &e.DisplayName, &e.Description, &e.Color, &e.CreatedAt)
+	return e, mapErr(err)
+}
+
 func (s *Store) DeleteEnvironment(ctx context.Context, workspaceID, projectID, id uuid.UUID) error {
 	return affected(s.pool.Exec(ctx, `DELETE FROM environments WHERE id=$3 AND project_id=$2 AND workspace_id=$1`, workspaceID, projectID, id))
 }
 
-func (s *Store) CreateStream(ctx context.Context, workspaceID, projectID uuid.UUID, name string) (Stream, error) {
-	st := Stream{ID: newID(), ProjectID: projectID, Name: name, Type: "logs"}
-	err := s.pool.QueryRow(ctx, `INSERT INTO streams (id, workspace_id, project_id, name) VALUES ($1,$2,$3,$4) RETURNING created_at`,
-		st.ID, workspaceID, projectID, name).Scan(&st.CreatedAt)
+func (s *Store) CreateStream(ctx context.Context, workspaceID, projectID uuid.UUID, name string, m Meta) (Stream, error) {
+	st := Stream{ID: newID(), ProjectID: projectID, Name: name, Type: "logs", Meta: m}
+	err := s.pool.QueryRow(ctx, `INSERT INTO streams (id, workspace_id, project_id, name, display_name, description, color)
+		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING created_at`,
+		st.ID, workspaceID, projectID, name, m.DisplayName, m.Description, m.Color).Scan(&st.CreatedAt)
 	return st, mapErr(err)
 }
 
 func (s *Store) ListStreams(ctx context.Context, workspaceID, projectID uuid.UUID) ([]Stream, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, project_id, name, type, created_at FROM streams WHERE workspace_id=$1 AND project_id=$2 ORDER BY created_at, id`, workspaceID, projectID)
+	rows, err := s.pool.Query(ctx, `SELECT id, project_id, name, type, display_name, description, color, created_at
+		FROM streams WHERE workspace_id=$1 AND project_id=$2 ORDER BY created_at, id`, workspaceID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -388,12 +428,23 @@ func (s *Store) ListStreams(ctx context.Context, workspaceID, projectID uuid.UUI
 	out := []Stream{}
 	for rows.Next() {
 		var st Stream
-		if err := rows.Scan(&st.ID, &st.ProjectID, &st.Name, &st.Type, &st.CreatedAt); err != nil {
+		if err := rows.Scan(&st.ID, &st.ProjectID, &st.Name, &st.Type, &st.DisplayName, &st.Description, &st.Color, &st.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, st)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) UpdateStream(ctx context.Context, workspaceID, projectID, id uuid.UUID, p MetaPatch) (Stream, error) {
+	var st Stream
+	err := s.pool.QueryRow(ctx, `UPDATE streams SET display_name=COALESCE($4, display_name),
+		description=COALESCE($5, description), color=COALESCE($6, color)
+		WHERE id=$3 AND project_id=$2 AND workspace_id=$1
+		RETURNING id, project_id, name, type, display_name, description, color, created_at`,
+		workspaceID, projectID, id, p.DisplayName, p.Description, p.Color).
+		Scan(&st.ID, &st.ProjectID, &st.Name, &st.Type, &st.DisplayName, &st.Description, &st.Color, &st.CreatedAt)
+	return st, mapErr(err)
 }
 
 func (s *Store) DeleteStream(ctx context.Context, workspaceID, projectID, id uuid.UUID) error {
