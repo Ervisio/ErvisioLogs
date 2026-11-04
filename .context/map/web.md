@@ -34,6 +34,8 @@ Gotchas:
 - `searchLogs`/list helpers return `items: null` for empty; `list()` normalizes to []. Raw `request` callers must handle null.
 - e2e is serial, single worker, creates the first admin; needs a real stack (no mocks), fails if env vars missing by design. Unit tests mock fetch (App.test.tsx, ~730 lines).
 - package.json version (0.1.0) is not the release version (0.1.5 per git log); don't read it as such.
+- Workarounds for backend gaps (remove when fixed server-side): client sends its own ASCII slug (lib/slug.ts) since server derives '' for non-Latin names; level chips use a second search without the level filter; Tier badge only on live rows (no per-row tier in search).
+- Web types in lib/api.ts are hand-written: F2a-F2f backend fields/routes (settings, admin users, email, metadata, admin tokens, health, purge) not yet typed.
 - OAuth sign-in is a browser navigation (not fetch) that returns via redirect.
 
 Related: map/backend.md (API handlers, CSP, webui embed, auth/CSRF), map/sdk.md (ingest clients; docs articles describe them)
