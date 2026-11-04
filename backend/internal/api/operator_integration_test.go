@@ -84,6 +84,7 @@ func TestAdminSocket(t *testing.T) {
 
 	expect(t, sock.get("/admin/users"), 200)
 	expect(t, sock.get("/admin/settings"), 200)
+	expect(t, sock.get("/admin/health"), 200)
 	expect(t, sock.post("/workspaces", map[string]any{"name": "Plugin"}), 422)
 	ws := id(expect(t, sock.post("/workspaces", map[string]any{"name": "Plugin", "owner_id": aliceID}), 201), "id")
 	if !has(expect(t, alice.get("/workspaces"), 200).Body, ws) {
@@ -111,6 +112,7 @@ func TestAdminSocket(t *testing.T) {
 	expect(t, sock.post("/admin/tokens", map[string]any{"name": "x", "scopes": []string{"admin:read"},
 		"expires_at": time.Now().Add(time.Hour).Format(time.RFC3339)}), 401)
 	noLogAccess(t, sock, "", proj)
+	expect(t, sock.post("/projects/"+proj+"/purges", map[string]any{"confirm": "game"}), 403)
 
 	// Membership rules are unchanged for users.
 	other := id(expect(t, sock.post("/workspaces", map[string]any{"name": "Other", "owner_id": aliceID}), 201), "id")
@@ -160,6 +162,7 @@ func TestAdminTokens(t *testing.T) {
 
 	// admin:read reads everything it may manage and changes nothing.
 	expect(t, alice.bearer("GET", "/admin/users", reader), 200)
+	expect(t, alice.bearer("GET", "/admin/health", reader), 200)
 	expect(t, alice.bearer("GET", "/workspaces", reader), 200)
 	expect(t, alice.bearerJSON("PATCH", "/admin/users/"+aliceID, reader, map[string]any{"status": "disabled"}), 403)
 	expect(t, alice.bearerJSON("POST", "/workspaces", reader, map[string]any{"name": "No", "owner_id": aliceID}), 403)

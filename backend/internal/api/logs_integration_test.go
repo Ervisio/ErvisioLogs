@@ -200,6 +200,8 @@ func TestIngestSearchAndTail(t *testing.T) {
 	expect(t, alice.bearerJSON("POST", "/ingest", both, batch["events"].([]map[string]any)[0]), 202)
 
 	// Search: newest first, deduplicated by id.
+	waitSearch(t, alice, both, map[string]any{}, 3)
+	// Searched again: the total is counted before the rows, so the first match can still miss an insert.
 	all := waitSearch(t, alice, both, map[string]any{"include_total": true}, 3)
 	if got := strings.Join(messages(all), "|"); got != "Compressed hello|Transfer failed|Mario joined" {
 		t.Fatalf("order %q", got)

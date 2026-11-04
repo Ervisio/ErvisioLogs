@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
@@ -93,7 +94,7 @@ func probe(ctx context.Context, ping func(context.Context) error) healthCheck {
 // adminHealth reports the state of the ingest and archive pipeline from state the process already
 // keeps; the only queries are small ones against PostgreSQL and one cached ClickHouse scan.
 func (a *API) adminHealth(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
+	if _, ok := a.adminAccess(w, r, auth.AdminRead); !ok {
 		return
 	}
 	ctx := r.Context()
@@ -108,15 +109,15 @@ func (a *API) adminHealth(w http.ResponseWriter, r *http.Request) {
 
 	out.Postgres = probe(ctx, a.Store.Ping)
 	out.ClickHouse = checkOf(errors.New("not configured"))
-	if l := a.Logs; l != nil {
+	if l := a.Logs; l != nil && l.WAL != nil {
 		s := l.WAL.Stats()
 		out.WAL = &healthWAL{Bytes: s.Bytes, MaxBytes: s.MaxBytes, Segments: s.Segments, PendingRecords: int64(s.NextSeq - s.Checkpoint)}
 		if l.Writer != nil {
 			out.WAL.LagSeconds = l.Writer.Stats.LagSeconds.Load()
 		}
-		if l.CH != nil {
-			out.ClickHouse = probe(ctx, l.CH.Ping)
-		}
+	}
+	if l := a.Logs; l != nil && l.CH != nil {
+		out.ClickHouse = probe(ctx, l.CH.Ping)
 	}
 
 	out.Archive.Enabled = a.archiver() != nil
