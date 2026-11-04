@@ -65,12 +65,16 @@ func TestSpecDocumentsBodyErrors(t *testing.T) {
 func TestSpecDocumentsSpecificResponses(t *testing.T) {
 	ops := loadOperations(t)
 	for name, codes := range map[string][]string{
-		"register":        {"503"},
-		"login":           {"503"},
-		"adminCreateUser": {"503"},
-		"listAudit":       {"400"},
-		"adminListAudit":  {"200", "400", "401", "403"},
-		"oauthCallback":   {"429"},
+		"register":           {"503"},
+		"login":              {"503"},
+		"adminCreateUser":    {"503"},
+		"changePassword":     {"403", "409", "429", "503"},
+		"adminResetPassword": {"503"},
+		"adminListUsers":     {"400"},
+		"adminDeleteUser":    {"409", "422"},
+		"listAudit":          {"400"},
+		"adminListAudit":     {"200", "400", "401", "403"},
+		"oauthCallback":      {"429"},
 	} {
 		op, ok := ops[name]
 		if !ok {

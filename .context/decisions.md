@@ -8,3 +8,4 @@
 2026-11-04 · Auto-create stream default on, max_streams default 20 (0 = illimitato), il limite vale anche per la creazione manuale · sblocca gli stream FiveM senza nomi infiniti; limite soft sotto concorrenza.
 2026-11-04 · compose.yaml passa le chiavi impostabili come `${VAR:-}` · una variabile valorizzata blocca il setting, quindi niente default nel compose.
 2026-11-04 · Rinviati: provider OAuth e metrics token restano solo env (segreti), chiave log level = server.log_level.
+2026-11-04 · F2b: l'istanza tiene sempre un admin attivo e ogni workspace un owner (409); un admin non modifica/elimina/resetta sé stesso da /admin (422); cambio password richiede quella attuale e chiude le altre sessioni, reset admin le chiude tutte · evita lock-out e sessioni rubate che sopravvivono.

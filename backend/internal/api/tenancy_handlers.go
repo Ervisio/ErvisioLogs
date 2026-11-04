@@ -350,14 +350,7 @@ func (a *API) writeAuditPage(w http.ResponseWriter, r *http.Request, events []st
 		a.storeError(w, r, err)
 		return
 	}
-	if events == nil {
-		events = []store.AuditEvent{}
-	}
-	var nc any
-	if next != "" {
-		nc = next
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": events, "next_cursor": nc})
+	writePage(w, events, next)
 }
 
 // ---------- projects ----------

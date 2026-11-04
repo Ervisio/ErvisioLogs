@@ -16,13 +16,15 @@ Invariants:
 - Isolation: every ClickHouse query filters workspace_id (+project_id); API tokens are bound to one workspace+project (token.WorkspaceID/ProjectID); cookie users go through workspaceAccess.
 - Non-member of a workspace gets 404 (not 403) so existence is hidden; missing perm = 403.
 - Instance admin (is_instance_admin) grants NO tenant data access; /admin/* only.
+- Always >=1 active instance admin (store.ensureOtherAdmin, advisory lock) and >=1 owner per workspace: UpdateUser/DeleteUser refuse (409). Admins can't change/delete/reset themselves via /admin/users (422). Users + own account/sessions handlers: api/users_handlers.go.
+- Sessions: ip + last_seen_at written at most once a minute in SessionByHash; password change keeps the current session, admin reset/disable revoke all. Tokens of a deleted/disabled creator stop working (TokenByHash join).
 - Token scopes limited to logs:ingest|read|export and never exceed creator perms.
 - Cookie-authed unsafe requests need X-CSRF header == session CSRFToken AND Origin == PUBLIC_URL origin; Bearer requests skip both.
 - Ack (202) only after WAL durable. WAL full → 503 + Retry-After 5; oversize → 413; archiver OverCapacity() → ingest 503 (uncovered hot rows never evicted).
 - Event limits (attributes depth/keys, clip, future skew/past age) live in ingest/event.go + config (INGEST_MAX_FUTURE_SKEW/PAST_AGE).
 - Retention policy scopes instance>workspace>project>stream, NULL inherits (retention_policies table); no CH TTL, retention manager alone deletes.
 - Evict order: mark segment as read source FIRST, then delete hot rows (else search briefly misses rows).
-- Migrations: NNNN_name.up/down.sql, checksum recorded; editing an applied migration errors; no down file = irreversible. PG 0001-0005 (instance, tenancy_auth, archive, integrations, settings), CH 0001-0003 (events, dedup, inserted_at). Add new ones with next number, never edit.
+- Migrations: NNNN_name.up/down.sql, checksum recorded; editing an applied migration errors; no down file = irreversible. PG 0001-0006 (instance, tenancy_auth, archive, integrations, settings, account_sessions), CH 0001-0003 (events, dedup, inserted_at). Add new ones with next number, never edit.
 - Webhooks refuse private/loopback/CGNAT/link-local dests unless alerts.webhook_allow_private (notify.NewClient takes a func, read per dial).
 - Runtime settings (ADR 0018): internal/settings Service (snapshot, reload 30s, OnLoad sets slog LevelVar); handlers read a.Settings.Bool/Int/Duration/ProjectInt, never cfg, for keys in settings.defs. Env-set key = locked (cfg.FromEnv). Routes in api/settings_handlers.go. api.New(store, hasher, cfgAuth, sets, providers, log).
 - Ingest auto-creates unknown streams (logs.go:streamCreator) per project setting + max_streams; createStream 409 at the limit.

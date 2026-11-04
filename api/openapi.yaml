@@ -205,6 +205,124 @@ paths:
                 $ref: "#/components/schemas/Me"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/v1/auth/password:
+    put:
+      tags: [auth]
+      operationId: changePassword
+      summary: Change the password of the signed-in account
+      description: "Needs the current password; wrong guesses share the sign-in rate limits of the account. Every other session of the account is revoked, this one stays."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Changed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "The current password is not correct, or the CSRF check failed."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "409":
+          description: The account signs in through an external provider and has no password.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/TooMany"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/v1/auth/sessions:
+    get:
+      tags: [auth]
+      operationId: listOwnSessions
+      summary: Sessions of the signed-in account
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: "Live sessions, most recently used first."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Session"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [auth]
+      operationId: revokeOtherSessions
+      summary: Sign out everywhere else
+      description: Revokes every session of the account except the one making the request.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Sessions revoked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked:
+                    type: integer
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  "/api/v1/auth/sessions/{sessionId}":
+    delete:
+      tags: [auth]
+      operationId: revokeOwnSession
+      summary: Revoke one session of the signed-in account
+      description: Revoking the current session also clears its cookie.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   "/api/v1/auth/oauth/{provider}/start":
     get:
       tags: [auth]
@@ -1727,13 +1845,24 @@ paths:
       tags: [admin]
       operationId: adminListUsers
       summary: List accounts (instance administrator)
+      description: "Oldest first. `q` matches part of the email or username, ignoring case. Pass `next_cursor` back as `cursor` for the next page."
       parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 320
         - name: limit
           in: query
           schema:
             type: integer
+            minimum: 1
             maximum: 500
             default: 100
+        - name: cursor
+          in: query
+          schema:
+            type: string
       security:
         - sessionCookie: []
       responses:
@@ -1743,13 +1872,19 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, next_cursor]
                 properties:
                   items:
                     type: array
                     items:
                       $ref: "#/components/schemas/User"
+                  next_cursor:
+                    type: [string, "null"]
                 additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/Invalid"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1800,10 +1935,66 @@ paths:
         "503":
           $ref: "#/components/responses/Unavailable"
   "/api/v1/admin/users/{id}":
+    get:
+      tags: [admin]
+      operationId: adminGetUser
+      summary: One account (instance administrator)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [admin]
+      operationId: adminDeleteUser
+      summary: Delete an account (instance administrator)
+      description: "Removes the account, its sessions and memberships; API tokens it created stop working. Refused for your own account (422), for the last active administrator and for the only owner of a workspace (409)."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Invalid"
     patch:
       tags: [admin]
       operationId: adminUpdateUser
-      summary: Enable or disable an account (instance administrator)
+      summary: Enable, disable, promote or demote an account (instance administrator)
+      description: "Set `status`, `is_instance_admin` or both; the change is applied as a whole. Your own account is refused (422). The instance always keeps one active administrator (409)."
       parameters:
         - name: id
           in: path
@@ -1818,11 +2009,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [status]
+              minProperties: 1
               properties:
                 status:
                   type: string
                   enum: [active, disabled]
+                is_instance_admin:
+                  type: boolean
               additionalProperties: false
       security:
         - sessionCookie: []
@@ -1837,10 +2030,153 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
           $ref: "#/components/responses/Invalid"
+  "/api/v1/admin/users/{id}/password":
+    put:
+      tags: [admin]
+      operationId: adminResetPassword
+      summary: Set a new password for an account (instance administrator)
+      description: "Revokes every session of the user. Your own account is refused (422): use `PUT /auth/password`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Password set.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  "/api/v1/admin/users/{id}/sessions":
+    get:
+      tags: [admin]
+      operationId: adminListUserSessions
+      summary: Sessions of an account (instance administrator)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: "Live sessions, most recently used first."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Session"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [admin]
+      operationId: adminRevokeUserSessions
+      summary: Sign an account out everywhere (instance administrator)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Sessions revoked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties:
+                  revoked:
+                    type: integer
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  "/api/v1/admin/users/{id}/sessions/{sessionId}":
+    delete:
+      tags: [admin]
+      operationId: adminRevokeUserSession
+      summary: Revoke one session of an account (instance administrator)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User id.
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/admin/storage:
     get:
       tags: [admin]
@@ -3382,6 +3718,32 @@ components:
         created_at:
           type: string
           format: date-time
+      additionalProperties: false
+    Session:
+      type: object
+      required: [id, created_at, expires_at, last_seen_at, ip, user_agent, current]
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: [string, "null"]
+          format: date-time
+          description: Refreshed at most once a minute.
+        ip:
+          type: string
+          description: Client address of the last use.
+        user_agent:
+          type: string
+        current:
+          type: boolean
+          description: The session making the request.
       additionalProperties: false
     Workspace:
       type: object

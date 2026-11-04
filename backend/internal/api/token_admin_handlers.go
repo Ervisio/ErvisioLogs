@@ -9,7 +9,6 @@ import (
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
-	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
 // ---------- API tokens ----------
@@ -137,59 +136,6 @@ func (a *API) currentToken(w http.ResponseWriter, r *http.Request) {
 
 // ---------- instance administration ----------
 
-func (a *API) adminListUsers(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
-		return
-	}
-	us, err := a.Store.ListUsers(r.Context(), queryInt(r, "limit", 100, 500))
-	if err != nil {
-		a.internalError(w, r, err)
-		return
-	}
-	items(w, us)
-}
-
-// adminCreateUser creates an account. Without a password the account can only sign in through an
-// external provider, which proves control of the address on first sign-in.
-func (a *API) adminCreateUser(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireAdmin(w, r); !ok {
-		return
-	}
-	var req registerReq
-	if !decode(w, r, &req) {
-		return
-	}
-	req.Email, req.Username = strings.ToLower(strings.TrimSpace(req.Email)), strings.ToLower(strings.TrimSpace(req.Username))
-	if len(req.Email) > 254 || !emailRe.MatchString(req.Email) {
-		invalid(w, r, "enter a valid email address")
-		return
-	}
-	if !usernameRe.MatchString(req.Username) {
-		invalid(w, r, "username must be 3 to 32 characters: lowercase letters, digits, dot, dash or underscore")
-		return
-	}
-	n := store.NewUser{Email: req.Email, Username: req.Username}
-	if req.Password != "" {
-		if err := auth.ValidatePassword(req.Password, req.Email, req.Username); err != nil {
-			invalid(w, r, err.Error())
-			return
-		}
-		h, err := a.Hasher.Hash(r.Context(), req.Password)
-		if err != nil {
-			a.hashFailed(w, r, err)
-			return
-		}
-		n.PasswordHash = &h
-	}
-	u, err := a.Store.CreateUser(r.Context(), n)
-	if err != nil {
-		a.storeError(w, r, err)
-		return
-	}
-	a.audit(r, nil, "user.create", "user", u.ID.String(), map[string]any{"with_password": n.PasswordHash != nil})
-	httpx.WriteJSON(w, http.StatusCreated, u)
-}
-
 // adminListAudit returns the instance-level trail: sign-ins, account changes, deleted workspaces.
 func (a *API) adminListAudit(w http.ResponseWriter, r *http.Request) {
 	if _, ok := a.requireAdmin(w, r); !ok {
@@ -197,35 +143,4 @@ func (a *API) adminListAudit(w http.ResponseWriter, r *http.Request) {
 	}
 	events, next, err := a.Store.ListInstanceAudit(r.Context(), queryInt(r, "limit", 50, 200), r.URL.Query().Get("cursor"))
 	a.writeAuditPage(w, r, events, next, err)
-}
-
-func (a *API) adminUpdateUser(w http.ResponseWriter, r *http.Request) {
-	admin, ok := a.requireAdmin(w, r)
-	if !ok {
-		return
-	}
-	id, ok := idParam(w, r, "id")
-	if !ok {
-		return
-	}
-	var req struct {
-		Status string `json:"status"`
-	}
-	if !decode(w, r, &req) {
-		return
-	}
-	if req.Status != "active" && req.Status != "disabled" {
-		invalid(w, r, "status must be active or disabled")
-		return
-	}
-	if id == admin.ID {
-		invalid(w, r, "you cannot change your own status")
-		return
-	}
-	if err := a.Store.SetUserStatus(r.Context(), id, req.Status); err != nil {
-		a.storeError(w, r, err)
-		return
-	}
-	a.audit(r, nil, "user.status", "user", id.String(), map[string]any{"status": req.Status})
-	w.WriteHeader(http.StatusNoContent)
 }

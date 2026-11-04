@@ -137,6 +137,10 @@ func (a *API) Routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/auth/me", a.me)
+	r.Put("/auth/password", a.changePassword)
+	r.Get("/auth/sessions", a.listOwnSessions)
+	r.Delete("/auth/sessions", a.revokeOtherSessions)
+	r.Delete("/auth/sessions/{sessionId}", a.revokeOwnSession)
 	r.Get("/auth/oauth/{provider}/start", a.oauthStart)
 	r.Get("/auth/oauth/{provider}/callback", a.oauthCallback)
 
@@ -181,7 +185,13 @@ func (a *API) Routes(r chi.Router) {
 
 	r.Get("/admin/users", a.adminListUsers)
 	r.Post("/admin/users", a.adminCreateUser)
+	r.Get("/admin/users/{id}", a.adminGetUser)
 	r.Patch("/admin/users/{id}", a.adminUpdateUser)
+	r.Delete("/admin/users/{id}", a.adminDeleteUser)
+	r.Put("/admin/users/{id}/password", a.adminResetPassword)
+	r.Get("/admin/users/{id}/sessions", a.adminListUserSessions)
+	r.Delete("/admin/users/{id}/sessions", a.adminRevokeUserSessions)
+	r.Delete("/admin/users/{id}/sessions/{sessionId}", a.adminRevokeUserSession)
 	r.Get("/admin/audit", a.adminListAudit)
 	r.Get("/admin/storage", a.adminGetStorage)
 	r.Post("/admin/storage/providers", a.adminCreateProvider)
@@ -257,7 +267,7 @@ func (a *API) authenticate(next http.Handler) http.Handler {
 			}
 			p.token = &t
 		} else if c, err := r.Cookie(SessionCookie); err == nil && c.Value != "" {
-			s, err := a.Store.SessionByHash(r.Context(), auth.HashSession(c.Value))
+			s, err := a.Store.SessionByHash(r.Context(), auth.HashSession(c.Value), a.clientIP(r))
 			switch {
 			case err == nil:
 				p.session, p.user = &s, &s.User
@@ -351,6 +361,8 @@ func (a *API) storeError(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.WriteProblem(w, r, http.StatusConflict, "already exists")
 	case errors.Is(err, store.ErrLastOwner):
 		httpx.WriteProblem(w, r, http.StatusConflict, "a workspace needs at least one owner")
+	case errors.Is(err, store.ErrLastAdmin):
+		httpx.WriteProblem(w, r, http.StatusConflict, "the instance needs at least one active administrator")
 	case errors.Is(err, store.ErrForbidden):
 		httpx.WriteProblem(w, r, http.StatusForbidden, "you are not allowed to change this member")
 	case errors.Is(err, store.ErrBadCursor):
@@ -425,6 +437,18 @@ func idParam(w http.ResponseWriter, r *http.Request, name string) (uuid.UUID, bo
 
 func items(w http.ResponseWriter, v any) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": v})
+}
+
+// writePage answers one page of a cursor-paginated list; next_cursor is null on the last page.
+func writePage[T any](w http.ResponseWriter, page []T, next string) {
+	if page == nil {
+		page = []T{}
+	}
+	var nc any
+	if next != "" {
+		nc = next
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": page, "next_cursor": nc})
 }
 
 func (a *API) clientIP(r *http.Request) string {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -145,16 +144,8 @@ func (s *Store) ListInstanceAudit(ctx context.Context, limit int, cursor string)
 func (s *Store) listAudit(ctx context.Context, scope string, limit int, cursor string, args ...any) (events []AuditEvent, next string, err error) {
 	ts, id := time.Now().Add(24*time.Hour), uuid.Max
 	if cursor != "" {
-		raw, derr := base64.RawURLEncoding.DecodeString(cursor)
-		parts := strings.SplitN(string(raw), "|", 2)
-		if derr != nil || len(parts) != 2 {
-			return nil, "", ErrBadCursor
-		}
-		if ts, derr = time.Parse(time.RFC3339Nano, parts[0]); derr != nil {
-			return nil, "", ErrBadCursor
-		}
-		if id, derr = uuid.Parse(parts[1]); derr != nil {
-			return nil, "", ErrBadCursor
+		if ts, id, err = decodeCursor(cursor); err != nil {
+			return nil, "", err
 		}
 	}
 	rows, err := s.pool.Query(ctx, `SELECT id, workspace_id, actor_user_id, actor_token_id, action, target_type, target_id, request_id, ip, detail, created_at
@@ -177,7 +168,29 @@ func (s *Store) listAudit(ctx context.Context, scope string, limit int, cursor s
 	if len(events) > limit {
 		events = events[:limit]
 		last := events[len(events)-1]
-		next = base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf("%s|%s", last.CreatedAt.Format(time.RFC3339Nano), last.ID)))
+		next = encodeCursor(last.CreatedAt, last.ID)
 	}
 	return events, next, nil
+}
+
+// encodeCursor and decodeCursor carry a keyset position (time, id) as an opaque page cursor.
+func encodeCursor(ts time.Time, id uuid.UUID) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(ts.Format(time.RFC3339Nano) + "|" + id.String()))
+}
+
+func decodeCursor(cursor string) (time.Time, uuid.UUID, error) {
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	ts, id, ok := strings.Cut(string(raw), "|")
+	if err != nil || !ok {
+		return time.Time{}, uuid.Nil, ErrBadCursor
+	}
+	t, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return time.Time{}, uuid.Nil, ErrBadCursor
+	}
+	u, err := uuid.Parse(id)
+	if err != nil {
+		return time.Time{}, uuid.Nil, ErrBadCursor
+	}
+	return t, u, nil
 }

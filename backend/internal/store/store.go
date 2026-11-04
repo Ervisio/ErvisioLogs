@@ -19,6 +19,7 @@ var (
 	ErrConflict  = errors.New("conflict")
 	ErrSetupDone = errors.New("setup already completed")
 	ErrLastOwner = errors.New("a workspace needs at least one owner")
+	ErrLastAdmin = errors.New("the instance needs at least one active administrator")
 	ErrForbidden = errors.New("not allowed")
 	ErrBadCursor = errors.New("invalid cursor")
 	// ErrIdentityConflict means the account already has another identity of the provider, or the
@@ -203,37 +204,136 @@ func (s *Store) UsernameTaken(ctx context.Context, name string) (bool, error) {
 	return ok, err
 }
 
-func (s *Store) SetUserStatus(ctx context.Context, id uuid.UUID, status string) error {
+// UpdateUser changes status and instance administration (nil leaves a field as is). Disabling
+// revokes the user's sessions; leaving the instance without an active administrator is refused.
+func (s *Store) UpdateUser(ctx context.Context, id uuid.UUID, status *string, admin *bool) error {
+	disable := status != nil && *status != "active"
 	return s.tx(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `UPDATE users SET status=$2 WHERE id=$1`, id, status)
-		if err != nil {
-			return mapErr(err)
+		if disable || (admin != nil && !*admin) {
+			if err := ensureOtherAdmin(ctx, tx, id); err != nil {
+				return err
+			}
 		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
+		if err := affected(tx.Exec(ctx, `UPDATE users SET status=COALESCE($2, status),
+			is_instance_admin=COALESCE($3, is_instance_admin) WHERE id=$1`, id, status, admin)); err != nil {
+			return err
 		}
-		if status != "active" {
-			_, err = tx.Exec(ctx, `UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, id)
+		if !disable {
+			return nil
 		}
+		_, err := tx.Exec(ctx, `UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, id)
 		return err
 	})
 }
 
-func (s *Store) ListUsers(ctx context.Context, limit int) ([]User, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users ORDER BY created_at, id LIMIT $1`, limit)
+// DeleteUser removes an account with its sessions, identities and memberships. It refuses to delete
+// the last active administrator (ErrLastAdmin) or the only owner of a workspace (ErrLastOwner).
+// Tokens the user created stop working, since a token never outlives its creator's standing.
+func (s *Store) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	return s.tx(ctx, func(tx pgx.Tx) error {
+		if err := ensureOtherAdmin(ctx, tx, id); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `SELECT m.workspace_id FROM workspace_members m JOIN roles r ON r.id=m.role_id
+			WHERE m.user_id=$1 AND r.name='owner' ORDER BY m.workspace_id`, id)
+		if err != nil {
+			return err
+		}
+		owned, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+		if err != nil {
+			return err
+		}
+		// Sorted ids keep the advisory locks in one order across concurrent deletions.
+		for _, ws := range owned {
+			if err := lockOwners(ctx, tx, ws); err != nil {
+				return err
+			}
+			if err := ensureOtherOwner(ctx, tx, ws, id); err != nil {
+				return err
+			}
+		}
+		return affected(tx.Exec(ctx, `DELETE FROM users WHERE id=$1`, id))
+	})
+}
+
+// ensureOtherAdmin fails with ErrLastAdmin if userID is the only active instance administrator. The
+// lock serialises changes that could each remove one of two remaining administrators.
+func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('ervisio_logs_instance_admins'))`); err != nil {
+		return err
+	}
+	var isAdmin bool
+	var others int
+	err := tx.QueryRow(ctx, `SELECT COALESCE(bool_or(id=$1), false), count(*) FILTER (WHERE id<>$1)
+		FROM users WHERE is_instance_admin AND status='active'`, userID).Scan(&isAdmin, &others)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if isAdmin && others == 0 {
+		return ErrLastAdmin
+	}
+	return nil
+}
+
+// ListUsers pages accounts by creation, oldest first. query matches email or username, case-insensitive.
+func (s *Store) ListUsers(ctx context.Context, query string, limit int, cursor string) ([]User, string, error) {
+	after, afterID := time.Time{}, uuid.Nil
+	if cursor != "" {
+		var err error
+		if after, afterID, err = decodeCursor(cursor); err != nil {
+			return nil, "", err
+		}
+	}
+	pattern := ""
+	if query != "" {
+		pattern = "%" + likeEscaper.Replace(strings.ToLower(query)) + "%"
+	}
+	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users
+		WHERE (created_at, id) > ($1, $2) AND ($3 = '' OR email LIKE $3 OR username LIKE $3)
+		ORDER BY created_at, id LIMIT $4`, after, afterID, pattern, limit+1)
+	if err != nil {
+		return nil, "", err
 	}
 	defer rows.Close()
 	var out []User
 	for rows.Next() {
 		u, err := scanUser(rows)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		out = append(out, u)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	next := ""
+	if len(out) > limit {
+		out = out[:limit]
+		last := out[len(out)-1]
+		next = encodeCursor(last.CreatedAt, last.ID)
+	}
+	return out, next, nil
+}
+
+// likeEscaper makes user input literal inside a LIKE pattern (backslash is the default escape).
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// PasswordHash returns the account's password hash, nil when it signs in only through a provider.
+func (s *Store) PasswordHash(ctx context.Context, id uuid.UUID) (*string, error) {
+	var h *string
+	err := s.pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id=$1`, id).Scan(&h)
+	return h, mapErr(err)
+}
+
+// SetPassword replaces the password and revokes every session of the user except keep (uuid.Nil: all).
+func (s *Store) SetPassword(ctx context.Context, id uuid.UUID, hash string, keep uuid.UUID) error {
+	return s.tx(ctx, func(tx pgx.Tx) error {
+		if err := affected(tx.Exec(ctx, `UPDATE users SET password_hash=$2 WHERE id=$1`, id, hash)); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL`, id, keep)
+		return err
+	})
 }
 
 // ---------- sessions ----------
@@ -246,33 +346,82 @@ type Session struct {
 	User      User
 }
 
-func (s *Store) CreateSession(ctx context.Context, userID uuid.UUID, hash []byte, csrf string, expires time.Time, userAgent string) error {
+// CreateSession stores a new session and returns its id.
+func (s *Store) CreateSession(ctx context.Context, userID uuid.UUID, hash []byte, csrf string, expires time.Time, userAgent, ip string) (uuid.UUID, error) {
 	// The header is client-supplied bytes; PostgreSQL text accepts only valid UTF-8.
 	userAgent = strings.ToValidUTF8(userAgent, "")
 	if len(userAgent) > 300 {
 		userAgent = strings.ToValidUTF8(userAgent[:300], "")
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO sessions (id,user_id,secret_hash,csrf_token,expires_at,user_agent) VALUES ($1,$2,$3,$4,$5,$6)`,
-		newID(), userID, hash, csrf, expires, userAgent)
-	return err
+	id := newID()
+	_, err := s.pool.Exec(ctx, `INSERT INTO sessions (id,user_id,secret_hash,csrf_token,expires_at,user_agent,ip,last_seen_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,now())`, id, userID, hash, csrf, expires, userAgent, ip)
+	return id, err
 }
 
-// SessionByHash returns a live session of an active user.
-func (s *Store) SessionByHash(ctx context.Context, hash []byte) (Session, error) {
+// SessionByHash returns a live session of an active user and records its use.
+func (s *Store) SessionByHash(ctx context.Context, hash []byte, ip string) (Session, error) {
 	var se Session
+	var lastSeen *time.Time
 	u := &se.User
-	err := s.pool.QueryRow(ctx, `SELECT s.id, s.user_id, s.csrf_token, s.expires_at,
+	err := s.pool.QueryRow(ctx, `SELECT s.id, s.user_id, s.csrf_token, s.expires_at, s.last_seen_at,
 			u.id, u.email, u.username, u.email_verified, u.is_instance_admin, u.status, u.created_at, u.password_hash IS NOT NULL
 		FROM sessions s JOIN users u ON u.id = s.user_id
 		WHERE s.secret_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.status='active'`, hash).
-		Scan(&se.ID, &se.UserID, &se.CSRFToken, &se.ExpiresAt,
+		Scan(&se.ID, &se.UserID, &se.CSRFToken, &se.ExpiresAt, &lastSeen,
 			&u.ID, &u.Email, &u.Username, &u.EmailVerified, &u.IsInstanceAdmin, &u.Status, &u.CreatedAt, &u.HasPassword)
-	return se, mapErr(err)
+	if err != nil {
+		return se, mapErr(err)
+	}
+	// Advisory, like a token's last_used_at: written at most once a minute to keep requests read-only.
+	if lastSeen == nil || time.Since(*lastSeen) > time.Minute {
+		_, _ = s.pool.Exec(ctx, `UPDATE sessions SET last_seen_at=now(), ip=$2 WHERE id=$1`, se.ID, ip)
+	}
+	return se, nil
 }
 
-func (s *Store) RevokeSession(ctx context.Context, id uuid.UUID) error {
-	_, err := s.pool.Exec(ctx, `UPDATE sessions SET revoked_at=now() WHERE id=$1 AND revoked_at IS NULL`, id)
-	return err
+// SessionInfo describes a live session for the session lists; Current is set by the caller.
+type SessionInfo struct {
+	ID         uuid.UUID  `json:"id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
+	IP         string     `json:"ip"`
+	UserAgent  string     `json:"user_agent"`
+	Current    bool       `json:"current"`
+}
+
+// ListSessions returns the user's live sessions, most recently used first.
+func (s *Store) ListSessions(ctx context.Context, userID uuid.UUID) ([]SessionInfo, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, created_at, expires_at, last_seen_at, ip, user_agent FROM sessions
+		WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()
+		ORDER BY COALESCE(last_seen_at, created_at) DESC, id DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SessionInfo{}
+	for rows.Next() {
+		var si SessionInfo
+		if err := rows.Scan(&si.ID, &si.CreatedAt, &si.ExpiresAt, &si.LastSeenAt, &si.IP, &si.UserAgent); err != nil {
+			return nil, err
+		}
+		out = append(out, si)
+	}
+	return out, rows.Err()
+}
+
+// RevokeSession ends one live session of the user; ErrNotFound if there is none with that id.
+func (s *Store) RevokeSession(ctx context.Context, userID, id uuid.UUID) error {
+	return affected(s.pool.Exec(ctx, `UPDATE sessions SET revoked_at=now()
+		WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at > now()`, id, userID))
+}
+
+// RevokeSessions ends every live session of the user except keep (uuid.Nil: all) and returns how many.
+func (s *Store) RevokeSessions(ctx context.Context, userID, keep uuid.UUID) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `UPDATE sessions SET revoked_at=now()
+		WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL AND expires_at > now()`, userID, keep)
+	return tag.RowsAffected(), err
 }
 
 // PurgeExpired deletes expired sessions (revoked ones included) and expired OAuth states.

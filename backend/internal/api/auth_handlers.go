@@ -202,7 +202,8 @@ func (a *API) loginThrottled(w http.ResponseWriter, r *http.Request, retry time.
 func (a *API) logout(w http.ResponseWriter, r *http.Request) {
 	p := principalOf(r)
 	if p.session != nil {
-		if err := a.Store.RevokeSession(r.Context(), p.session.ID); err != nil {
+		// Already revoked elsewhere (another tab, an administrator): signing out still succeeds.
+		if err := a.Store.RevokeSession(r.Context(), p.user.ID, p.session.ID); err != nil && !errors.Is(err, store.ErrNotFound) {
 			a.internalError(w, r, err)
 			return
 		}
@@ -236,14 +237,15 @@ func (a *API) startSession(w http.ResponseWriter, r *http.Request, u store.User)
 	csrf := auth.NewCSRFToken()
 	exp := a.now().Add(a.Settings.Duration(settings.SessionTTL))
 	a.purgeExpired(r.Context())
-	if err := a.Store.CreateSession(r.Context(), u.ID, hash, csrf, exp, r.UserAgent()); err != nil {
+	id, err := a.Store.CreateSession(r.Context(), u.ID, hash, csrf, exp, r.UserAgent(), a.clientIP(r))
+	if err != nil {
 		a.internalError(w, r, err)
 		return false
 	}
 	http.SetCookie(w, &http.Cookie{Name: SessionCookie, Value: secret, Path: "/", Expires: exp,
 		HttpOnly: true, Secure: a.secure, SameSite: http.SameSiteLaxMode})
 	*r = *r.WithContext(context.WithValue(r.Context(), ctxKey{},
-		principal{user: &u, session: &store.Session{UserID: u.ID, CSRFToken: csrf, ExpiresAt: exp, User: u}}))
+		principal{user: &u, session: &store.Session{ID: id, UserID: u.ID, CSRFToken: csrf, ExpiresAt: exp, User: u}}))
 	return true
 }
 
