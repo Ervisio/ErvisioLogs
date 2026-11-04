@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/ingest"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/wal"
 )
@@ -27,11 +29,10 @@ import (
 // Logs holds the dependencies of the ingest, search and tail handlers. When API.Logs is nil those
 // routes answer 503.
 type Logs struct {
-	WAL       wal.Log
-	CH        driver.Conn
-	Hub       *ingest.Hub
-	Writer    *ingest.Writer
-	Validator ingest.Validator
+	WAL    wal.Log
+	CH     driver.Conn
+	Hub    *ingest.Hub
+	Writer *ingest.Writer
 	// MaxTailSubscribers caps open live-tail connections on this instance (default 500).
 	MaxTailSubscribers int
 	// OverCapacity, when set, reports that storage is above its cap with nothing left to evict
@@ -113,6 +114,64 @@ func (e *catalogEntry) Stream(n string) (uuid.UUID, bool, error) {
 func (e *catalogEntry) Environment(n string) (uuid.UUID, bool, error) {
 	id, ok := e.envs[n]
 	return id, ok, nil
+}
+
+var errStreamLimit = errors.New("the project has reached its stream limit")
+
+// streamLimit reports whether the project may not get another stream.
+func (a *API) streamLimit(ws, project uuid.UUID, have int) bool {
+	max := a.Settings.ProjectInt(ws, project, settings.MaxStreams)
+	return max > 0 && int64(have) >= max
+}
+
+// streamCreator resolves the streams of one ingest request and creates the missing ones when the
+// project allows it (ADR 0018). The limit is checked per request, so concurrent requests can pass it
+// by a few streams.
+type streamCreator struct {
+	a           *API
+	r           *http.Request
+	ws, project uuid.UUID
+	cat         *catalogEntry
+	created     map[string]uuid.UUID
+}
+
+func (c *streamCreator) Environment(n string) (uuid.UUID, bool, error) { return c.cat.Environment(n) }
+
+func (c *streamCreator) Stream(n string) (uuid.UUID, bool, error) {
+	if id, ok := c.cat.streams[n]; ok {
+		return id, true, nil
+	}
+	if id, ok := c.created[n]; ok {
+		return id, true, nil
+	}
+	if !c.a.Settings.ProjectBool(c.ws, c.project, settings.AutoCreateStreams) {
+		return uuid.Nil, false, nil
+	}
+	if c.a.streamLimit(c.ws, c.project, len(c.cat.streams)+len(c.created)) {
+		return uuid.Nil, false, fmt.Errorf("stream %q does not exist and %w", n, errStreamLimit)
+	}
+	ctx := c.r.Context()
+	c.a.forgetCatalog(c.project)
+	s, err := c.a.Store.CreateStream(ctx, c.ws, c.project, n)
+	if errors.Is(err, store.ErrConflict) {
+		// Another request created it first.
+		if cat, err := c.a.projectCatalog(ctx, c.ws, c.project); err == nil {
+			if id, ok := cat.streams[n]; ok {
+				c.cat = cat
+				return id, true, nil
+			}
+		}
+	}
+	if err != nil {
+		c.a.Log.Error("creating stream failed", "request_id", httpx.RequestID(ctx), "stream", n, "error", err)
+		return uuid.Nil, false, fmt.Errorf("stream %q could not be created, retry later", n)
+	}
+	if c.created == nil {
+		c.created = map[string]uuid.UUID{}
+	}
+	c.created[n] = s.ID
+	c.a.audit(c.r, &c.ws, "stream.auto_create", "stream", s.ID.String(), map[string]any{"name": n})
+	return s.ID, true, nil
 }
 
 // ---------- ingest ----------
@@ -289,13 +348,12 @@ func (a *API) queueEvents(r *http.Request, t *store.APIToken, in []ingest.InEven
 		a.Log.Error("request failed", "request_id", res.RequestID, "path", r.URL.Path, "error", err)
 		return res, &ingestFailure{status: http.StatusInternalServerError, msg: "internal error"}
 	}
-	v := a.Logs.Validator
-	if v.Now == nil {
-		v.Now = a.now
-	}
+	v := ingest.Validator{MaxFutureSkew: a.Settings.Duration(settings.IngestMaxFutureSkew),
+		MaxPastAge: a.Settings.Duration(settings.IngestMaxPastAge), Now: a.now}
+	streams := &streamCreator{a: a, r: r, ws: t.WorkspaceID, project: t.ProjectID, cat: cat}
 	accepted := make([]ingest.Event, 0, len(in))
 	for i, ev := range in {
-		e, err := v.Normalize(ev, defStream, defEnv, cat, t.WorkspaceID, t.ProjectID)
+		e, err := v.Normalize(ev, defStream, defEnv, streams, t.WorkspaceID, t.ProjectID)
 		if err != nil {
 			res.Errors = append(res.Errors, ingest.Rejection{Index: i, Reason: err.Error()})
 			continue

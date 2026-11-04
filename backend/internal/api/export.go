@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 )
 
 const (
@@ -64,10 +65,7 @@ func (a *API) exportLogs(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, err.Error())
 		return
 	}
-	maxRows := 1_000_000
-	if a.Integrations != nil && a.Integrations.ExportMaxRows > 0 {
-		maxRows = a.Integrations.ExportMaxRows
-	}
+	maxRows := int(a.Settings.Int(settings.ExportMaxRows))
 
 	ctx := clickhouse.Context(r.Context(), clickhouse.WithSettings(clickhouse.Settings{
 		"max_execution_time": int(exportTimeout.Seconds()), "readonly": 2}))

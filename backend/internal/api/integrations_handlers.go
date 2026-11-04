@@ -15,15 +15,14 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
 // Integrations configures saved views, alerts, channels and export (ADR 0010). Nil turns the
 // alert and channel endpoints into 503; saved views keep working.
 type Integrations struct {
-	Notify              *notify.Client
-	WebhookAllowPrivate bool
-	ExportMaxRows       int
+	Notify *notify.Client
 }
 
 // savedFilter is the stored form of a search: the filter fields of a search request plus, for
@@ -358,7 +357,7 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "format must be ervisio, slack or discord")
 		return
 	}
-	if err := notify.ValidateURL(req.URL, a.Integrations.WebhookAllowPrivate); err != nil {
+	if err := notify.ValidateURL(req.URL, a.Settings.Bool(settings.WebhookAllowPrivate)); err != nil {
 		invalid(w, r, err.Error())
 		return
 	}
@@ -429,7 +428,7 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.URL != nil {
-		if err := notify.ValidateURL(*req.URL, a.Integrations.WebhookAllowPrivate); err != nil {
+		if err := notify.ValidateURL(*req.URL, a.Settings.Bool(settings.WebhookAllowPrivate)); err != nil {
 			invalid(w, r, err.Error())
 			return
 		}

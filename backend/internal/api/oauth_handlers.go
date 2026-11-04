@@ -15,6 +15,7 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
@@ -176,7 +177,7 @@ func (a *API) resolveOAuthUser(r *http.Request, provider string, pr oauth.Profil
 	if setup {
 		return store.User{}, "setup_required" // the first account must be created with the setup code
 	}
-	if !a.Cfg.OpenRegistration {
+	if !a.Settings.Bool(settings.OpenRegistration) {
 		return store.User{}, "registration_closed"
 	}
 	for i := 0; i < 5; i++ {

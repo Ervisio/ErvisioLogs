@@ -28,6 +28,7 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
@@ -44,6 +45,7 @@ type API struct {
 	Store     *store.Store
 	Hasher    *auth.Hasher
 	Cfg       config.Auth
+	Settings  *settings.Service
 	Providers map[string]oauth.Provider
 	Log       *slog.Logger
 	// TrustProxy makes the client IP come from the last X-Forwarded-For entry (set by your reverse proxy).
@@ -77,10 +79,10 @@ type API struct {
 }
 
 // New builds the API. Call EnsureSetupCode before serving.
-func New(s *store.Store, h *auth.Hasher, cfg config.Auth, providers map[string]oauth.Provider, log *slog.Logger) *API {
+func New(s *store.Store, h *auth.Hasher, cfg config.Auth, sets *settings.Service, providers map[string]oauth.Provider, log *slog.Logger) *API {
 	u, _ := url.Parse(cfg.PublicURL)
 	return &API{
-		Store: s, Hasher: h, Cfg: cfg, Providers: providers, Log: log,
+		Store: s, Hasher: h, Cfg: cfg, Settings: sets, Providers: providers, Log: log,
 		setupCode: cfg.SetupCode, secret: []byte(cfg.SecretKey),
 		secure: u != nil && u.Scheme == "https", origin: strings.TrimRight(cfg.PublicURL, "/"),
 		loginIP:            auth.NewLimiter(30, time.Minute),
@@ -148,6 +150,9 @@ func (a *API) Routes(r chi.Router) {
 	r.Patch("/workspaces/{id}/members/{userId}", a.updateMember)
 	r.Delete("/workspaces/{id}/members/{userId}", a.removeMember)
 	r.Get("/workspaces/{id}/audit", a.listAudit)
+	r.Get("/workspaces/{id}/settings", a.listSettings(a.workspaceSettings))
+	r.Put("/workspaces/{id}/settings/{key}", a.putSetting(a.workspaceSettings))
+	r.Delete("/workspaces/{id}/settings/{key}", a.resetSetting(a.workspaceSettings))
 
 	r.Get("/projects", a.listProjects)
 	r.Post("/projects", a.createProject)
@@ -157,6 +162,9 @@ func (a *API) Routes(r chi.Router) {
 	r.Get("/projects/{id}/environments", a.listEnvironments)
 	r.Post("/projects/{id}/environments", a.createEnvironment)
 	r.Delete("/projects/{id}/environments/{envId}", a.deleteEnvironment)
+	r.Get("/projects/{id}/settings", a.listSettings(a.projectSettings))
+	r.Put("/projects/{id}/settings/{key}", a.putSetting(a.projectSettings))
+	r.Delete("/projects/{id}/settings/{key}", a.resetSetting(a.projectSettings))
 	r.Get("/projects/{id}/streams", a.listStreams)
 	r.Post("/projects/{id}/streams", a.createStream)
 	r.Delete("/projects/{id}/streams/{streamId}", a.deleteStream)
@@ -186,6 +194,9 @@ func (a *API) Routes(r chi.Router) {
 	r.Get("/admin/retention", a.adminListRetention)
 	r.Put("/admin/retention/{scopeType}/{scopeId}", a.adminPutRetention)
 	r.Delete("/admin/retention/{scopeType}/{scopeId}", a.adminDeleteRetention)
+	r.Get("/admin/settings", a.listSettings(a.instanceSettings))
+	r.Put("/admin/settings/{key}", a.putSetting(a.instanceSettings))
+	r.Delete("/admin/settings/{key}", a.resetSetting(a.instanceSettings))
 
 	r.Post("/logs/export", a.exportLogs)
 	r.Get("/queries", a.listSavedQueries)

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
@@ -21,22 +22,21 @@ const (
 	alertWorkers      = 4
 )
 
-// RunAlerts evaluates due rules every interval until ctx ends (ADR 0010). One instance at a time
-// does the work, through a Postgres advisory lock, so replicas do not send duplicates. Alert
-// history older than retention is pruned once an hour.
-func (a *API) RunAlerts(ctx context.Context, interval, retention time.Duration) {
+// RunAlerts evaluates due rules every alerts.interval until ctx ends (ADR 0010). One instance at a
+// time does the work, through a Postgres advisory lock, so replicas do not send duplicates. Alert
+// history older than alerts.history_retention is pruned once an hour.
+func (a *API) RunAlerts(ctx context.Context) {
 	if a.Integrations == nil || a.Integrations.Notify == nil || a.Logs == nil || a.Logs.CH == nil {
 		return
 	}
-	t := time.NewTicker(interval)
-	defer t.Stop()
 	var lastPrune time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-time.After(a.Settings.Duration(settings.AlertsInterval)):
 		}
+		retention := a.Settings.Duration(settings.AlertsHistory)
 		ran, err := a.Store.WithAlertLock(ctx, func(ctx context.Context) error {
 			a.evaluateDue(ctx)
 			if retention > 0 && time.Since(lastPrune) > time.Hour {

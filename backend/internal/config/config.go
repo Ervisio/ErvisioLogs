@@ -104,6 +104,9 @@ type Config struct {
 	Alerts       Alerts
 	// ExportMaxRows caps the rows of one export (ADR 0010).
 	ExportMaxRows int
+	// FromEnv holds the variables that were set, by full name. A runtime setting backed by one of
+	// them cannot be changed from the API (ADR 0018).
+	FromEnv map[string]bool
 }
 
 // Alerts configures the alert evaluator and webhook delivery (ADR 0010).
@@ -136,8 +139,10 @@ func Load() (Config, error) { return load(os.Getenv, os.ReadFile) }
 
 func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Config, error) {
 	var errs []error
+	fromEnv := map[string]bool{}
 	get := func(name, def string) string {
 		if v := strings.TrimSpace(getenv(prefix + name)); v != "" {
+			fromEnv[prefix+name] = true
 			return v
 		}
 		return def
@@ -161,6 +166,7 @@ func load(getenv func(string) string, readFile func(string) ([]byte, error)) (Co
 	}
 
 	c := Config{
+		FromEnv:  fromEnv,
 		Env:      Env(get("ENV", string(EnvDevelopment))),
 		HTTPAddr: get("HTTP_ADDR", ":8080"),
 		ClickHouse: ClickHouse{

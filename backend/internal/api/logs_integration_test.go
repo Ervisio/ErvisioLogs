@@ -146,6 +146,9 @@ func TestIngestSearchAndTail(t *testing.T) {
 		close(frames)
 	}()
 
+	// Unknown streams must be rejected, not created.
+	expect(t, alice.put("/projects/"+proj+"/settings/ingest.auto_create_streams", map[string]any{"value": false}), 200)
+
 	// Ingest: permissions first.
 	expect(t, alice.post("/ingest", map[string]any{"message": "x"}), 401)
 	expect(t, alice.bearerJSON("POST", "/ingest", readOnly, map[string]any{"message": "x"}), 403)
@@ -379,4 +382,32 @@ func TestTailResumeAndAuth(t *testing.T) {
 		}
 	}
 	t.Fatal("no reset event")
+}
+
+func TestStreamAutoCreate(t *testing.T) {
+	e := newLogsEnv(t)
+	alice := e.newUser(e.setupAdmin(), "alice")
+	ws := id(expect(t, alice.post("/workspaces", map[string]string{"name": "Server"}), 201), "id")
+	proj := id(expect(t, alice.post("/projects", map[string]string{"workspace_id": ws, "name": "RP"}), 201), "id")
+	tok := expect(t, alice.post("/tokens", map[string]any{"project_id": proj, "name": "srv", "scopes": []string{"logs:ingest"}}), 201).JSON()["token"].(string)
+	// The project starts with the "default" stream; one more fits under a limit of two.
+	expect(t, alice.put("/projects/"+proj+"/settings/ingest.max_streams", map[string]any{"value": 2}), 200)
+
+	r := expect(t, alice.bearerJSON("POST", "/ingest/batch", tok, map[string]any{"events": []map[string]any{
+		{"stream": "economy", "message": "a"},
+		{"stream": "economy", "message": "b"},
+		{"stream": "inventory", "message": "c"},
+	}}), 202).JSON()
+	errs := r["errors"].([]any)
+	if r["accepted"].(float64) != 2 || len(errs) != 1 || !strings.Contains(errs[0].(map[string]any)["reason"].(string), "stream limit") {
+		t.Fatalf("batch result %v", r)
+	}
+	streams := expect(t, alice.get("/projects/"+proj+"/streams"), 200).JSON()["items"].([]any)
+	if len(streams) != 2 {
+		t.Fatalf("streams %v", streams)
+	}
+	// The limit holds for manual creation too, and 0 lifts it.
+	expect(t, alice.post("/projects/"+proj+"/streams", map[string]string{"name": "inventory"}), 409)
+	expect(t, alice.put("/projects/"+proj+"/settings/ingest.max_streams", map[string]any{"value": 0}), 200)
+	expect(t, alice.post("/projects/"+proj+"/streams", map[string]string{"name": "inventory"}), 201)
 }

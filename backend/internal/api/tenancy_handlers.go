@@ -574,6 +574,15 @@ func (a *API) createStream(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "stream name: lowercase letters, digits, dot, dash or underscore, up to 63 characters")
 		return
 	}
+	cat, err := a.projectCatalog(r.Context(), p.WorkspaceID, p.ID)
+	if err != nil {
+		a.internalError(w, r, err)
+		return
+	}
+	if a.streamLimit(p.WorkspaceID, p.ID, len(cat.streams)) {
+		httpx.WriteProblem(w, r, http.StatusConflict, errStreamLimit.Error())
+		return
+	}
 	s, err := a.Store.CreateStream(r.Context(), p.WorkspaceID, p.ID, req.Name)
 	if err != nil {
 		a.storeError(w, r, err)

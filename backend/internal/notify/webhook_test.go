@@ -98,14 +98,14 @@ func TestSendSignedAndBlocked(t *testing.T) {
 	defer srv.Close()
 	d := Delivery{URL: srv.URL, Format: FormatErvisio, Key: key, Payload: Payload{Type: "test", EventID: uuid.New()}}
 
-	if err := NewClient(true).Send(context.Background(), d); err != nil {
+	if err := NewClient(func() bool { return true }).Send(context.Background(), d); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if !Verify(key, gotTS, gotSig, gotBody, time.Now(), time.Minute) {
 		t.Fatal("receiver could not verify the signature")
 	}
 	// The test server listens on loopback: the default client must refuse it.
-	if err := NewClient(false).Send(context.Background(), d); err == nil {
+	if err := NewClient(func() bool { return false }).Send(context.Background(), d); err == nil {
 		t.Fatal("loopback delivery was not blocked")
 	}
 }
@@ -115,7 +115,7 @@ func TestSendNoRedirect(t *testing.T) {
 		http.Redirect(w, r, "http://169.254.169.254/", http.StatusFound)
 	}))
 	defer srv.Close()
-	err := NewClient(true).Send(context.Background(), Delivery{URL: srv.URL, Format: FormatSlack, Payload: Payload{Type: "test"}})
+	err := NewClient(func() bool { return true }).Send(context.Background(), Delivery{URL: srv.URL, Format: FormatSlack, Payload: Payload{Type: "test"}})
 	if err == nil || !strings.Contains(err.Error(), "302") {
 		t.Fatalf("redirect: %v", err)
 	}

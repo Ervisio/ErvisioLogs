@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/config"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
@@ -38,7 +39,9 @@ type Archiver struct {
 	CH    driver.Conn
 	HTTP  *CHHTTP
 	Cfg   config.Archive
-	Log   *slog.Logger
+	// Settings, when set, overrides the timing of Cfg at every pass (ADR 0018).
+	Settings *settings.Service
+	Log      *slog.Logger
 	// CutoffLag overrides defaultCutoffLag (tests).
 	CutoffLag time.Duration
 
@@ -66,10 +69,19 @@ type PassReport struct {
 	Orphans   *OrphanReport
 }
 
-// Run calls RunOnce every Cfg.Interval until ctx ends.
+// timing returns Cfg with the runtime settings applied.
+func (a *Archiver) timing() config.Archive {
+	c := a.Cfg
+	if a.Settings != nil {
+		c.Interval = a.Settings.Duration(settings.ArchiveInterval)
+		c.Grace = a.Settings.Duration(settings.ArchiveGrace)
+		c.LateInterval = a.Settings.Duration(settings.ArchiveLateInterval)
+	}
+	return c
+}
+
+// Run calls RunOnce every interval until ctx ends.
 func (a *Archiver) Run(ctx context.Context) {
-	t := time.NewTicker(a.Cfg.Interval)
-	defer t.Stop()
 	for {
 		rep, err := a.RunOnce(ctx)
 		switch {
@@ -90,7 +102,7 @@ func (a *Archiver) Run(ctx context.Context) {
 		case <-ctx.Done():
 			a.Close()
 			return
-		case <-t.C:
+		case <-time.After(a.timing().Interval):
 		}
 	}
 }
@@ -244,7 +256,8 @@ type candidate struct {
 // candidates lists the stream-days that need a new generation: closed for longer than the grace
 // period, not past global retention, and holding rows inserted after the covered range.
 func (a *Archiver) candidates(ctx context.Context, now time.Time, pol Policies) ([]candidate, error) {
-	before := now.Add(-a.Cfg.Grace).Truncate(24 * time.Hour)
+	timing := a.timing()
+	before := now.Add(-timing.Grace).Truncate(24 * time.Hour)
 	covs, err := a.Store.Coverages(ctx, before)
 	if err != nil {
 		return nil, err
@@ -279,7 +292,7 @@ func (a *Archiver) candidates(ctx context.Context, now time.Time, pol Policies) 
 			if maxIns.Before(cv.CutoffTo) {
 				continue // fully covered
 			}
-			if now.Sub(cv.LastStartedAt) < a.Cfg.LateInterval {
+			if now.Sub(cv.LastStartedAt) < timing.LateInterval {
 				continue // late rows wait for the next late generation
 			}
 		}

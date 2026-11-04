@@ -25,6 +25,7 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/migrate"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/migrations"
 )
@@ -79,7 +80,11 @@ func newEnv(t *testing.T, mutate func(*config.Auth), providers map[string]oauth.
 	}
 	e.store = store.New(pool)
 	fast := auth.NewHasher(auth.Params{Memory: 8, Time: 1, Threads: 1}, 4)
-	e.api = New(e.store, fast, e.cfg, providers, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
+	sets := settings.New(e.store, config.Config{Auth: e.cfg, ExportMaxRows: 1_000_000, FromEnv: map[string]bool{}})
+	if err := sets.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.api = New(e.store, fast, e.cfg, sets, providers, slog.New(slog.NewTextHandler(testWriter{t}, nil)))
 	for _, f := range tweak {
 		f(e.api)
 	}

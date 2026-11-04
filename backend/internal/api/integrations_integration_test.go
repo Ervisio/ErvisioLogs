@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 )
 
 // receiver records the webhook deliveries it gets.
@@ -60,7 +61,13 @@ func (rc *receiver) all() []receivedHook {
 // newIntegrationsEnv is a logs env with alerts on; webhooks may target loopback for the receiver.
 func newIntegrationsEnv(t *testing.T) *logsEnv {
 	e := newLogsEnv(t)
-	e.api.Integrations = &Integrations{Notify: notify.NewClient(true), WebhookAllowPrivate: true, ExportMaxRows: 5}
+	e.api.Integrations = &Integrations{Notify: notify.NewClient(func() bool { return true })}
+	ctx := context.Background()
+	for key, v := range map[string]string{settings.WebhookAllowPrivate: "true", settings.ExportMaxRows: "5"} {
+		if _, err := e.api.Settings.Set(ctx, settings.Scope{}, key, json.RawMessage(v), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return e
 }
 

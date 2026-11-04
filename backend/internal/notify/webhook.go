@@ -166,22 +166,23 @@ type Client struct {
 	backoff  time.Duration
 }
 
-// NewClient builds a client. allowPrivate lifts the address filter.
-func NewClient(allowPrivate bool) *Client {
+// NewClient builds a client. allowPrivate is asked on every dial; true lifts the address filter.
+func NewClient(allowPrivate func() bool) *Client {
 	dialer := &net.Dialer{Timeout: 5 * time.Second}
-	if !allowPrivate {
-		// Control sees the resolved address being dialled, so DNS rebinding cannot slip
-		// a private address past a check made on the name.
-		dialer.Control = func(_, address string, _ syscall.RawConn) error {
-			ap, err := netip.ParseAddrPort(address)
-			if err != nil {
-				return fmt.Errorf("unexpected address %q", address)
-			}
-			if !Public(ap.Addr()) {
-				return errBlocked
-			}
+	// Control sees the resolved address being dialled, so DNS rebinding cannot slip a private
+	// address past a check made on the name.
+	dialer.Control = func(_, address string, _ syscall.RawConn) error {
+		if allowPrivate() {
 			return nil
 		}
+		ap, err := netip.ParseAddrPort(address)
+		if err != nil {
+			return fmt.Errorf("unexpected address %q", address)
+		}
+		if !Public(ap.Addr()) {
+			return errBlocked
+		}
+		return nil
 	}
 	tr := &http.Transport{
 		Proxy:                 nil, // a proxy would hide the dialled address from the filter

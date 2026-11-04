@@ -24,6 +24,7 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/oauth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/server"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/version"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/wal"
@@ -111,12 +112,16 @@ func healthcheck() error {
 	return nil
 }
 
+// logLevel starts at the configured level; the server.log_level setting changes it at runtime.
+var logLevel slog.LevelVar
+
 func withConfig(fn func(context.Context, config.Config, *slog.Logger) error) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("invalid configuration:\n%w", err)
 	}
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	logLevel.Set(cfg.LogLevel)
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: &logLevel}))
 	slog.SetDefault(log)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -182,7 +187,21 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		providers["discord"] = oauth.NewDiscord(d.ClientID, d.ClientSecret, oauth.RedirectURL(cfg.Auth.PublicURL, "discord"))
 	}
 	st := store.New(pool)
-	apiHandlers := api.New(st, auth.NewHasher(auth.DefaultParams, 4), cfg.Auth, providers, log)
+	sets := settings.New(st, cfg)
+	sets.OnLoad = func() {
+		var l slog.Level
+		if l.UnmarshalText([]byte(sets.String(settings.LogLevel))) == nil {
+			logLevel.Set(l)
+		}
+	}
+	// Before `migrate up` the table is missing: the defaults apply until the next reload.
+	if err := sets.Load(ctx); err != nil {
+		log.Warn("could not load the runtime settings (migrations pending?)", "error", err)
+	}
+	sctx, stopSettings := context.WithCancel(context.Background())
+	defer stopSettings()
+	go sets.Run(sctx, 30*time.Second, log)
+	apiHandlers := api.New(st, auth.NewHasher(auth.DefaultParams, 4), cfg.Auth, sets, providers, log)
 	apiHandlers.TrustProxy = cfg.Auth.TrustProxy
 	apiHandlers.Storage = &api.Storage{SecretsDir: cfg.Archive.SecretsDir}
 	// The setup code is only meaningful once the schema exists; before `migrate up` the query fails and
@@ -202,8 +221,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	defer spool.Close()
 	hub := ingest.NewHub(10000)
 	writer := &ingest.Writer{Log: spool, CH: ch, Dir: cfg.Ingest.SpoolDir, Hub: hub, Logger: log}
-	apiHandlers.Logs = &api.Logs{WAL: spool, CH: ch, Hub: hub, Writer: writer,
-		Validator: ingest.Validator{MaxFutureSkew: cfg.Ingest.MaxFutureSkew, MaxPastAge: cfg.Ingest.MaxPastAge, Now: time.Now}}
+	apiHandlers.Logs = &api.Logs{WAL: spool, CH: ch, Hub: hub, Writer: writer}
 
 	errc := make(chan error, 2)
 	wctx, stopWriter := context.WithCancel(context.Background())
@@ -217,9 +235,9 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	defer func() { stopWriter(); <-writerDone }()
 
 	// Archiver (ADR 0008): one pass every Interval; across replicas a Postgres lock keeps one
-	// pass at a time. Interval 0 leaves archiving to another process.
+	// pass at a time. Interval 0 in the environment leaves archiving to another process.
 	if cfg.Archive.Interval > 0 {
-		arch := &archive.Archiver{Store: st, CH: ch, Cfg: cfg.Archive, Log: log.With("component", "archiver"),
+		arch := &archive.Archiver{Store: st, CH: ch, Cfg: cfg.Archive, Settings: sets, Log: log.With("component", "archiver"),
 			HTTP: archive.NewCHHTTP(cfg.ClickHouse.HTTPURL, cfg.ClickHouse.Database, cfg.ClickHouse.User, cfg.ClickHouse.Password)}
 		apiHandlers.Logs.OverCapacity = arch.OverCapacity
 		apiHandlers.Logs.Archive = arch
@@ -230,15 +248,15 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		defer func() { stopArchiver(); <-archiverDone }()
 	}
 
-	// Alerts (ADR 0010): rules are evaluated every Interval by one replica at a time.
-	apiHandlers.Integrations = &api.Integrations{Notify: notify.NewClient(cfg.Alerts.WebhookAllowPrivate),
-		WebhookAllowPrivate: cfg.Alerts.WebhookAllowPrivate, ExportMaxRows: cfg.ExportMaxRows}
+	// Alerts (ADR 0010): rules are evaluated every interval by one replica at a time. Interval 0 in
+	// the environment turns evaluation off.
+	apiHandlers.Integrations = &api.Integrations{Notify: notify.NewClient(func() bool { return sets.Bool(settings.WebhookAllowPrivate) })}
 	if cfg.Alerts.Interval > 0 {
 		alctx, stopAlerts := context.WithCancel(context.Background())
 		alertsDone := make(chan struct{})
 		go func() {
 			defer close(alertsDone)
-			apiHandlers.RunAlerts(alctx, cfg.Alerts.Interval, cfg.Alerts.HistoryRetention)
+			apiHandlers.RunAlerts(alctx)
 		}()
 		defer func() { stopAlerts(); <-alertsDone }()
 	}

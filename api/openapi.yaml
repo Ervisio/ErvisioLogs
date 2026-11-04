@@ -664,6 +664,130 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  "/api/v1/workspaces/{id}/settings":
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaceSettings
+      summary: "List workspace settings"
+      description: "Each entry carries its effective value, where it comes from and the value it would inherit without an override at this level. Only the settings a project can override are listed."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SettingEntry"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  "/api/v1/workspaces/{id}/settings/{key}":
+    put:
+      tags: [workspaces]
+      operationId: putWorkspaceSetting
+      summary: "Override a setting at the workspace level (needs workspace:manage)"
+      description: "Durations are whole seconds. A key set by an environment variable on the server answers 409; an unknown key, or one that cannot be stored at this level, answers 404."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ingest.max_streams
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: [boolean, integer, string]
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [workspaces]
+      operationId: resetWorkspaceSetting
+      summary: "Remove a workspace override (needs workspace:manage)"
+      description: The setting inherits again from the level above.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id.
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ingest.max_streams
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting after the reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/projects:
     get:
       tags: [projects]
@@ -966,6 +1090,130 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  "/api/v1/projects/{id}/settings":
+    get:
+      tags: [projects]
+      operationId: listProjectSettings
+      summary: "List project settings"
+      description: "Each entry carries its effective value, where it comes from and the value it would inherit without an override at this level. Only the settings a project can override are listed."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SettingEntry"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  "/api/v1/projects/{id}/settings/{key}":
+    put:
+      tags: [projects]
+      operationId: putProjectSetting
+      summary: "Override a setting at the project level (needs projects:write)"
+      description: "Durations are whole seconds. A key set by an environment variable on the server answers 409; an unknown key, or one that cannot be stored at this level, answers 404."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ingest.max_streams
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: [boolean, integer, string]
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [projects]
+      operationId: resetProjectSetting
+      summary: "Remove a project override (needs projects:write)"
+      description: The setting inherits again from the level above.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ingest.max_streams
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting after the reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   "/api/v1/projects/{id}/streams":
     get:
       tags: [projects]
@@ -1003,6 +1251,7 @@ paths:
       tags: [projects]
       operationId: createStream
       summary: "Create a stream (needs projects:write)"
+      description: "409 when the name is taken or the project has reached its `ingest.max_streams` setting."
       parameters:
         - name: id
           in: path
@@ -1969,6 +2218,108 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/Invalid"
+  /api/v1/admin/settings:
+    get:
+      tags: [admin]
+      operationId: listInstanceSettings
+      summary: "List instance settings (instance admin)"
+      description: "Each entry carries its effective value, where it comes from and the value it would inherit without an override at this level. Keys set by an environment variable are locked to that value."
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SettingEntry"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/admin/settings/{key}:
+    put:
+      tags: [admin]
+      operationId: putInstanceSetting
+      summary: "Override a setting at the instance level (instance admin)"
+      description: "Durations are whole seconds. A key set by an environment variable on the server answers 409; an unknown key, or one that cannot be stored at this level, answers 404."
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ingest.max_streams
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: [boolean, integer, string]
+              additionalProperties: false
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [admin]
+      operationId: resetInstanceSetting
+      summary: "Remove a instance override (instance admin)"
+      description: The setting inherits again from the level above.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ingest.max_streams
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The setting after the reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/logs/export:
     post:
       tags: [logs]
@@ -3362,6 +3713,39 @@ components:
         updated_at:
           type: string
           format: date-time
+      additionalProperties: false
+    SettingEntry:
+      type: object
+      required: [key, type, value, source, inherited, locked]
+      properties:
+        key:
+          type: string
+        type:
+          type: string
+          enum: [bool, int, duration, choice]
+        value:
+          type: [boolean, integer, string]
+          description: "Effective value. Durations are whole seconds."
+        source:
+          type: string
+          enum: [env, instance, workspace, project, default]
+        inherited:
+          type: [boolean, integer, string]
+          description: The value this level would get without its own override.
+        locked:
+          type: boolean
+          description: "Set by an environment variable; change it on the server."
+        env:
+          type: string
+          description: The environment variable that sets this key.
+        min:
+          type: integer
+        max:
+          type: integer
+        options:
+          type: array
+          items:
+            type: string
       additionalProperties: false
     ExportRequest:
       description: "A SearchRequest without `limit`, `cursor` and `include_total`, plus the output format."

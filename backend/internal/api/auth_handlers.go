@@ -12,6 +12,7 @@ import (
 
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
+	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
@@ -47,7 +48,7 @@ func (a *API) listProviders(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"local":             true,
 		"providers":         names,
-		"open_registration": a.Cfg.OpenRegistration,
+		"open_registration": a.Settings.Bool(settings.OpenRegistration),
 		"setup_required":    setup,
 	})
 }
@@ -92,7 +93,7 @@ func (a *API) register(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteProblem(w, r, http.StatusForbidden, "a valid setup code is required to create the first account")
 			return
 		}
-	} else if !a.Cfg.OpenRegistration {
+	} else if !a.Settings.Bool(settings.OpenRegistration) {
 		httpx.WriteProblem(w, r, http.StatusForbidden, "registration is closed; ask an administrator to create your account")
 		return
 	}
@@ -233,7 +234,7 @@ func (a *API) meBody(ctx context.Context, u store.User, p principal) map[string]
 func (a *API) startSession(w http.ResponseWriter, r *http.Request, u store.User) bool {
 	secret, hash := auth.NewSessionSecret()
 	csrf := auth.NewCSRFToken()
-	exp := a.now().Add(a.Cfg.SessionTTL)
+	exp := a.now().Add(a.Settings.Duration(settings.SessionTTL))
 	a.purgeExpired(r.Context())
 	if err := a.Store.CreateSession(r.Context(), u.ID, hash, csrf, exp, r.UserAgent()); err != nil {
 		a.internalError(w, r, err)
