@@ -1,5 +1,12 @@
 # Ervisio Logs
 
+## In-app documentation
+
+After signing in, open **Documentation** in the main navigation or the command palette (`Ctrl K` / `⌘K`).
+The bundled English and Italian guides cover setup, ingestion, search, tokens and roles, storage and retention,
+FiveM, alerts, deployment and troubleshooting. Search works across article text and examples. No project or
+administrator role is required; share a topic using its `/docs/<topic>` address.
+
 Self-hosted, API-first, multi-tenant log management. Runs standalone (systemd), as a Docker Compose stack, or from
 an Ervisio plugin that installs either of the two.
 

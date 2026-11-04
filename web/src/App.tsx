@@ -5,6 +5,7 @@ import { AuthProvider, RequireAuth, useAuth } from './lib/auth';
 import { TenancyProvider } from './lib/tenancy';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
+import Documentation from './pages/Documentation';
 import { Explorer, Home, NotFound, Projects, SectionPage } from './pages/Workspace';
 
 function FullPageLoading() {
@@ -51,6 +52,8 @@ export default function App() {
             <Route element={<Shell />}>
               <Route index element={<Home />} />
               <Route path="status" element={<Overview />} />
+              <Route path="docs" element={<Documentation />} />
+              <Route path="docs/:topic" element={<Documentation />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:projectId" element={<Explorer />} />
               <Route path="projects/:projectId/streams/:streamId" element={<Explorer />} />

@@ -327,6 +327,67 @@ describe('system status', () => {
   });
 });
 
+describe('in-app documentation', () => {
+  test('opens from the rail without a workspace or project', async () => {
+    const calls = stubApi({ 'GET /auth/me': { body: { ...session, workspaces: [] } } });
+    renderApp('/projects');
+    await userEvent.click(await screen.findByRole('link', { name: 'Documentation' }));
+    expect(await screen.findByRole('heading', { name: 'Learn Ervisio Logs' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+    expect(calls.every((call) => call.key === 'GET /auth/me')).toBe(true);
+  });
+
+  test('searches article bodies, handles no matches and clears the search', async () => {
+    stubApi(signedIn);
+    renderApp('/docs');
+    const search = await screen.findByRole('searchbox', { name: 'Search documentation' });
+    await userEvent.type(search, 'path-style');
+    expect(screen.getByRole('heading', { name: 'Storage and retention' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, 'no-such-topic-xyz');
+    expect(screen.getByText('No topics match this search.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+  });
+
+  test('deep links keep the article when changing language and copy server examples', async () => {
+    const ui = userEvent.setup();
+    const write = vi.spyOn(navigator.clipboard, 'writeText');
+    stubApi(signedIn);
+    renderApp('/docs/fivem');
+    expect(await screen.findByRole('heading', { name: 'FiveM integration' })).toBeInTheDocument();
+    await ui.click(screen.getAllByRole('button', { name: 'Copy example' })[0]);
+    expect(write).toHaveBeenCalledWith(expect.stringContaining('set ervisio_logs_token'));
+    expect(write.mock.calls[0][0]).not.toContain('setr');
+    await ui.click(screen.getByRole('button', { name: 'Account' }));
+    await ui.selectOptions(screen.getByLabelText('Language'), 'it');
+    expect(await screen.findByRole('heading', { name: 'Integrazione FiveM' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Installa la risorsa' })).toBeInTheDocument();
+    write.mockRestore();
+  });
+
+  test('explains clipboard failure and keeps the example available', async () => {
+    const ui = userEvent.setup();
+    const write = vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+    stubApi(signedIn);
+    renderApp('/docs/ingest-api');
+    await ui.click((await screen.findAllByRole('button', { name: 'Copy example' }))[0]);
+    expect(await screen.findByText('Could not copy. Select and copy the example manually.')).toBeInTheDocument();
+    expect(screen.getByText(/curl -X POST https:\/\/logs.example.com\/api\/v1\/ingest /)).toBeInTheDocument();
+    write.mockRestore();
+  });
+
+  test('an unknown topic offers the index, and command search opens the guide', async () => {
+    stubApi(signedIn);
+    renderApp('/docs/no-such-topic');
+    expect(await screen.findByRole('heading', { name: 'Topic not found' })).toBeInTheDocument();
+    await userEvent.keyboard('{Control>}k{/Control}');
+    await userEvent.keyboard('Documentation{Enter}');
+    expect(await screen.findByRole('heading', { name: 'Learn Ervisio Logs' })).toBeInTheDocument();
+  });
+});
+
 test('English and Italian define the same keys', () => {
   const keys = (o: object, prefix = ''): string[] =>
     Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' ? keys(v as object, `${prefix}${k}.`) : [`${prefix}${k}`]));
