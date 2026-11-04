@@ -569,6 +569,13 @@ func (s *Store) ArchiveSummary(ctx context.Context) (map[string]struct{ Count, B
 	return out, rows.Err()
 }
 
+// LastCatalogedAt is when a segment last passed verification and became readable; nil when none did.
+func (s *Store) LastCatalogedAt(ctx context.Context) (*time.Time, error) {
+	var t *time.Time
+	err := s.pool.QueryRow(ctx, `SELECT max(cataloged_at) FROM archive_segments`).Scan(&t)
+	return t, err
+}
+
 // ProviderInUse reports whether any segment, tombstones included, points at the provider.
 func (s *Store) ProviderInUse(ctx context.Context, id uuid.UUID) (bool, error) {
 	var used bool

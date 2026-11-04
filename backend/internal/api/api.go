@@ -58,8 +58,10 @@ type API struct {
 	Integrations *Integrations
 	Mail         *Mail
 
-	catalog   catalog
-	tailCount atomic.Int64
+	catalog    catalog
+	tailCount  atomic.Int64
+	limits     limiter
+	unarchived unarchivedCache
 
 	setupMu   sync.Mutex
 	setupCode string
@@ -191,6 +193,9 @@ func (a *API) Routes(r chi.Router) {
 	r.Post("/projects/{id}/streams", a.createStream)
 	r.Patch("/projects/{id}/streams/{streamId}", a.updateStream)
 	r.Delete("/projects/{id}/streams/{streamId}", a.deleteStream)
+	r.Get("/projects/{id}/purges", a.listPurges)
+	r.Post("/projects/{id}/purges", a.createPurge)
+	r.Get("/projects/{id}/purges/{jobId}", a.getPurge)
 
 	r.Post("/ingest", a.ingestOne)
 	r.Post("/ingest/batch", a.ingestBatch)
@@ -215,6 +220,7 @@ func (a *API) Routes(r chi.Router) {
 	r.Get("/admin/tokens", a.listAdminTokens)
 	r.Post("/admin/tokens", a.createAdminToken)
 	r.Delete("/admin/tokens/{id}", a.revokeAdminToken)
+	r.Get("/admin/health", a.adminHealth)
 	r.Get("/admin/storage", a.adminGetStorage)
 	r.Post("/admin/storage/providers", a.adminCreateProvider)
 	r.Put("/admin/storage/providers/{id}", a.adminUpdateProvider)

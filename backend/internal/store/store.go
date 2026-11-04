@@ -31,6 +31,9 @@ type Store struct{ pool *pgxpool.Pool }
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
+// Ping checks that PostgreSQL answers.
+func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
+
 func newID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
 
 // mapErr translates driver errors into the package's sentinel errors.

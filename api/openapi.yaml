@@ -1937,12 +1937,130 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  "/api/v1/projects/{id}/purges":
+    get:
+      tags: [projects]
+      operationId: listPurges
+      summary: "List the latest purge jobs of a project (needs logs:delete)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: "Newest first, at most 50."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PurgeJob"
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [projects]
+      operationId: createPurge
+      summary: "Purge a project's logs (needs logs:delete)"
+      description: "Permanently deletes hot rows and archived Parquet segments, optionally limited to one stream, one environment and a time range. Asynchronous: the job is queued and the archiver process runs it, so poll the job. Archived segments are removed whole, so 422 says when the range cuts one, and an environment filter cannot reach archived data. Events still in the write-ahead log are not covered. 503 when the archiver is off in this process; 409 while another purge of the project is queued or running. Audited as `logs.purge`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurgeRequest"
+      security:
+        - sessionCookie: []
+      responses:
+        "202":
+          description: "Queued; `Location` is the job."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurgeJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "503":
+          description: "The archiver is off in this process."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  "/api/v1/projects/{id}/purges/{jobId}":
+    get:
+      tags: [projects]
+      operationId: getPurge
+      summary: "Read a purge job (needs logs:delete)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project id.
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Purge job id.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The job and its progress.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurgeJob"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/ingest:
     post:
       tags: [logs]
       operationId: ingestEvent
       summary: "Ingest one event (API token with logs:ingest)"
-      description: "Accepts one event. The 202 answer arrives only after the event is fsynced to the instance's write-ahead log; ClickHouse receives it within seconds. Send `Content-Encoding: gzip` to compress the body. Browser sessions cannot ingest."
+      description: "Accepts one event. The 202 answer arrives only after the event is fsynced to the instance's write-ahead log; ClickHouse receives it within seconds. Send `Content-Encoding: gzip` to compress the body. Browser sessions cannot ingest. Rate limits and daily quotas (the `ingest.rate_*` and `ingest.*_quota_*` settings) answer 429 with Retry-After; only accepted events count."
       security:
         - bearerToken: []
       requestBody:
@@ -1974,6 +2092,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/IngestResult"
+        "429":
+          $ref: "#/components/responses/TooMany"
         "503":
           $ref: "#/components/responses/IngestUnavailable"
   /api/v1/ingest/batch:
@@ -2029,6 +2149,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "429":
+          $ref: "#/components/responses/TooMany"
         "503":
           $ref: "#/components/responses/IngestUnavailable"
   /api/v1/logs/search:
@@ -2441,6 +2563,26 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/admin/health:
+    get:
+      tags: [admin]
+      operationId: adminHealth
+      summary: Health of the ingest and archive pipeline (instance administrator)
+      description: "Built from state the process already keeps. `status` is `degraded` when PostgreSQL or ClickHouse is unreachable, a segment failed to upload, or the active archive destination reports an error. `wal` is null on a process that does not ingest. `oldest_unarchived_event_at` is cached for 30 seconds and null when everything is archived or the archiver is off."
+      security:
+        - sessionCookie: []
+        - adminToken: []
+      responses:
+        "200":
+          description: Current health.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminHealth"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/v1/admin/users:
     get:
       tags: [admin]
@@ -3965,6 +4107,8 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "415":
           $ref: "#/components/responses/UnsupportedEncoding"
+        "429":
+          $ref: "#/components/responses/TooMany"
         "503":
           $ref: "#/components/responses/IngestUnavailable"
 components:
@@ -4639,6 +4783,166 @@ components:
           type: [string, "null"]
           format: date-time
         revoked_at:
+          type: [string, "null"]
+          format: date-time
+      additionalProperties: false
+    HealthCheck:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: [string, "null"]
+      additionalProperties: false
+    HealthSegments:
+      type: object
+      required: [count, bytes]
+      properties:
+        count:
+          type: integer
+        bytes:
+          type: integer
+      additionalProperties: false
+    AdminHealth:
+      type: object
+      required: [status, wal, upload, archive, clickhouse, postgres]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        wal:
+          type: [object, "null"]
+          required: [bytes, max_bytes, segments, pending_records, lag_seconds]
+          properties:
+            bytes:
+              type: integer
+              description: Bytes on disk.
+            max_bytes:
+              type: integer
+              description: "Capacity; ingest answers 503 beyond it."
+            segments:
+              type: integer
+            pending_records:
+              type: integer
+              description: Records acknowledged but not yet written to ClickHouse.
+            lag_seconds:
+              type: integer
+          additionalProperties: false
+        upload:
+          type: object
+          required: [waiting, failed, last_verified_at, oldest_unarchived_event_at]
+          properties:
+            waiting:
+              $ref: "#/components/schemas/HealthSegments"
+            failed:
+              $ref: "#/components/schemas/HealthSegments"
+            last_verified_at:
+              type: [string, "null"]
+              format: date-time
+              description: When a segment was last verified and cataloged.
+            oldest_unarchived_event_at:
+              type: [string, "null"]
+              format: date-time
+          additionalProperties: false
+        archive:
+          type: object
+          required: [enabled, provider]
+          properties:
+            enabled:
+              type: boolean
+              description: Whether this process runs the archiver.
+            provider:
+              type: [object, "null"]
+              description: The active destination.
+              required: [name, type, status, last_error, last_checked_at]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                status:
+                  type: string
+                last_error:
+                  type: [string, "null"]
+                last_checked_at:
+                  type: [string, "null"]
+                  format: date-time
+              additionalProperties: false
+          additionalProperties: false
+        clickhouse:
+          $ref: "#/components/schemas/HealthCheck"
+        postgres:
+          $ref: "#/components/schemas/HealthCheck"
+      additionalProperties: false
+    PurgeRequest:
+      type: object
+      required: [confirm]
+      properties:
+        confirm:
+          type: string
+          description: "Must equal the project slug."
+        stream:
+          type: string
+          description: Stream name; all streams when absent.
+        environment:
+          type: string
+          description: Environment name; all environments when absent.
+        from:
+          type: string
+          format: date-time
+          description: "Inclusive; from the beginning when absent."
+        to:
+          type: string
+          format: date-time
+          description: "Exclusive; to the end when absent."
+      additionalProperties: false
+    PurgeJob:
+      type: object
+      required: [id, workspace_id, project_id, stream_id, environment_id, from, to, state, rows_deleted, segments_removed, error, created_by, created_at, started_at, finished_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        stream_id:
+          type: [string, "null"]
+          format: uuid
+        environment_id:
+          type: [string, "null"]
+          format: uuid
+        from:
+          type: [string, "null"]
+          format: date-time
+        to:
+          type: [string, "null"]
+          format: date-time
+        state:
+          type: string
+          enum: [queued, running, done, failed]
+        rows_deleted:
+          type: integer
+          description: Hot rows removed from ClickHouse.
+        segments_removed:
+          type: integer
+          description: Archived segments taken out of service; their objects are deleted from the destination afterwards.
+        error:
+          type: [string, "null"]
+        created_by:
+          type: [string, "null"]
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: [string, "null"]
+          format: date-time
+        finished_at:
           type: [string, "null"]
           format: date-time
       additionalProperties: false

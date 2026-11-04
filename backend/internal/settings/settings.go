@@ -44,6 +44,15 @@ const (
 	SMTPUsername        = "email.smtp_username"
 	SMTPPasswordFile    = "email.smtp_password_file"
 	MailFrom            = "email.from"
+
+	RatePerToken         = "ingest.rate_per_token"
+	RatePerProject       = "ingest.rate_per_project"
+	RatePerWorkspace     = "ingest.rate_per_workspace"
+	RateBurstSeconds     = "ingest.rate_burst_seconds"
+	WorkspaceQuotaEvents = "ingest.workspace_quota_events"
+	WorkspaceQuotaBytes  = "ingest.workspace_quota_bytes"
+	ProjectQuotaEvents   = "ingest.project_quota_events"
+	ProjectQuotaBytes    = "ingest.project_quota_bytes"
 )
 
 type Kind string
@@ -68,9 +77,26 @@ type Def struct {
 	Check func(string) error
 	// PerProject settings can also be stored for a workspace and for a project.
 	PerProject bool
+	// PerWorkspace settings can also be stored for a workspace, but not for a project.
+	PerWorkspace bool
 }
 
-const day = 24 * 60 * 60
+// allows reports whether the setting can be stored at sc.
+func (d Def) allows(sc Scope) bool {
+	switch sc.level() {
+	case "project":
+		return d.PerProject
+	case "workspace":
+		return d.PerProject || d.PerWorkspace
+	}
+	return true
+}
+
+const (
+	day      = 24 * 60 * 60
+	maxRate  = 10_000_000
+	maxQuota = 1 << 50
+)
 
 func defs(c config.Config) []Def {
 	secs := func(d time.Duration) int64 { return int64(d / time.Second) }
@@ -99,6 +125,16 @@ func defs(c config.Config) []Def {
 		// The password is a file in the secrets directory, unless ERVISIO_LOGS_SMTP_PASSWORD is set.
 		{Key: SMTPPasswordFile, Kind: String, Default: "", Max: 100, Check: checkFileName},
 		{Key: MailFrom, Kind: String, Env: "SMTP_FROM", Default: c.Mail.From, Max: 320, Check: checkAddress},
+		// Ingest limits (ADR 0020). Rates are events per second, quotas count per UTC day; 0 means unlimited.
+		{Key: RatePerToken, Kind: Int, Default: int64(0), Max: maxRate, PerProject: true},
+		{Key: RatePerProject, Kind: Int, Default: int64(0), Max: maxRate, PerProject: true},
+		{Key: RatePerWorkspace, Kind: Int, Default: int64(0), Max: maxRate, PerWorkspace: true},
+		// A rate limit lets a client burst for this many seconds of its rate.
+		{Key: RateBurstSeconds, Kind: Int, Default: int64(5), Min: 1, Max: 3600},
+		{Key: WorkspaceQuotaEvents, Kind: Int, Default: int64(0), Max: maxQuota, PerWorkspace: true},
+		{Key: WorkspaceQuotaBytes, Kind: Int, Default: int64(0), Max: maxQuota, PerWorkspace: true},
+		{Key: ProjectQuotaEvents, Kind: Int, Default: int64(0), Max: maxQuota, PerProject: true},
+		{Key: ProjectQuotaBytes, Kind: Int, Default: int64(0), Max: maxQuota, PerProject: true},
 	}
 }
 
@@ -294,6 +330,11 @@ func (s *Service) ProjectBool(ws, project uuid.UUID, key string) bool {
 	return s.get(key, Scope{ws, project}).(bool)
 }
 
+// WorkspaceInt resolves key for a workspace: its own value, else the instance's.
+func (s *Service) WorkspaceInt(ws uuid.UUID, key string) int64 {
+	return s.get(key, Scope{Workspace: ws}).(int64)
+}
+
 func (s *Service) ProjectInt(ws, project uuid.UUID, key string) int64 {
 	return s.get(key, Scope{ws, project}).(int64)
 }
@@ -338,7 +379,7 @@ func (s *Service) Entry(sc Scope, key string) (Entry, error) {
 }
 
 func (s *Service) entry(d Def, sc Scope) (Entry, bool) {
-	if sc != (Scope{}) && !d.PerProject {
+	if !d.allows(sc) {
 		return Entry{}, false
 	}
 	e := Entry{Key: d.Key, Type: d.Kind, Locked: s.locked[d.Key], Options: d.Options}

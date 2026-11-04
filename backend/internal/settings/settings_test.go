@@ -150,7 +150,8 @@ func TestNilStore(t *testing.T) {
 	if len(s.Describe(Scope{})) != len(s.defs) {
 		t.Fatal("describe instance lists every setting")
 	}
-	if len(s.Describe(Scope{Workspace: uuid.New()})) != 2 {
-		t.Fatal("describe workspace lists the per-project settings")
+	// The per-project keys plus the three that exist only per workspace (rate and two quotas).
+	if n := len(s.Describe(Scope{Workspace: uuid.New()})); n != 9 {
+		t.Fatalf("describe workspace lists %d settings, want 9", n)
 	}
 }

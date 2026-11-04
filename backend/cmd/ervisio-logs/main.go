@@ -247,7 +247,9 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		actx, stopArchiver := context.WithCancel(context.Background())
 		archiverDone := make(chan struct{})
 		go func() { defer close(archiverDone); arch.Run(actx) }()
-		defer func() { stopArchiver(); <-archiverDone }()
+		purgesDone := make(chan struct{})
+		go func() { defer close(purgesDone); arch.RunPurges(actx) }()
+		defer func() { stopArchiver(); <-archiverDone; <-purgesDone }()
 	}
 
 	// Alerts (ADR 0010): rules are evaluated every interval by one replica at a time. Interval 0 in

@@ -370,7 +370,13 @@ func (a *API) queueEvents(r *http.Request, t *store.APIToken, in []ingest.InEven
 		a.Log.Error("request failed", "request_id", res.RequestID, "path", r.URL.Path, "error", err)
 		return res, &ingestFailure{status: http.StatusInternalServerError, msg: "internal error"}
 	}
+	size := int64(len(rec))
+	lim := a.ingestLimits(t.WorkspaceID, t.ProjectID)
+	if le := a.limits.admit(a.now(), t.ID, t.WorkspaceID, t.ProjectID, lim, len(accepted), size); le != nil {
+		return res, le.failure()
+	}
 	if _, err := a.Logs.WAL.Append(r.Context(), rec); err != nil {
+		a.limits.release(a.now(), t.WorkspaceID, t.ProjectID, len(accepted), size)
 		switch {
 		case errors.Is(err, wal.ErrFull):
 			return res, &ingestFailure{status: http.StatusServiceUnavailable, msg: "the ingest queue is full, retry later", retryAfter: "5"}
