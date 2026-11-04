@@ -15,6 +15,8 @@ type ProjectData = { status: 'loading' | 'failed' } | { status: 'ready'; environ
 export type ShellContext = {
   streams: Stream[];
   environment: Environment | null;
+  environments: Environment[];
+  setEnvironment: (id: string) => void;
   openMenu: () => void;
   topbar: (title: ReactNode) => ReactNode;
 };
@@ -121,7 +123,13 @@ export default function Shell() {
   // Empty means every environment: events may arrive without one.
   const envId = (knownProjectId && envs[knownProjectId]) || '';
   const environment = environments.find((e) => e.id === envId) ?? null;
-  const inSettings = /\/(settings|tokens|users)$/.test(location.pathname);
+  const setEnvironment = useCallback(
+    (id: string) => {
+      if (knownProjectId) setEnvs((cur) => ({ ...cur, [knownProjectId]: id }));
+    },
+    [knownProjectId],
+  );
+  const sections = useMemo(() => SECTIONS.filter((s) => !s.adminOnly || user.is_instance_admin), [user.is_instance_admin]);
 
   const commands = useMemo<Command[]>(() => {
     const go = (to: string) => () => navigate(to);
@@ -129,7 +137,7 @@ export default function Shell() {
     out.push({ id: 'all', group: t('palette.projects'), label: t('nav.allProjects'), icon: Plus, run: go('/projects') });
     if (knownProjectId) {
       for (const s of streams) out.push({ id: `s-${s.id}`, group: t('palette.streams'), label: s.name, icon: Hash, run: go(`/projects/${knownProjectId}/streams/${s.id}`) });
-      for (const s of SECTIONS) out.push({ id: `n-${s.key}`, group: t('palette.sections'), label: t(`nav.${s.key}`), icon: s.icon, run: go(sectionPath(knownProjectId, s.key)) });
+      for (const s of sections) out.push({ id: `n-${s.key}`, group: t('palette.sections'), label: t(`nav.${s.key}`), icon: s.icon, run: go(sectionPath(knownProjectId, s.key)) });
     }
     out.push(
       { id: 'docs', group: t('palette.actions'), label: t('nav.documentation'), icon: BookOpen, run: go('/docs') },
@@ -138,7 +146,7 @@ export default function Shell() {
       { id: 'out', group: t('palette.actions'), label: t('account.signOut'), icon: LogOut, run: () => void logout().catch(() => undefined) },
     );
     return out;
-  }, [list, streams, knownProjectId, navigate, logout, t]);
+  }, [list, streams, sections, knownProjectId, navigate, logout, t]);
 
   const topbar = useCallback(
     (title: ReactNode) => (
@@ -231,7 +239,7 @@ export default function Shell() {
               {environments.length > 0 && (
                 <label className="text-ink2 mt-1 flex items-center justify-between gap-2 px-2 text-[13px]">
                   {t('nav.environment')}
-                  <select value={envId} onChange={(e) => setEnvs((cur) => ({ ...cur, [knownProjectId]: e.target.value }))} className="bg-sunk text-ink border-field h-11 max-w-[130px] truncate rounded-row border px-1.5 md:h-8">
+                  <select value={envId} onChange={(e) => setEnvironment(e.target.value)} className="bg-sunk text-ink border-field h-11 max-w-[130px] truncate rounded-row border px-1.5 md:h-8">
                     <option value="">{t('nav.allEnvironments')}</option>
                     {environments.map((env) => (
                       <option key={env.id} value={env.id}>
@@ -245,7 +253,7 @@ export default function Shell() {
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
               {[0, 1].map((group) => (
                 <ul key={group} className="border-line mb-2 grid grid-cols-[minmax(0,1fr)] gap-0.5 pb-2 not-last:border-b">
-                  {SECTIONS.filter((s) => s.group === group && (!s.parent || inSettings)).map((s) => (
+                  {sections.filter((s) => s.group === group).map((s) => (
                     <li key={s.key}>
                       <NavLink to={sectionPath(knownProjectId, s.key)} end className={({ isActive }) => cn(SECTION_ROW, sectionState(isActive), s.parent && 'pl-8')}>
                         {({ isActive }) => (
@@ -295,7 +303,7 @@ export default function Shell() {
       </div>
 
       <main className="bg-bg md:border-line flex min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-        <Outlet context={{ streams, environment, openMenu, topbar } satisfies ShellContext} />
+        <Outlet context={{ streams, environment, environments, setEnvironment, openMenu, topbar } satisfies ShellContext} />
       </main>
 
       {tip && !drawer && (

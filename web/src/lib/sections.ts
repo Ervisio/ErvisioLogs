@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type Section = { key: string; icon: LucideIcon; group: 0 | 1; parent?: string };
+export type Section = { key: string; icon: LucideIcon; group: 0 | 1; parent?: string; adminOnly?: boolean };
 
 /** Order of the project column in the approved navigation. "explorer" is the project's index route. */
 export const SECTIONS: Section[] = [
@@ -22,7 +22,7 @@ export const SECTIONS: Section[] = [
   { key: 'dashboards', icon: LayoutDashboard, group: 0 },
   { key: 'alerts', icon: Bell, group: 0 },
   { key: 'integrations', icon: Plug, group: 1 },
-  { key: 'storage', icon: Database, group: 1 },
+  { key: 'storage', icon: Database, group: 1, adminOnly: true },
   { key: 'usage', icon: CreditCard, group: 1 },
   { key: 'audit', icon: ScrollText, group: 1 },
   { key: 'settings', icon: Settings, group: 1 },

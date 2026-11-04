@@ -16,6 +16,7 @@ import {
 } from '../lib/api';
 import { useAuth, useSession } from '../lib/auth';
 import { cn } from '../lib/cn';
+import { slugify } from '../lib/slug';
 
 type Loaded = { status: 'ready'; overview: StorageOverview; policies: RetentionPolicy[] } | { status: 'failed'; forbidden: boolean };
 
@@ -527,8 +528,7 @@ type FieldDef = { key: string; label: string; placeholder?: string; number?: boo
 
 /** A fresh file name for credentials typed in the form: the destination name as a slug, then the time in base 36. */
 function newSecretName(name: string): string {
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'destination';
-  return `${slug}-${Date.now().toString(36)}`;
+  return `${slugify(name, 60) || 'destination'}-${Date.now().toString(36)}`;
 }
 
 function AddDestination({ onAdded }: { onAdded: () => void }) {

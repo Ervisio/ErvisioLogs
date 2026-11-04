@@ -15,7 +15,7 @@ const INTERVALS = [60, 300, 900, 3600];
 /** Roles holding alerts:manage. */
 const MANAGERS = new Set(['owner', 'admin', 'developer']);
 
-type Loaded = { status: 'ready'; rules: AlertRule[]; channels: NotificationChannel[] } | { status: 'failed'; forbidden: boolean };
+type Loaded = { status: 'ready'; rules: AlertRule[]; channels: NotificationChannel[] } | { status: 'failed'; forbidden: boolean; unavailable: boolean };
 
 const INPUT = 'bg-sunk border-field placeholder:text-ink3 h-12 rounded-row border px-3 text-base md:h-11 md:text-sm';
 const LINK = 'text-hue min-h-11 font-semibold underline underline-offset-2';
@@ -39,7 +39,8 @@ export default function Alerts({ project, workspace }: { project: Project; works
       .catch((err: unknown) => {
         if (ctrl.signal.aborted) return;
         if (err instanceof ApiError && err.status === 401) retry();
-        setLoaded({ key, result: { status: 'failed', forbidden: err instanceof ApiError && err.status === 403 } });
+        const status = err instanceof ApiError ? err.status : 0;
+        setLoaded({ key, result: { status: 'failed', forbidden: status === 403, unavailable: status === 503 } });
       });
     return () => ctrl.abort();
   }, [key, project.id, workspace.id, retry]);
@@ -94,7 +95,7 @@ export default function Alerts({ project, workspace }: { project: Project; works
             )}
             {result?.status === 'failed' && (
               <div role="alert">
-                <p className="text-ink2 mb-2">{result.forbidden ? t('alerts.forbidden') : t('alerts.loadFailed')}</p>
+                <p className="text-ink2 mb-2">{result.forbidden ? t('alerts.forbidden') : result.unavailable ? t('alerts.unavailable') : t('alerts.loadFailed')}</p>
                 {!result.forbidden && (
                   <button type="button" onClick={reload} className={LINK}>
                     {t('common.retry')}
@@ -273,14 +274,18 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
     if (!value) return setError(t('alerts.nameRequired'));
     if (!Number.isInteger(n) || n < 0) return setError(t('alerts.thresholdInvalid'));
     const parsed = parseQuery(search.trim());
+    // The form picks one stream; a rule saved with several keeps them until another stream is chosen.
+    const saved = rule?.query.streams ?? [];
+    const keptStreams = stream === (saved[0] ?? '') ? (saved.length ? saved : undefined) : stream ? [stream] : undefined;
     const body: AlertRuleInput = {
       project_id: project.id,
       name: value,
       query: {
+        ...rule?.query,
         query: parsed.text || undefined,
         filters: parsed.filters.length ? parsed.filters : undefined,
         levels: levels.length ? levels : undefined,
-        streams: stream ? [stream] : undefined,
+        streams: keptStreams,
       },
       window_seconds: windowSec,
       threshold: n,

@@ -111,9 +111,7 @@
     },
     "open": "Apri l'evento delle {{time}}",
     "tier": {
-      "live": "Live",
-      "hot": "Hot",
-      "unknown": "Sconosciuto"
+      "live": "Live"
     },
     "shownOf": "{{shown}} di {{total}}",
     "shown": "{{shown}} mostrati",
@@ -313,6 +311,7 @@
     "at": "Live, ultimo evento {{time}}",
     "on": "Live",
     "connecting": "Connessione…",
+    "failed": "La vista live non riesce a connettersi. Metti in pausa e riparti.",
     "noFilters": "La vista live non supporta i filtri chiave=valore. Toglili per andare live.",
     "pause": "Pausa",
     "start": "Vai live",
@@ -347,7 +346,7 @@
     "sendTest": "Invia un evento di prova",
     "step3": "Guardalo arrivare",
     "waiting": "In attesa del primo evento…",
-    "tokenName": "Primo server",
+    "tokenName": "Primo server ({{date}})",
     "testMessage": "Evento di prova dalla pagina di configurazione",
     "forbidden": "Ti serve il permesso di gestire i token. Chiedi a un admin del progetto.",
     "tokenFailed": "Impossibile creare il token. Riprova.",
@@ -551,6 +550,7 @@
     "loading": "Caricamento alert…",
     "forbidden": "Non puoi vedere gli alert di questo progetto.",
     "loadFailed": "Impossibile caricare gli alert.",
+    "unavailable": "Gli alert non sono disponibili su questa istanza.",
     "none": "Nessun alert. Creane uno per essere avvisato quando gli errori si accumulano.",
     "summary": "Più di {{threshold}} eventi in {{window}}",
     "windows": {

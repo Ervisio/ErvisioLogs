@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { Bookmark, Download, Trash2 } from 'lucide-react';
 import { api, ApiError, type ExportRequest, type Project, type SavedFilter, type SavedQuery } from '../lib/api';
 import { cn } from '../lib/cn';
+import { useTenancy } from '../lib/tenancy';
 
 const CONTROL = 'bg-sunk border-raised text-ink hover:bg-raised flex h-11 items-center gap-1.5 rounded-row border px-3 font-semibold whitespace-nowrap disabled:opacity-50 md:h-10';
+/** Roles holding logs:export. */
+const EXPORTERS = new Set(['owner', 'admin', 'developer', 'analyst']);
 
 /** Saved views and export for the log explorer. `current` is the filter on screen. */
 export default function LogViews({
@@ -19,6 +22,8 @@ export default function LogViews({
   exportRequest: (format: ExportRequest['format']) => ExportRequest;
 }) {
   const { t } = useTranslation();
+  const { workspace } = useTenancy();
+  const canExport = !!workspace && EXPORTERS.has(workspace.role);
   const [views, setViews] = useState<SavedQuery[]>([]);
   const [picked, setPicked] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -125,20 +130,22 @@ export default function LogViews({
         <Bookmark className="size-4" aria-hidden />
         {t('views.save')}
       </button>
-      <details ref={menu} className="relative">
-        <summary className={cn(CONTROL, 'cursor-pointer list-none [&::-webkit-details-marker]:hidden', busy && 'pointer-events-none opacity-50')}>
-          {busy ? <span className="spinner" aria-hidden /> : <Download className="size-4" aria-hidden />}
-          {t('views.export')}
-        </summary>
-        <div className="bg-raised border-line absolute right-0 z-30 mt-1 grid min-w-[12rem] rounded-row border p-1 shadow-lg">
-          <button type="button" onClick={() => void download('ndjson')} className="hover:bg-sunk h-11 rounded-[5px] px-3 text-left md:h-9">
-            {t('views.exportNdjson')}
-          </button>
-          <button type="button" onClick={() => void download('csv')} className="hover:bg-sunk h-11 rounded-[5px] px-3 text-left md:h-9">
-            {t('views.exportCsv')}
-          </button>
-        </div>
-      </details>
+      {canExport && (
+        <details ref={menu} className="relative">
+          <summary className={cn(CONTROL, 'cursor-pointer list-none [&::-webkit-details-marker]:hidden', busy && 'pointer-events-none opacity-50')}>
+            {busy ? <span className="spinner" aria-hidden /> : <Download className="size-4" aria-hidden />}
+            {t('views.export')}
+          </summary>
+          <div className="bg-raised border-line absolute right-0 z-30 mt-1 grid min-w-[12rem] rounded-row border p-1 shadow-lg">
+            <button type="button" onClick={() => void download('ndjson')} className="hover:bg-sunk h-11 rounded-[5px] px-3 text-left md:h-9">
+              {t('views.exportNdjson')}
+            </button>
+            <button type="button" onClick={() => void download('csv')} className="hover:bg-sunk h-11 rounded-[5px] px-3 text-left md:h-9">
+              {t('views.exportCsv')}
+            </button>
+          </div>
+        </details>
+      )}
       {message && (
         <p role={message.ok ? 'status' : 'alert'} className={cn('basis-full text-[13px]', message.ok ? 'text-ink2' : 'text-err')}>
           {message.text}

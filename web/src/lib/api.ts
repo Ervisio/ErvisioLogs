@@ -1,4 +1,5 @@
 /** Thin client for /api/v1: cookie session, CSRF header on unsafe calls, RFC 7807 errors. */
+import { slugFor } from './slug';
 
 export type User = {
   id: string;
@@ -231,9 +232,9 @@ export const api = {
   register: (body: { email: string; username: string; password: string; setup_code?: string }) =>
     request<Session>('POST', '/auth/register', body),
   logout: () => request<void>('POST', '/auth/logout'),
-  createWorkspace: (name: string) => request<Workspace>('POST', '/workspaces', { name }),
+  createWorkspace: (name: string) => request<Workspace>('POST', '/workspaces', { name, slug: slugFor(name, 'workspace') }),
   createProject: (workspaceId: string, name: string) =>
-    request<Project>('POST', '/projects', { workspace_id: workspaceId, name }),
+    request<Project>('POST', '/projects', { workspace_id: workspaceId, name, slug: slugFor(name, 'project') }),
   projects: (workspaceId: string, signal?: AbortSignal) =>
     list<Project>(`/projects?workspace_id=${encodeURIComponent(workspaceId)}`, signal),
   environments: (projectId: string, signal?: AbortSignal) =>

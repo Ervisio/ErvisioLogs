@@ -38,7 +38,7 @@ export default function FirstEvent({ project, onEvent }: { project: Project; onE
     setBusy(true);
     setError(null);
     try {
-      const res = await api.createToken({ project_id: project.id, name: t('first.tokenName'), scopes: ['logs:ingest'] });
+      const res = await api.createToken({ project_id: project.id, name: t('first.tokenName', { date: new Date().toISOString().slice(0, 19).replace('T', ' ') }), scopes: ['logs:ingest'] });
       setToken(res.token);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 403 ? t('first.forbidden') : t('first.tokenFailed'));

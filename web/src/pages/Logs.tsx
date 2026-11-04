@@ -28,9 +28,9 @@ const MAX_ROWS = 1000;
 const LIVE_MAX = 500;
 
 type Loaded =
-  | { status: 'ready'; items: LogItem[]; next: string | null; total: number | null; counts: Record<string, number>; tiers: string[]; partial: boolean; anyEvents: boolean }
+  | { status: 'ready'; items: LogItem[]; next: string | null; from: string; total: number | null; counts: Record<string, number>; allCounts: Record<string, number>; partial: boolean; anyEvents: boolean }
   | { status: 'failed'; message: string };
-type LiveState = 'off' | 'connecting' | 'open' | 'retrying';
+type LiveState = 'off' | 'connecting' | 'open' | 'retrying' | 'failed';
 
 const levelClass = (level: string) =>
   level === 'FATAL' ? 'bg-err text-bg rounded px-1 font-semibold' : level === 'ERROR' ? 'text-err' : level === 'WARN' ? 'text-warn' : 'text-ink2';
@@ -40,6 +40,14 @@ const time = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 };
+const dateTime = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+};
+
+const rangeStart = (key: RangeKey) => new Date(Date.now() - RANGES.find((r) => r.key === key)!.ms).toISOString();
+/** A range left in sessionStorage by an older build or by hand is ignored. */
+const storedRange = (): RangeKey => RANGES.find((r) => r.key === sessionStorage.getItem('range'))?.key ?? '24h';
 
 /** "key value, key value" for the message column; nested objects stay JSON. */
 function attrsInline(attrs: LogItem['attributes']): string {
@@ -52,14 +60,14 @@ function attrsInline(attrs: LogItem['attributes']): string {
 export default function Logs({ project, live: startLive }: { project: Project; live: boolean }) {
   const { t, i18n } = useTranslation();
   const { retry } = useAuth();
-  const { streams, environment, topbar } = useOutletContext<ShellContext>();
+  const { streams, environment, environments, setEnvironment, topbar } = useOutletContext<ShellContext>();
   const { streamId } = useParams();
   const streamName = streams.find((s) => s.id === streamId)?.name ?? '';
 
   const [input, setInput] = useState('');
   const [applied, setApplied] = useState('');
   const [levels, setLevels] = useState<string[]>([]);
-  const [range, setRange] = useState<RangeKey>(() => (sessionStorage.getItem('range') as RangeKey | null) ?? '24h');
+  const [range, setRange] = useState<RangeKey>(storedRange);
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ key: string; result: Loaded } | null>(null);
   const [more, setMore] = useState<{ key: string; busy: boolean; error: boolean }>({ key: '', busy: false, error: false });
@@ -75,23 +83,22 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   const unfiltered = !applied && levels.length === 0 && !streamName && !envName;
   const key = JSON.stringify([project.id, streamName, envName, applied, levels, range, attempt]);
 
+  // Every page of a search shares the `from` of its first one, so "load more" never moves the start of the range.
+  const baseSearch = useCallback(
+    (from: string) => ({
+      project_id: project.id,
+      from,
+      query: parsed.text || undefined,
+      filters: parsed.filters.length ? parsed.filters : undefined,
+      streams: streamName ? [streamName] : undefined,
+      environments: envName ? [envName] : undefined,
+    }),
+    [project.id, parsed, streamName, envName],
+  );
   const request = useCallback(
-    (cursor?: string) => {
-      const span = RANGES.find((r) => r.key === range)!.ms;
-      return api.searchLogs({
-        project_id: project.id,
-        from: new Date(Date.now() - span).toISOString(),
-        query: parsed.text || undefined,
-        filters: parsed.filters.length ? parsed.filters : undefined,
-        levels: levels.length ? levels : undefined,
-        streams: streamName ? [streamName] : undefined,
-        environments: envName ? [envName] : undefined,
-        limit: PAGE,
-        cursor,
-        include_total: !cursor,
-      });
-    },
-    [project.id, range, parsed, levels, streamName, envName],
+    (from: string, cursor?: string) =>
+      api.searchLogs({ ...baseSearch(from), levels: levels.length ? levels : undefined, limit: PAGE, cursor, include_total: !cursor }),
+    [baseSearch, levels],
   );
 
   const fail = useCallback(
@@ -104,25 +111,37 @@ export default function Logs({ project, live: startLive }: { project: Project; l
 
   useEffect(() => {
     const ctrl = new AbortController();
-    request(undefined)
-      .then(async (r: SearchResult) => {
+    const from = rangeStart(range);
+    // The server counts levels with the level filter applied; the chips need the counts without it.
+    Promise.all([request(from), levels.length ? api.searchLogs({ ...baseSearch(from), limit: 1, include_total: true }) : null])
+      .then(async ([r, unleveled]: [SearchResult, SearchResult | null]) => {
         const items = r.items ?? [];
         // An empty, unfiltered range may still hide older events: only a project with none at all gets the setup guide.
         let anyEvents = items.length > 0;
         if (!anyEvents && unfiltered) {
-          const probe = await api.searchLogs({ project_id: project.id, from: new Date(Date.now() - RANGES[RANGES.length - 1].ms).toISOString(), limit: 1 }, ctrl.signal);
+          const probe = await api.searchLogs({ project_id: project.id, from: rangeStart(RANGES[RANGES.length - 1].key), limit: 1 }, ctrl.signal);
           anyEvents = (probe.items ?? []).length > 0;
         }
         setLoaded({
           key,
-          result: { status: 'ready', items, next: r.next_cursor, total: r.total ?? null, counts: r.level_counts ?? {}, tiers: r.searched_tiers ?? [], partial: r.partial, anyEvents },
+          result: {
+            status: 'ready',
+            items,
+            next: r.next_cursor,
+            from,
+            total: r.total ?? null,
+            counts: r.level_counts ?? {},
+            allCounts: (unleveled ?? r).level_counts ?? {},
+            partial: r.partial,
+            anyEvents,
+          },
         });
       })
       .catch((err: unknown) => {
         if (!ctrl.signal.aborted) setLoaded({ key, result: { status: 'failed', message: fail(err) } });
       });
     return () => ctrl.abort();
-  }, [key, request, fail, unfiltered, project.id]);
+  }, [key, request, baseSearch, range, levels, fail, unfiltered, project.id]);
 
   const result = loaded?.key === key ? loaded.result : null;
   const items = result?.status === 'ready' ? result.items : [];
@@ -131,7 +150,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   const loadMore = () => {
     if (result?.status !== 'ready' || !result.next) return;
     setMore({ key, busy: true, error: false });
-    request(result.next)
+    request(result.from, result.next)
       .then((r) => {
         setLoaded((cur) =>
           cur?.key === key && cur.result.status === 'ready'
@@ -164,7 +183,8 @@ export default function Logs({ project, live: startLive }: { project: Project; l
       }),
     );
     src.onopen = () => setLiveState('open');
-    src.onerror = () => setLiveState('retrying');
+    // A refusal (400, 403) closes the source for good; only a dropped connection is retried by the browser.
+    src.onerror = () => setLiveState(src.readyState === EventSource.CLOSED ? 'failed' : 'retrying');
     src.addEventListener('log', (ev) => {
       const msg = ev as MessageEvent<string>;
       let item: LogItem;
@@ -193,6 +213,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   }, [liveOn, key, project.id, streamName, envName, levels, parsed.text]);
 
   const reload = useCallback(() => setAttempt((n) => n + 1), [setAttempt]);
+  const closeDetail = useCallback(() => setSelected(null), [setSelected]);
   const toggleLevel = (level: string) => setLevels((cur) => (cur.includes(level) ? cur.filter((l) => l !== level) : [...cur, level]));
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -209,12 +230,14 @@ export default function Logs({ project, live: startLive }: { project: Project; l
     filters: parsed.filters.length ? parsed.filters : undefined,
     levels: levels.length ? levels : undefined,
     streams: streamName ? [streamName] : undefined,
+    environments: envName ? [envName] : undefined,
   };
   const applyView = (view: SavedFilter) => {
     const text = formatQuery(view.query ?? '', view.filters ?? []);
     setInput(text);
     setApplied(text);
     setLevels(view.levels ?? []);
+    setEnvironment(environments.find((e) => e.name === view.environments?.[0])?.id ?? '');
     const known = RANGES.find((r) => r.key === view.range);
     if (known) pickRange(known.key);
     const target = view.streams?.length ? streams.find((s) => s.name === view.streams![0]) : undefined;
@@ -223,22 +246,22 @@ export default function Logs({ project, live: startLive }: { project: Project; l
   const exportRequest = (format: ExportRequest['format']): ExportRequest => ({
     ...filter,
     project_id: project.id,
-    from: new Date(Date.now() - RANGES.find((r) => r.key === range)!.ms).toISOString(),
-    environments: envName ? [envName] : undefined,
+    from: rangeStart(range),
     format,
   });
 
-  // Live rows can repeat an event the search already returned.
-  const seen = new Set(liveItems.map((i) => i.id));
-  const shown = liveItems.length ? [...liveItems, ...items.filter((i) => !seen.has(i.id))] : items;
+  // Live rows can repeat an event the search already returned; those stay with the search rows.
+  const loadedIds = new Set(items.map((i) => i.id));
+  const freshLive = liveItems.filter((i) => !loadedIds.has(i.id));
+  const shown = freshLive.length ? [...freshLive, ...items] : items;
 
   const counts = result?.status === 'ready' ? result.counts : {};
-  const chipLevels = LEVELS.filter((l) => (counts[l] ?? 0) > 0 || levels.includes(l));
+  const allCounts = result?.status === 'ready' ? result.allCounts : {};
+  const chipLevels = LEVELS.filter((l) => (allCounts[l] ?? 0) > 0 || levels.includes(l));
   const total = result?.status === 'ready' ? result.total : null;
   const errors = (counts.ERROR ?? 0) + (counts.FATAL ?? 0);
   const fmt = (n: number) => n.toLocaleString(i18n.language);
   const empty = result?.status === 'ready' && shown.length === 0;
-  const hot = result?.status === 'ready' && result.tiers.includes('hot');
   const liveAt = liveRows.key === key && liveRows.at ? time(liveRows.at) : null;
 
   const title = streamName ? `# ${streamName}` : live ? t('nav.live') : t('explorer.allStreams');
@@ -255,7 +278,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
         {liveOn && (
           <span role="status" className="text-ink2 hidden items-center gap-1.5 text-[13px] whitespace-nowrap sm:flex">
             <span aria-hidden className={cn('size-2 rounded-full', liveState === 'open' ? 'bg-accent' : 'bg-field')} />
-            {liveState === 'open' ? (liveAt ? t('live.at', { time: liveAt }) : t('live.on')) : t('live.connecting')}
+            {liveState === 'open' ? (liveAt ? t('live.at', { time: liveAt }) : t('live.on')) : liveState === 'failed' ? t('live.failed') : t('live.connecting')}
           </span>
         )}
         <button
@@ -315,7 +338,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
                 className={cn('flex h-full items-center gap-1.5 rounded-[5px] px-2 text-[13px] whitespace-nowrap', levels.includes(l) ? 'bg-raised text-ink font-semibold' : 'text-ink2 hover:text-ink')}
               >
                 {l.toLowerCase()}
-                <span className="text-ink3 tabular-nums">{fmt(counts[l] ?? 0)}</span>
+                <span className="text-ink3 tabular-nums">{fmt(allCounts[l] ?? 0)}</span>
               </button>
             ))}
           </div>
@@ -366,7 +389,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
             <caption className="sr-only">{t('explorer.caption')}</caption>
             <thead className="bg-bg text-ink2 sticky top-0 z-10 text-left text-[12px]">
               <tr className="border-line border-b">
-                <th scope="col" className="w-[76px] py-2 pl-4 font-medium md:w-[88px]">{t('explorer.col.time')}</th>
+                <th scope="col" className="w-[124px] py-2 pl-4 font-medium md:w-[132px]">{t('explorer.col.time')}</th>
                 <th scope="col" className="w-[64px] py-2 font-medium">{t('explorer.col.level')}</th>
                 <th scope="col" className="hidden w-[120px] py-2 font-medium lg:table-cell">{t('explorer.col.stream')}</th>
                 <th scope="col" className="hidden w-[130px] py-2 font-medium xl:table-cell">{t('explorer.col.resource')}</th>
@@ -377,7 +400,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
             </thead>
             <tbody>
               {shown.map((item, i) => {
-                const fromLive = i < liveItems.length;
+                const fromLive = i < freshLive.length;
                 return (
                   <tr
                     key={item.id}
@@ -385,8 +408,8 @@ export default function Logs({ project, live: startLive }: { project: Project; l
                     className={cn('border-line hover:bg-sunk cursor-pointer border-b', isBad(item.level) && 'err-tint', selected?.id === item.id && 'outline-hue outline-1 -outline-offset-1')}
                   >
                     <td className="text-ink2 py-2.5 pl-4 font-mono tabular-nums">
-                      <button type="button" onClick={() => setSelected(item)} className="text-left focus-visible:outline-offset-1" aria-label={t('explorer.open', { time: time(item.timestamp) })}>
-                        {time(item.timestamp)}
+                      <button type="button" onClick={() => setSelected(item)} className="text-left focus-visible:outline-offset-1" aria-label={t('explorer.open', { time: dateTime(item.timestamp) })}>
+                        {dateTime(item.timestamp)}
                       </button>
                     </td>
                     <td className="py-2.5 font-mono">
@@ -403,9 +426,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
                       <span className="text-ink3 ml-2 font-mono text-[12px]">{attrsInline(item.attributes)}</span>
                     </td>
                     <td className="hidden py-2.5 pr-4 sm:table-cell">
-                      <span className={cn('rounded px-1.5 py-0.5 text-[12px] font-semibold', fromLive ? 'text-hue border-hue border' : 'bg-raised text-ink')}>
-                        {fromLive ? t('explorer.tier.live') : hot ? t('explorer.tier.hot') : t('explorer.tier.unknown')}
-                      </span>
+                      {fromLive && <span className="text-hue border-hue rounded border px-1.5 py-0.5 text-[12px] font-semibold">{t('explorer.tier.live')}</span>}
                     </td>
                   </tr>
                 );
@@ -418,7 +439,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
       {result?.status === 'ready' && shown.length > 0 && (
         <footer className="border-line flex flex-none items-center gap-3 border-t px-4 py-2.5">
           <p className="text-ink2 min-w-0 flex-1 truncate text-[13px] whitespace-nowrap">
-            {total !== null ? t('explorer.shownOf', { shown: fmt(shown.length), total: fmt(total + liveItems.length) }) : t('explorer.shown', { shown: fmt(shown.length) })}
+            {total !== null ? t('explorer.shownOf', { shown: fmt(shown.length), total: fmt(total + freshLive.length) }) : t('explorer.shown', { shown: fmt(shown.length) })}
           </p>
           {more.key === key && more.error && <p role="alert" className="text-err text-[13px]">{t('explorer.moreFailed')}</p>}
           {result.next && items.length < MAX_ROWS && (
@@ -431,7 +452,7 @@ export default function Logs({ project, live: startLive }: { project: Project; l
         </footer>
       )}
 
-      {selected && <Detail item={selected} onClose={() => setSelected(null)} />}
+      {selected && <Detail item={selected} onClose={closeDetail} />}
     </>
   );
 }
@@ -440,11 +461,34 @@ function Detail({ item, onClose }: { item: LogItem; onClose: () => void }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const json = JSON.stringify(item, null, 2);
 
   useEffect(() => {
+    const opener = document.activeElement;
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, []);
+
+  // Tab stays inside the panel, also when focus was moved out by clicking a row.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const stops = panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled])');
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      const inside = panelRef.current.contains(document.activeElement);
+      if (!inside || (e.shiftKey && document.activeElement === first)) {
+        e.preventDefault();
+        (e.shiftKey && inside ? last : first).focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -470,8 +514,9 @@ function Detail({ item, onClose }: { item: LogItem; onClose: () => void }) {
     <>
       <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={onClose} aria-hidden />
       <aside
+        ref={panelRef}
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         aria-labelledby="detail-title"
         className="bg-surface border-line fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-card border-t md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:w-[440px] md:rounded-none md:border-t-0 md:border-l"
       >

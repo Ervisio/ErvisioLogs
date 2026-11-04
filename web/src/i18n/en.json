@@ -111,9 +111,7 @@
     },
     "open": "Open event from {{time}}",
     "tier": {
-      "live": "Live",
-      "hot": "Hot",
-      "unknown": "Unknown"
+      "live": "Live"
     },
     "shownOf": "Showing {{shown}} of {{total}}",
     "shown": "Showing {{shown}}",
@@ -313,6 +311,7 @@
     "at": "Live, last event {{time}}",
     "on": "Live",
     "connecting": "Connecting…",
+    "failed": "Live view could not connect. Pause and go live again.",
     "noFilters": "Live view does not support key=value filters. Remove them to go live.",
     "pause": "Pause",
     "start": "Go live",
@@ -347,7 +346,7 @@
     "sendTest": "Send a test event",
     "step3": "See it arrive",
     "waiting": "Waiting for the first event…",
-    "tokenName": "First server",
+    "tokenName": "First server ({{date}})",
     "testMessage": "Test event from the setup page",
     "forbidden": "You need permission to manage tokens. Ask a project admin.",
     "tokenFailed": "Could not create the token. Try again.",
@@ -551,6 +550,7 @@
     "loading": "Loading alerts…",
     "forbidden": "You can't see alerts in this project.",
     "loadFailed": "Couldn't load alerts.",
+    "unavailable": "Alerts are not available on this instance.",
     "none": "No alerts yet. Create one to get notified when errors pile up.",
     "summary": "More than {{threshold}} events in {{window}}",
     "windows": {

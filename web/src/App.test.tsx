@@ -213,6 +213,20 @@ describe('navigation', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
   });
 
+  test('a project of another workspace opens by its link and switches to that workspace', async () => {
+    const w2 = { ...workspace, id: 'w2', slug: 'beta', name: 'Beta' };
+    stubApi({
+      ...signedIn,
+      'GET /auth/me': { body: { ...session, workspaces: [workspace, w2] } },
+      'GET /projects?workspace_id=w2': { body: { items: [{ ...project, id: 'p2', workspace_id: 'w2', name: 'Other' }] } },
+      'GET /projects/p2/environments': { body: { items: [] } },
+      'GET /projects/p2/streams': { body: { items: [] } },
+    });
+    renderApp('/projects/p2');
+    expect(await screen.findByRole('heading', { name: 'Send the first event to Other' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Page not found' })).not.toBeInTheDocument();
+  });
+
   test('rail expands and collapses', async () => {
     stubApi(signedIn);
     renderApp();
@@ -276,7 +290,7 @@ describe('first project', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create project' }));
     expect(await screen.findByRole('heading', { name: 'Send the first event to Shop' })).toBeInTheDocument();
     const post = calls.find((c) => c.key === 'POST /projects');
-    expect(post?.body).toEqual({ workspace_id: 'w1', name: 'Shop' });
+    expect(post?.body).toEqual({ workspace_id: 'w1', name: 'Shop', slug: 'shop' });
     expect(post?.headers['X-CSRF-Token']).toBe('csrf-1');
   });
 
@@ -286,6 +300,14 @@ describe('first project', () => {
     await userEvent.type(await screen.findByLabelText('Project name'), 'Shop');
     await userEvent.click(screen.getByRole('button', { name: 'Create project' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Your role in this workspace cannot do this');
+  });
+});
+
+describe('alerts', () => {
+  test('an instance without alerts says so instead of a generic failure', async () => {
+    stubApi({ ...signedIn, 'GET /alerts?project_id=p1': { status: 503, body: {} }, 'GET /notification-channels?workspace_id=w1': { status: 503, body: {} } });
+    renderApp('/projects/p1/alerts');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Alerts are not available on this instance.');
   });
 });
 
@@ -450,7 +472,7 @@ describe('log explorer', () => {
     expect(searches(calls).at(-1)?.cursor).toBe('c1');
 
     await userEvent.click(screen.getByRole('button', { name: /error\s*1/ }));
-    await waitFor(() => expect(searches(calls).at(-1)?.levels).toEqual(['ERROR']));
+    await waitFor(() => expect(searches(calls).filter((c) => c.levels).at(-1)?.levels).toEqual(['ERROR']));
   });
 
   test('a row opens its details and Escape closes them', async () => {
@@ -483,6 +505,30 @@ describe('log explorer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('payment declined')).toBeInTheDocument();
   });
+
+  test('the level chips keep their counts while a level is selected', async () => {
+    const calls: Call[] = stubApi({
+      ...signedIn,
+      'POST /logs/search': () =>
+        (calls.at(-1)?.body as { levels?: string[] }).levels
+          ? { body: { ...found, items: [ev('2', 'ERROR', 'payment declined')], level_counts: { ERROR: 1 } } }
+          : { body: found },
+    });
+    renderApp('/projects/p1');
+    await userEvent.click(await screen.findByRole('button', { name: /error\s*1/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /error\s*1/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.getByRole('button', { name: /info\s*2/ })).toBeInTheDocument();
+  });
+
+  test.each([
+    ['viewer', false],
+    ['analyst', true],
+  ])('export shown for %s: %s', async (role, visible) => {
+    stubApi({ ...signedIn, 'GET /auth/me': { body: { ...session, workspaces: [{ ...workspace, role }] } }, 'POST /logs/search': { body: found } });
+    renderApp('/projects/p1');
+    await screen.findByText('payment declined');
+    expect(screen.queryByText('Export') !== null).toBe(visible);
+  });
 });
 
 describe('first event', () => {
@@ -493,7 +539,7 @@ describe('first event', () => {
     renderApp('/projects/p1');
     await userEvent.click(await screen.findByRole('button', { name: 'Create token' }));
     expect(await screen.findByText(/Bearer elk_ab_secret/)).toBeInTheDocument();
-    expect(calls.find((c) => c.key === 'POST /tokens')?.body).toEqual({ project_id: 'p1', name: 'First server', scopes: ['logs:ingest'] });
+    expect(calls.find((c) => c.key === 'POST /tokens')?.body).toEqual({ project_id: 'p1', name: expect.stringMatching(/^First server \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\)$/), scopes: ['logs:ingest'] });
 
     await userEvent.click(screen.getByRole('button', { name: 'Send a test event' }));
     expect(await screen.findByText('Waiting for the first event…')).toBeInTheDocument();
@@ -675,6 +721,17 @@ describe('storage', () => {
     'GET /admin/retention': { body: { items: [instance] } },
     'GET /admin/storage/secrets': { body: { items: [] } },
   };
+
+  test('the section is listed only for the instance administrator', async () => {
+    stubApi(signedIn);
+    const { unmount } = renderApp('/projects/p1');
+    await screen.findByRole('link', { name: 'default' });
+    expect(screen.queryByRole('link', { name: 'Storage' })).not.toBeInTheDocument();
+    unmount();
+    stubApi(storageRoutes);
+    renderApp('/projects/p1');
+    expect(await screen.findByRole('link', { name: 'Storage' })).toBeInTheDocument();
+  });
 
   test('a member who is not the instance administrator gets an explanation', async () => {
     stubApi(signedIn);

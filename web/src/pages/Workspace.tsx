@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Compass } from 'lucide-react';
@@ -69,15 +69,33 @@ export function Home() {
   return <Navigate to={target ? `/projects/${target.id}` : '/projects'} replace />;
 }
 
-/** While projects load, keep the frame steady; afterwards a foreign id is a plain "not found". */
+/** While projects load, keep the frame steady; afterwards an id the workspace lacks is looked up in the others, then "not found". */
 type FoundProject = { state: 'loading' } | { state: 'failed' } | { state: 'missing' } | { state: 'ready'; project: Project };
 
 function useProjectFromUrl(): FoundProject {
   const { projectId } = useParams();
-  const { projects } = useTenancy();
+  const { projects, workspace, workspaces, selectWorkspace } = useTenancy();
+  const [searched, setSearched] = useState<string | null>(null);
+  const project = projects.status === 'ready' ? projects.projects.find((p) => p.id === projectId) : undefined;
+  const missing = projects.status === 'ready' && !project;
+  const searchKey = `${projectId}:${workspace?.id}`;
+  const hasOthers = workspaces.some((w) => w.id !== workspace?.id);
+
+  useEffect(() => {
+    if (!missing || !hasOthers) return;
+    const ctrl = new AbortController();
+    void Promise.allSettled(workspaces.filter((w) => w.id !== workspace?.id).map(async (w) => ({ w, list: await api.projects(w.id, ctrl.signal) }))).then((results) => {
+      if (ctrl.signal.aborted) return;
+      const hit = results.find((r) => r.status === 'fulfilled' && r.value.list.some((p) => p.id === projectId));
+      if (hit?.status === 'fulfilled') selectWorkspace(hit.value.w.id);
+      else setSearched(searchKey);
+    });
+    return () => ctrl.abort();
+  }, [missing, hasOthers, workspaces, workspace?.id, projectId, searchKey, selectWorkspace]);
+
   if (projects.status !== 'ready') return { state: projects.status };
-  const project = projects.projects.find((p) => p.id === projectId);
-  return project ? { state: 'ready', project } : { state: 'missing' };
+  if (project) return { state: 'ready', project };
+  return { state: hasOthers && searched !== searchKey ? 'loading' : 'missing' };
 }
 
 function ProjectPending({ failed }: { failed: boolean }) {
