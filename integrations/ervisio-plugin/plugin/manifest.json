@@ -3,7 +3,7 @@
   "name": "Ervisio Logs",
   "version": "0.2.0",
   "author": "Ervisio team",
-  "description": "Install and run Ervisio Logs on this server, as a Docker Compose stack (shown in the Docker plugin) or as a systemd service, and publish it through the Caddy you already run. Data is never deleted by the plugin.",
+  "description": "Deploy and manage Ervisio Logs with Docker Compose or systemd: instance settings, workspaces, projects, users and archive storage. Connect through the local admin socket or HTTPS, and publish the web app through Caddy.",
   "homepage": "https://github.com/Ervisio/ErvisioLogs",
   "icon": "server",
   "color": "log",
