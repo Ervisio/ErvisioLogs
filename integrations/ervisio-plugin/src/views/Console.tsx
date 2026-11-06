@@ -3,13 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import * as logs from '../api/logs';
 import { Badge, Button, EmptyState, Icon, Select } from '../kit';
 import type { Ctx } from './LogsPage';
+import { tr } from './Admin';
 import { copy, t } from './util';
-import { mt } from './management/shared';
 
 export function Console({ ctx }: { ctx: Ctx }) {
   const { mode, runner } = ctx;
   const [selected, setSelected] = useState('');
-  const job = runner.history.find(item => item.id === selected) ?? runner.job;
+  const jobs = [...(runner.job ? [runner.job] : []), ...runner.history];
+  const job = jobs.find((entry) => entry.id === selected) ?? runner.job;
   const box = useRef<HTMLPreElement>(null);
   const lines = job?.lines.length ?? 0;
 
@@ -20,7 +21,6 @@ export function Console({ ctx }: { ctx: Ctx }) {
 
   return (
     <section className="el-card el-console">
-      {runner.history.length > 0 && <Select label={mt('jobs')} value={selected} onChange={setSelected} options={[{ value: '', label: mt('active') }, ...runner.history.map((item, index) => ({ value: item.id, label: `${index + 1}. ${item.title}` }))]} />}
       <h3>
         <Icon name="terminal" />
         {job ? job.title : t('nav.console')}
@@ -30,10 +30,11 @@ export function Console({ ctx }: { ctx: Ctx }) {
         {job && !job.running && (
           <>
             <Button size="sm" variant="ghost" icon="copy" onClick={() => void copy(job.lines.join('\n'))}>{t('act.copy')}</Button>
-            <Button size="sm" variant="ghost" icon="close" onClick={runner.clear}>{t('act.clear')}</Button>
+            <Button size="sm" variant="ghost" icon="close" disabled={runner.busy} onClick={runner.clear}>{t('act.clear')}</Button>
           </>
         )}
       </h3>
+      {!!jobs.length && <Select label={tr('Job history (this session)', 'Storico operazioni (questa sessione)')} value={job?.id ?? ''} options={jobs.map((entry) => ({ value: entry.id, label: `${new Date(entry.startedAt).toLocaleString()} · ${entry.title} · ${t(entry.running ? 'job.running' : entry.failed ? 'job.failed' : 'job.done')}` }))} onChange={setSelected} />}
       {job ? (
         <pre ref={box} className="el-log" aria-live="polite">
           {job.lines.length ? job.lines.join('\n') : t('job.waiting')}

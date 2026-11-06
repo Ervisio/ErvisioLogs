@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bookmark, Download, Trash2 } from 'lucide-react';
+import { Bookmark, Download, Save, Trash2 } from 'lucide-react';
 import { api, ApiError, type ExportRequest, type Project, type SavedFilter, type SavedQuery } from '../lib/api';
 import { cn } from '../lib/cn';
 import { useTenancy } from '../lib/tenancy';
+import { notifications } from '../lib/notifications-api';
 
 const CONTROL = 'bg-sunk border-raised text-ink hover:bg-raised flex h-11 items-center gap-1.5 rounded-row border px-3 font-semibold whitespace-nowrap disabled:opacity-50 md:h-10';
 /** Roles holding logs:export. */
@@ -36,10 +37,9 @@ export default function LogViews({
     api
       .savedQueries(project.id, ctrl.signal)
       .then(setViews)
-      // The explorer works without saved views; a failed list only hides them.
-      .catch(() => !ctrl.signal.aborted && setViews([]));
+      .catch(() => { if (!ctrl.signal.aborted) { setViews([]); setMessage({ ok: false, text: t('flows.views.loadFailed') }); } });
     return () => ctrl.abort();
-  }, [project.id, attempt]);
+  }, [project.id, attempt, t]);
 
   const error = useCallback((err: unknown, fallback: string) => setMessage({ ok: false, text: err instanceof ApiError && err.status < 500 ? err.message : t(fallback) }), [t]);
 
@@ -65,6 +65,15 @@ export default function LogViews({
     } finally {
       setBusy(false);
     }
+  };
+
+  const update = async () => {
+    const view = views.find((value) => value.id === picked);
+    if (!view) return;
+    setBusy(true); setMessage(null);
+    try { await notifications.updateSavedQuery(view, current); setAttempt((value) => value + 1); setMessage({ ok: true, text: t('flows.views.updated', { name: view.name }) }); }
+    catch (err) { error(err, 'views.saveFailed'); }
+    finally { setBusy(false); }
   };
 
   const remove = async () => {
@@ -119,6 +128,7 @@ export default function LogViews({
               </option>
             ))}
           </select>
+          {picked && <button type="button" onClick={() => void update()} disabled={busy} className={CONTROL}><Save className="size-4" aria-hidden />{t('flows.views.update')}</button>}
           {picked && (
             <button type="button" onClick={() => void remove()} disabled={busy} aria-label={t('views.delete')} title={t('views.delete')} className={cn(CONTROL, 'px-2.5')}>
               <Trash2 className="size-4" aria-hidden />

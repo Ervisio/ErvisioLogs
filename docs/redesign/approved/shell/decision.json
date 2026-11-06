@@ -1,27 +1,13 @@
 {
-  "id": "a6bd837dfa14",
-  "at": "2026-11-04T21:04:40.975Z",
-  "round": "001-shell-explorer",
+  "round": "014-acrylic-content",
   "action": "choose",
   "selected": [
-    "a"
+    "b"
   ],
-  "note": "",
-  "variants": {},
-  "viewed_at": {
-    "viewport": "laptop",
-    "width": 1280,
-    "theme": "light",
-    "layout": "focus"
-  },
-  "approved": {
-    "variant": "a",
-    "at": "2026-11-04T21:04:40.974Z"
-  },
-  "files": {
-    "a": "prototype.html"
-  },
-  "screenshots": {
-    "a": "screenshot.png"
-  }
+  "id": "b762697cc6a4",
+  "approved_at": "2026-11-06T09:55:23.724Z",
+  "scope": "Shell, navigazione ed explorer: direzione visiva. Non integrazione React/API.",
+  "source": "../../../../.variant-studio/rounds/014-acrylic-content/b.html",
+  "prototype": "prototype.html",
+  "screenshot": "screenshot.png"
 }

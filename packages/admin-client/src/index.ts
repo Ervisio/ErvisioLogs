@@ -1,85 +1,240 @@
-export type RequestTransport = <T>(method: string, path: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
-export type SettingsScope = { type: 'instance' } | { type: 'workspace' | 'project'; id: string };
-export type SettingValue = string | number | boolean;
-export type SettingEntry = { key: string; type: 'bool' | 'int' | 'duration' | 'choice' | 'string'; value: SettingValue; source: 'env' | 'instance' | 'workspace' | 'project' | 'default'; inherited: SettingValue; locked: boolean; env?: string; min?: number; max?: number; options?: string[] };
-export type User = { id: string; email: string; username: string; email_verified: boolean; is_instance_admin: boolean; status: string; created_at: string };
-export type UserInput = { email: string; username: string; password?: string };
-export type UserPatch = { status?: 'active' | 'disabled'; is_instance_admin?: boolean };
-export type UserSession = { id: string; created_at: string; expires_at: string; last_seen_at: string | null; ip: string; user_agent: string; current: boolean };
-export type Page<T> = { items: T[] | null; next_cursor: string | null };
-export type Workspace = { id: string; name: string; slug: string; role: string; created_at: string };
-export type Project = { id: string; workspace_id: string; name: string; slug: string; created_at: string };
-export type Member = { user_id: string; username: string; email: string; role: string; joined_at: string };
-export type MetadataPatch = { display_name?: string; description?: string; color?: string };
-export type Environment = MetadataPatch & { id: string; project_id: string; name: string; created_at: string };
+export type Request = <T>(method: string, path: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
+export type Page<T> = { items: T[] | null; next_cursor?: string | null };
+export type Setting = {
+  key: string;
+  type: 'bool' | 'int' | 'string' | 'duration' | 'choice';
+  value: unknown;
+  inherited: unknown;
+  source: string;
+  locked: boolean;
+  env?: string;
+  min?: number;
+  max?: number;
+  options?: string[];
+};
+export type User = {
+  id: string;
+  email: string;
+  username: string;
+  status: string;
+  is_instance_admin: boolean;
+  email_verified: boolean;
+  created_at: string;
+};
+export type Workspace = { id: string; name: string; slug: string; created_at: string; role?: string };
+export type Project = Workspace & { workspace_id: string };
+export type Metadata = { display_name: string; description: string; color: string };
+export type Environment = Metadata & { id: string; project_id: string; name: string; created_at: string };
 export type Stream = Environment & { type: string };
-export type ApiToken = { id: string; project_id: string; name: string; prefix: string; scopes: string[]; created_at: string; expires_at: string | null; last_used_at: string | null; revoked_at: string | null };
-export type ProviderType = 's3' | 'sftp' | 'local';
-export type ProviderInput = { name: string; type?: ProviderType; config: Record<string, unknown>; secret_file: string | null };
-export type StorageProvider = ProviderInput & { id: string; type: ProviderType; active: boolean; status: 'unknown' | 'ok' | 'error'; last_error: string | null; last_checked_at: string | null; created_at: string; updated_at: string };
-export type StorageOverview = { providers: StorageProvider[] | null; segments: Record<string, { count: number; bytes: number }>; archiver_enabled: boolean; usage?: { hot_bytes: number; cache_bytes: number; max_bytes: number; high_pct: number; low_pct: number; over_capacity: boolean } };
-export type RetentionScope = 'instance' | 'workspace' | 'project' | 'stream';
-export type RetentionInput = { local_age_hours?: number | null; global_age_hours?: number | null; cache_max_bytes?: number; high_pct?: number; low_pct?: number };
-export type RetentionPolicy = RetentionInput & { scope_type: RetentionScope; scope_id: string; updated_by: string | null; updated_at: string };
-export type AuditEvent = { id: string; workspace_id: string | null; actor_user_id: string | null; actor_token_id: string | null; actor_name: string; action: string; target_type: string; target_id: string; request_id: string; ip: string; detail: Record<string, unknown>; created_at: string };
-export type Health = { status: string; wal: { bytes: number; max_bytes: number; segments: number; pending_records: number; lag_seconds: number } | null; upload: { waiting: { count: number; bytes: number }; failed: { count: number; bytes: number }; last_verified_at: string | null; oldest_unarchived_event_at: string | null }; archive: { enabled: boolean; provider: Pick<StorageProvider, 'name' | 'type' | 'status' | 'last_error' | 'last_checked_at'> | null }; postgres: { ok: boolean; error: string | null }; clickhouse: { ok: boolean; error: string | null } };
-const encoded = encodeURIComponent;
-const settingsPath = (scope: SettingsScope) => scope.type === 'instance' ? '/admin/settings' : `/${scope.type === 'workspace' ? 'workspaces' : 'projects'}/${encoded(scope.id)}/settings`;
-export function createAdminClient(request: RequestTransport) {
-  const list = async <T>(path: string, signal?: AbortSignal) => (await request<{ items: T[] | null }>('GET', path, undefined, signal)).items ?? [];
-  const userPath = (id: string) => `/admin/users/${encoded(id)}`;
-  const metadataPath = (project: string, kind: 'streams' | 'environments', id?: string) => `/projects/${encoded(project)}/${kind}${id ? `/${encoded(id)}` : ''}`;
+export type Member = { user_id: string; email: string; username: string; role: string; joined_at: string };
+export type Invitation = { id: string; email: string; role: string; expires_at: string };
+export type Session = {
+  id: string;
+  ip: string;
+  user_agent: string;
+  created_at: string;
+  last_seen_at: string | null;
+  expires_at: string;
+};
+export type Token = {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+};
+export type ProviderInput = {
+  name: string;
+  type: 's3' | 'sftp' | 'local';
+  config: Record<string, unknown>;
+  secret_file: string | null;
+};
+export type Provider = ProviderInput & { id: string; active: boolean; status: string; last_error: string | null };
+export type Storage = {
+  providers: Provider[] | null;
+  segments: Record<string, { count: number; bytes: number }>;
+  archiver_enabled: boolean;
+  usage?: {
+    hot_bytes: number;
+    cache_bytes: number;
+    max_bytes: number;
+    high_pct: number;
+    low_pct: number;
+    over_capacity: boolean;
+  };
+};
+export type RetentionInput = {
+  local_age_hours?: number | null;
+  global_age_hours?: number | null;
+  cache_max_bytes?: number;
+  high_pct?: number;
+  low_pct?: number;
+};
+export type Retention = RetentionInput & { scope_type: string; scope_id: string };
+export type Health = {
+  status: string;
+  postgres: { ok: boolean; error: string | null };
+  clickhouse: { ok: boolean; error: string | null };
+  wal: { bytes: number; max_bytes: number; pending_records: number; lag_seconds: number; segments: number } | null;
+  upload: {
+    waiting: { count: number; bytes: number };
+    failed: { count: number; bytes: number };
+    last_verified_at: string | null;
+    oldest_unarchived_event_at: string | null;
+  };
+  archive: { enabled: boolean; provider: { name: string; status: string; last_error: string | null } | null };
+};
+export type Audit = {
+  id: string;
+  action: string;
+  actor_name: string;
+  target_type: string;
+  target_id: string;
+  created_at: string;
+  detail: unknown;
+};
+export const INSTANCE_SCOPE = '00000000-0000-0000-0000-000000000000';
+const id = encodeURIComponent;
+const query = (values: Record<string, string | undefined>) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(values)) if (v) p.set(k, v);
+  return p.size ? `?${p}` : '';
+};
+
+export function createAdminClient(request: Request) {
+  const list = async <T>(path: string) => (await request<Page<T>>('GET', path)).items ?? [];
   return {
-    settings: (scope: SettingsScope, signal?: AbortSignal) => list<SettingEntry>(settingsPath(scope), signal),
-    putSetting: (scope: SettingsScope, key: string, value: SettingValue, signal?: AbortSignal) => request<SettingEntry>('PUT', `${settingsPath(scope)}/${encoded(key)}`, { value }, signal),
-    resetSetting: (scope: SettingsScope, key: string, signal?: AbortSignal) => request<SettingEntry>('DELETE', `${settingsPath(scope)}/${encoded(key)}`, undefined, signal),
-    adminUsers: {
-      list: (q = '', cursor?: string, signal?: AbortSignal) => { const query = new URLSearchParams({ q }); if (cursor) query.set('cursor', cursor); return request<Page<User>>('GET', `/admin/users?${query}`, undefined, signal); },
-      get: (id: string, signal?: AbortSignal) => request<User>('GET', userPath(id), undefined, signal),
-      create: (body: UserInput, signal?: AbortSignal) => request<User>('POST', '/admin/users', body, signal),
-      update: (id: string, body: UserPatch, signal?: AbortSignal) => request<void>('PATCH', userPath(id), body, signal),
-      remove: (id: string, signal?: AbortSignal) => request<void>('DELETE', userPath(id), undefined, signal),
-      resetPassword: (id: string, password: string, signal?: AbortSignal) => request<void>('PUT', `${userPath(id)}/password`, { password }, signal),
-      sessions: (id: string, signal?: AbortSignal) => list<UserSession>(`${userPath(id)}/sessions`, signal),
-      revokeSession: (id: string, sessionId: string, signal?: AbortSignal) => request<void>('DELETE', `${userPath(id)}/sessions/${encoded(sessionId)}`, undefined, signal),
-      revokeSessions: (id: string, signal?: AbortSignal) => request<{ revoked: number }>('DELETE', `${userPath(id)}/sessions`, undefined, signal),
-    },
-    health: (signal?: AbortSignal) => request<Health>('GET', '/admin/health', undefined, signal),
-    audit: (workspace?: string, cursor?: string, signal?: AbortSignal) => request<Page<AuditEvent>>('GET', `${workspace ? `/workspaces/${encoded(workspace)}/audit` : '/admin/audit'}${cursor ? `?cursor=${encoded(cursor)}` : ''}`, undefined, signal),
-    workspaces: (signal?: AbortSignal) => list<Workspace>('/workspaces', signal),
-    createWorkspace: (body: { name: string; slug: string; owner_id?: string }) => request<Workspace>('POST', '/workspaces', body),
-    updateWorkspace: (id: string, body: { name: string }) => request<Workspace>('PATCH', `/workspaces/${encoded(id)}`, body),
-    deleteWorkspace: (id: string, confirm: string) => request<void>('DELETE', `/workspaces/${encoded(id)}`, { confirm }),
-    projects: (workspace: string, signal?: AbortSignal) => list<Project>(`/projects?workspace_id=${encoded(workspace)}`, signal),
-    createProject: (body: { workspace_id: string; name: string; slug: string }) => request<Project>('POST', '/projects', body),
-    updateProject: (id: string, body: { name: string }) => request<Project>('PATCH', `/projects/${encoded(id)}`, body),
-    deleteProject: (id: string, confirm: string) => request<void>('DELETE', `/projects/${encoded(id)}`, { confirm }),
-    members: (workspace: string, signal?: AbortSignal) => list<Member>(`/workspaces/${encoded(workspace)}/members`, signal),
-    addMember: (workspace: string, body: { email: string; role: string }) => request<Member>('POST', `/workspaces/${encoded(workspace)}/members`, body),
-    setMemberRole: (workspace: string, id: string, role: string) => request<void>('PATCH', `/workspaces/${encoded(workspace)}/members/${encoded(id)}`, { role }),
-    removeMember: (workspace: string, id: string) => request<void>('DELETE', `/workspaces/${encoded(workspace)}/members/${encoded(id)}`),
-    streams: (project: string, signal?: AbortSignal) => list<Stream>(metadataPath(project, 'streams'), signal),
-    environments: (project: string, signal?: AbortSignal) => list<Environment>(metadataPath(project, 'environments'), signal),
-    createStream: (project: string, body: { name: string } & MetadataPatch) => request<Stream>('POST', metadataPath(project, 'streams'), body),
-    createEnvironment: (project: string, body: { name: string } & MetadataPatch) => request<Environment>('POST', metadataPath(project, 'environments'), body),
-    updateStream: (project: string, id: string, body: MetadataPatch, signal?: AbortSignal) => request<Stream>('PATCH', metadataPath(project, 'streams', id), body, signal),
-    updateEnvironment: (project: string, id: string, body: MetadataPatch, signal?: AbortSignal) => request<Environment>('PATCH', metadataPath(project, 'environments', id), body, signal),
-    deleteStream: (project: string, id: string) => request<void>('DELETE', metadataPath(project, 'streams', id)),
-    deleteEnvironment: (project: string, id: string) => request<void>('DELETE', metadataPath(project, 'environments', id)),
-    tokens: (project: string, signal?: AbortSignal) => list<ApiToken>(`/tokens?project_id=${encoded(project)}`, signal),
-    createToken: (body: { project_id: string; name: string; scopes: string[]; expires_at?: string }) => request<{ token: string; api_token: ApiToken }>('POST', '/tokens', body),
-    revokeToken: (id: string) => request<void>('DELETE', `/tokens/${encoded(id)}`),
-    storage: (signal?: AbortSignal) => request<StorageOverview>('GET', '/admin/storage', undefined, signal),
-    createProvider: (body: ProviderInput) => request<StorageProvider>('POST', '/admin/storage/providers', body),
-    updateProvider: (id: string, body: Omit<ProviderInput, 'type'>) => request<StorageProvider>('PUT', `/admin/storage/providers/${encoded(id)}`, body),
-    deleteProvider: (id: string) => request<void>('DELETE', `/admin/storage/providers/${encoded(id)}`),
-    testProvider: (id: string) => request<StorageProvider>('POST', `/admin/storage/providers/${encoded(id)}/test`),
-    setActiveProvider: (id: string | null) => request<void>('PUT', '/admin/storage/active', { provider_id: id }),
-    secrets: (signal?: AbortSignal) => list<string>('/admin/storage/secrets', signal),
-    putSecret: (name: string, value: string) => request<void>('PUT', `/admin/storage/secrets/${encoded(name)}`, { value }),
-    retention: (signal?: AbortSignal) => list<RetentionPolicy>('/admin/retention', signal),
-    putRetention: (type: RetentionScope, id: string, body: RetentionInput) => request<RetentionPolicy>('PUT', `/admin/retention/${type}/${encoded(id)}`, body),
-    deleteRetention: (type: RetentionScope, id: string) => request<void>('DELETE', `/admin/retention/${type}/${encoded(id)}`),
+    request,
+    health: () => request<Health>('GET', '/admin/health'),
+    settings: (scope = '/admin') => list<Setting>(`${scope}/settings`),
+    setSetting: (scope: string, key: string, value: unknown) =>
+      request<Setting>('PUT', `${scope}/settings/${id(key)}`, { value }),
+    resetSetting: (scope: string, key: string) => request<Setting>('DELETE', `${scope}/settings/${id(key)}`),
+    users: (q = '', cursor = '') => request<Page<User>>('GET', `/admin/users${query({ q, cursor, limit: '100' })}`),
+    createUser: (input: { email: string; username: string; password?: string }) =>
+      request<User>('POST', '/admin/users', input),
+    updateUser: (user: string, input: { status?: string; is_instance_admin?: boolean }) =>
+      request<User>('PATCH', `/admin/users/${id(user)}`, input),
+    deleteUser: (user: string) => request<void>('DELETE', `/admin/users/${id(user)}`),
+    resetPassword: (user: string, password: string) =>
+      request<void>('PUT', `/admin/users/${id(user)}/password`, { password }),
+    sessions: (user: string) => list<Session>(`/admin/users/${id(user)}/sessions`),
+    revokeSessions: (user: string, session?: string) =>
+      request<void>('DELETE', `/admin/users/${id(user)}/sessions${session ? `/${id(session)}` : ''}`),
+    workspaces: () => list<Workspace>('/workspaces'),
+    createWorkspace: (input: { name: string; slug: string; owner_id?: string }) =>
+      request<Workspace>('POST', '/workspaces', input),
+    renameWorkspace: (workspace: string, name: string) =>
+      request<Workspace>('PATCH', `/workspaces/${id(workspace)}`, { name }),
+    deleteWorkspace: (workspace: string, confirm: string) =>
+      request<void>('DELETE', `/workspaces/${id(workspace)}`, { confirm }),
+    members: (workspace: string) => list<Member>(`/workspaces/${id(workspace)}/members`),
+    addMember: (workspace: string, email: string, role: string) =>
+      request<Member>('POST', `/workspaces/${id(workspace)}/members`, { email, role }),
+    updateMember: (workspace: string, user: string, role: string) =>
+      request<Member>('PATCH', `/workspaces/${id(workspace)}/members/${id(user)}`, { role }),
+    removeMember: (workspace: string, user: string) =>
+      request<void>('DELETE', `/workspaces/${id(workspace)}/members/${id(user)}`),
+    invitations: (workspace: string) => list<Invitation>(`/workspaces/${id(workspace)}/invitations`),
+    invite: (workspace: string, email: string, role: string) =>
+      request<Invitation & { url?: string; mail_error?: string }>('POST', `/workspaces/${id(workspace)}/invitations`, {
+        email,
+        role,
+      }),
+    revokeInvitation: (workspace: string, invitation: string) =>
+      request<void>('DELETE', `/workspaces/${id(workspace)}/invitations/${id(invitation)}`),
+    projects: (workspace: string) => list<Project>(`/projects${query({ workspace_id: workspace })}`),
+    createProject: (input: { workspace_id: string; name: string; slug: string }) =>
+      request<Project>('POST', '/projects', input),
+    renameProject: (project: string, name: string) => request<Project>('PATCH', `/projects/${id(project)}`, { name }),
+    deleteProject: (project: string, confirm: string) =>
+      request<void>('DELETE', `/projects/${id(project)}`, { confirm }),
+    environments: (project: string) => list<Environment>(`/projects/${id(project)}/environments`),
+    streams: (project: string) => list<Stream>(`/projects/${id(project)}/streams`),
+    createEnvironment: (project: string, input: { name: string } & Partial<Metadata>) =>
+      request<Environment>('POST', `/projects/${id(project)}/environments`, input),
+    createStream: (project: string, input: { name: string } & Partial<Metadata>) =>
+      request<Stream>('POST', `/projects/${id(project)}/streams`, input),
+    updateMetadata: (project: string, kind: 'streams' | 'environments', item: string, input: Partial<Metadata>) =>
+      request<Environment>('PATCH', `/projects/${id(project)}/${kind}/${id(item)}`, input),
+    deleteMetadata: (project: string, kind: 'streams' | 'environments', item: string) =>
+      request<void>('DELETE', `/projects/${id(project)}/${kind}/${id(item)}`),
+    tokens: (project: string) => list<Token>(`/tokens${query({ project_id: project })}`),
+    createToken: (input: { project_id: string; name: string; scopes: string[]; expires_at: string | null }) =>
+      request<{ token: string; api_token: Token }>('POST', '/tokens', input),
+    revokeToken: (token: string) => request<void>('DELETE', `/tokens/${id(token)}`),
+    storage: () => request<Storage>('GET', '/admin/storage'),
+    createProvider: (input: ProviderInput) => request<Provider>('POST', '/admin/storage/providers', input),
+    updateProvider: (provider: string, input: ProviderInput) =>
+      request<Provider>('PUT', `/admin/storage/providers/${id(provider)}`, input),
+    deleteProvider: (provider: string) => request<void>('DELETE', `/admin/storage/providers/${id(provider)}`),
+    testProvider: (provider: string) => request<unknown>('POST', `/admin/storage/providers/${id(provider)}/test`),
+    activateProvider: (provider: string | null) =>
+      request<void>('PUT', '/admin/storage/active', { provider_id: provider }),
+    secrets: () => list<string>('/admin/storage/secrets'),
+    putSecret: (name: string, value: string) => request<void>('PUT', `/admin/storage/secrets/${id(name)}`, { value }),
+    retention: () => list<Retention>('/admin/retention'),
+    setRetention: (scope: string, scopeId: string, input: RetentionInput) =>
+      request<Retention>('PUT', `/admin/retention/${id(scope)}/${id(scopeId)}`, input),
+    resetRetention: (scope: string, scopeId: string) =>
+      request<void>('DELETE', `/admin/retention/${id(scope)}/${id(scopeId)}`),
+    audit: (workspace?: string, cursor?: string) =>
+      request<Page<Audit>>(
+        'GET',
+        `${workspace ? `/workspaces/${id(workspace)}` : '/admin'}/audit${query({ cursor, limit: '100' })}`,
+      ),
   };
 }
 export type AdminClient = ReturnType<typeof createAdminClient>;
+
+export class AdminError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'AdminError';
+    this.status = status;
+  }
+}
+export function decodeResponse<T>(status: number, body: string): T {
+  let value: unknown;
+  if (body) {
+    try {
+      value = JSON.parse(body);
+    } catch {
+      throw new AdminError(status, `Invalid JSON response (${status})`);
+    }
+  }
+  if (status < 200 || status >= 300) {
+    const problem = typeof value === 'object' && value !== null ? value : {};
+    const detail =
+      'detail' in problem && typeof problem.detail === 'string'
+        ? problem.detail
+        : 'title' in problem && typeof problem.title === 'string'
+          ? problem.title
+          : `HTTP ${status}`;
+    throw new AdminError(status, detail);
+  }
+  return value as T;
+}
+export function createFetchRequest(options: { baseUrl: string; token?: string; csrfToken?: () => string }): Request {
+  const base = new URL(options.baseUrl);
+  if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || base.search || base.hash)
+    throw new Error('Enter an HTTP(S) instance URL without credentials, query or fragment');
+  return async <T>(method: string, path: string, body?: unknown, signal?: AbortSignal) => {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    const csrf = options.csrfToken?.();
+    if (csrf && !['GET', 'HEAD'].includes(method)) headers['X-CSRF-Token'] = csrf;
+    const response = await fetch(`${base.href.replace(/\/$/, '')}/api/v1${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: options.token ? 'omit' : 'include',
+      signal: signal ?? AbortSignal.timeout(30000),
+    });
+    return decodeResponse<T>(response.status, await response.text());
+  };
+}

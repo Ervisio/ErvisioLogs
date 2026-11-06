@@ -68,6 +68,8 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []): Loaded<T
 /** The output of the last action, shared by every section (Console shows it in full). */
 export interface Job {
   id: string;
+  startedAt: string;
+  endedAt?: string;
   title: string;
   lines: string[];
   running: boolean;
@@ -88,17 +90,21 @@ const MAX_LINES = 2000;
 export function useRunner(onDone?: () => void): Runner {
   const [job, setJob] = useState<Job | null>(null);
   const [history, setHistory] = useState<Job[]>([]);
+  const completedRef = useRef<Job | null>(null);
   const busyRef = useRef(false);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   const run = useCallback(async (title: string, fn: (log: (line: string) => void) => Promise<unknown>) => {
     if (busyRef.current) return false;
     busyRef.current = true;
-    let current: Job = { id: crypto.randomUUID(), title, lines: [], running: true, failed: false };
+    const previous = completedRef.current;
+    if (previous) setHistory((jobs) => [previous, ...jobs].slice(0, 19));
+    completedRef.current = null;
+    const current: Job = { id: crypto.randomUUID(), startedAt: new Date().toISOString(), title, lines: [], running: true, failed: false };
     setJob(current);
     const log = (line: string) => {
-      current = { ...current, lines: current.lines.length >= MAX_LINES ? [...current.lines.slice(-MAX_LINES + 1), line] : [...current.lines, line] };
-      setJob(current);
+      current.lines = [...current.lines.slice(-MAX_LINES + 1), line];
+      setJob({ ...current });
     };
     let ok = true;
     try {
@@ -109,13 +115,13 @@ export function useRunner(onDone?: () => void): Runner {
       getSdk().ui.toast.err(errText(e));
     } finally {
       busyRef.current = false;
-      const completed = { ...current, running: false, failed: !ok };
+      const completed = { ...current, running: false, failed: !ok, endedAt: new Date().toISOString() };
+      completedRef.current = completed;
       setJob(completed);
-      setHistory(previous => [completed, ...previous].slice(0, 20));
       doneRef.current?.();
     }
     return ok;
   }, []);
-  const clear = useCallback(() => { setJob(null); setHistory([]); }, []);
+  const clear = useCallback(() => { if (!busyRef.current) { setJob(null); setHistory([]); completedRef.current = null; } }, []);
   return { job, history, busy: !!job?.running, run, clear };
 }

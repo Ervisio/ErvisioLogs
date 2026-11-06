@@ -256,10 +256,12 @@ function History({ rule, channels, when }: { rule: AlertRule; channels: Notifica
 function RuleForm({ project, channels, rule, onDone }: { project: Project; channels: NotificationChannel[]; rule: AlertRule | null; onDone: (saved: boolean) => void }) {
   const { t } = useTranslation();
   const { streams } = useOutletContext<ShellContext>();
+  const [step, setStep] = useState(0);
   const [name, setName] = useState(rule?.name ?? '');
-  const [search, setSearch] = useState(rule ? formatQuery(rule.query.query, rule.query.filters) : '');
+  const [search, setSearch] = useState(rule ? formatQuery(rule.query.query, rule.query.filters, rule.query.tags) : '');
   const [levels, setLevels] = useState<string[]>(rule?.query.levels ?? ['ERROR', 'FATAL']);
   const [stream, setStream] = useState(rule?.query.streams?.[0] ?? '');
+  const [events, setEvents] = useState(rule?.query.events?.join(', ') ?? '');
   const [windowSec, setWindowSec] = useState(rule?.window_seconds ?? 300);
   const [threshold, setThreshold] = useState(String(rule?.threshold ?? 0));
   const [intervalSec, setIntervalSec] = useState(rule?.interval_seconds ?? 60);
@@ -273,6 +275,7 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
     const n = Number(threshold);
     if (!value) return setError(t('alerts.nameRequired'));
     if (!Number.isInteger(n) || n < 0) return setError(t('alerts.thresholdInvalid'));
+    if (step < 2) { setStep(step + 1); setError(null); return; }
     const parsed = parseQuery(search.trim());
     // The form picks one stream; a rule saved with several keeps them until another stream is chosen.
     const saved = rule?.query.streams ?? [];
@@ -284,6 +287,8 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
         ...rule?.query,
         query: parsed.text || undefined,
         filters: parsed.filters.length ? parsed.filters : undefined,
+        tags: parsed.tags,
+        events: events.split(',').map((event) => event.trim()).filter(Boolean),
         levels: levels.length ? levels : undefined,
         streams: keptStreams,
       },
@@ -312,6 +317,14 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
       <h3 id="rule-form" className="font-bold">
         {rule ? t('alerts.editTitle', { name: rule.name }) : t('alerts.newTitle')}
       </h3>
+      <ol className="grid grid-cols-3 gap-2" aria-label={t('alerts.newTitle')}>
+        {['stepEvent', 'stepCondition', 'stepNotify'].map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined} className={cn('border-line rounded-row border px-3 py-2 text-xs', step === index ? 'bg-accent-soft text-hue font-semibold' : 'text-ink3')}><span className="mr-2 font-mono">{index + 1}</span>{t(`flows.alerts.${label}`)}</li>)}
+      </ol>
+      <div hidden={step !== 0} className={step === 0 ? 'grid gap-4' : 'hidden'}>
+      {!rule && <fieldset className="grid gap-2"><legend className="text-ink2 mb-2 text-sm">{t('flows.alerts.templates')}</legend><div className="flex flex-wrap gap-2">{(['errors', 'failures', 'security'] as const).map((preset) => <button type="button" key={preset} className="manage-button" onClick={() => {
+        setName(t(`flows.alerts.${preset}Name`)); setThreshold('0'); setWindowSec(300); setIntervalSec(60); setStream('');
+        setLevels(preset === 'errors' ? ['ERROR', 'FATAL'] : []); setSearch(''); setEvents(preset === 'failures' ? 'payment.failed' : preset === 'security' ? 'moderation.ban' : '');
+      }}>{t(`flows.alerts.${preset}`)}</button>)}</div></fieldset>}
       <div className="grid gap-1.5">
         <label htmlFor="rule-name" className="font-semibold">
           {t('alerts.name')}
@@ -327,6 +340,7 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
           {t('alerts.matchHint')}
         </p>
       </div>
+      <label className="grid gap-1.5"><span className="font-semibold">{t('flows.alerts.events')}</span><input className={INPUT} value={events} onChange={(event) => setEvents(event.target.value)} /><span className="text-ink3 text-xs">{t('flows.alerts.eventsHint')}</span></label>
       <fieldset className="grid gap-1">
         <legend className="mb-1.5 font-semibold">{t('explorer.levels')}</legend>
         <div className="flex flex-wrap gap-x-4">
@@ -338,7 +352,8 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
           ))}
         </div>
       </fieldset>
-      <div className="grid gap-4 sm:grid-cols-2">
+      </div>
+      <div hidden={step !== 1} className={step === 1 ? 'grid gap-4 sm:grid-cols-2' : 'hidden'}>
         <div className="grid gap-1.5">
           <label htmlFor="rule-stream" className="font-semibold">
             {t('alerts.stream')}
@@ -386,6 +401,7 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
           </select>
         </div>
       </div>
+      <div hidden={step !== 2} className={step === 2 ? 'grid gap-4' : 'hidden'}>
       <fieldset className="grid gap-1">
         <legend className="mb-1.5 font-semibold">{t('alerts.notify')}</legend>
         {channels.length === 0 && <p className="text-ink2 text-[13px]">{t('alerts.noChannels')}</p>}
@@ -400,15 +416,18 @@ function RuleForm({ project, channels, rule, onDone }: { project: Project; chann
           </label>
         ))}
       </fieldset>
+      <section className="bg-sunk grid gap-2 rounded-row p-4"><h4 className="font-semibold">{t('flows.alerts.review')}</h4><p>{name}</p><p className="text-ink2 text-sm">{t('flows.alerts.reviewText', { threshold, window: t(`alerts.windows.${windowSec}`), interval: t(`alerts.intervals.${intervalSec}`).toLocaleLowerCase(), channels: picked.map((id) => channels.find((channel) => channel.id === id)?.name).filter(Boolean).join(', ') || t('flows.alerts.noDestination') })}</p><code className="text-ink3 break-all text-xs">{[search, events, levels.map((level) => level.toLowerCase()).join(', '), stream].filter(Boolean).join(' · ')}</code></section>
+      </div>
       {error && (
         <p role="alert" className="text-err">
           {error}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
+        {step > 0 && <button type="button" className="manage-button" disabled={busy} onClick={() => { setStep(step - 1); setError(null); }}>{t('flows.back')}</button>}
         <button type="submit" disabled={busy} className="bg-accent text-accent-ink flex h-12 items-center justify-center gap-2 rounded-row px-5 font-bold hover:brightness-110 disabled:opacity-60 md:h-11">
           {busy && <span className="spinner" aria-hidden />}
-          {rule ? t('alerts.save') : t('alerts.create')}
+          {step < 2 ? t('flows.next') : rule ? t('alerts.save') : t('alerts.create')}
         </button>
         <button type="button" onClick={() => onDone(false)} className="hover:bg-sunk h-12 rounded-row px-4 font-semibold md:h-11">
           {t('alerts.cancel')}

@@ -2,41 +2,16 @@
   "app": {
     "name": "Ervisio Logs"
   },
-  "shell": {
-    "workspace": "Workspace",
-    "project": "Progetto attuale",
-    "projects": "Progetti",
-    "projectSettings": "Impostazioni progetto",
-    "workspaceSettings": "Impostazioni workspace",
-    "instance": "Istanza",
-    "goTo": "Vai a…",
-    "logs": "Log",
-    "channels": "Canali di notifica",
-    "configuration": "Configurazione",
-    "instanceUsers": "Utenti d’istanza"
-  },
-  "logDetails": {
-    "who": "Chi",
-    "what": "Cosa",
-    "where": "Dove",
-    "when": "Quando",
-    "technical": "Tecnico",
-    "original": "Mostra originale",
-    "actor": "Attore",
-    "target": "Bersaglio",
-    "filterValue": "Filtra per {{field}}",
-    "copyFailed": "Impossibile copiare il JSON."
-  },
   "nav": {
     "menu": "Apri la navigazione",
     "closeMenu": "Chiudi la navigazione",
-    "primary": "Navigazione principale",
+    "primary": "Progetti",
     "sections": "Sezioni del progetto",
     "allProjects": "Tutti i progetti",
     "environment": "Ambiente",
     "streams": "Stream",
     "toggleStreams": "Mostra o nascondi gli stream",
-    "explorer": "Log",
+    "explorer": "Esplora log",
     "live": "Live",
     "dashboards": "Dashboard",
     "alerts": "Alert",
@@ -58,7 +33,8 @@
   "theme": {
     "light": "Chiaro",
     "dark": "Scuro",
-    "toggle": "Cambia tema"
+    "toggle": "Cambia tema",
+    "amoled": "AMOLED"
   },
   "language": "Lingua",
   "status": {
@@ -88,9 +64,9 @@
     "workspace": "Workspace"
   },
   "palette": {
-    "open": "Vai a…",
-    "title": "Vai a…",
-    "placeholder": "Cerca progetti, stream e impostazioni",
+    "open": "Comandi",
+    "title": "Palette dei comandi",
+    "placeholder": "Cerca progetti, stream e comandi",
     "empty": "Nessun risultato.",
     "projects": "Progetti",
     "streams": "Stream",
@@ -101,17 +77,6 @@
     "hintClose": "Esc per chiudere"
   },
   "explorer": {
-    "filters": "Filtri",
-    "closeFilters": "Chiudi filtri",
-    "levelNames": {
-      "TRACE": "Traccia",
-      "DEBUG": "Debug",
-      "INFO": "Info",
-      "NOTICE": "Nota",
-      "WARN": "Attenzione",
-      "ERROR": "Errore",
-      "FATAL": "Critico"
-    },
     "allStreams": "Tutti gli stream",
     "events_one": "{{n}} evento",
     "events_other": "{{n}} eventi",
@@ -147,7 +112,6 @@
     },
     "open": "Apri l'evento delle {{time}}",
     "tier": {
-      "archive": "Archivio",
       "live": "Live"
     },
     "shownOf": "{{shown}} di {{total}}",
@@ -191,7 +155,6 @@
     "inWorkspace": "Progetti in {{name}}"
   },
   "login": {
-    "forgotPassword": "Password dimenticata?",
     "loading": "Carico…",
     "or": "oppure",
     "continueWith": "Continua con {{provider}}",
@@ -745,17 +708,16 @@
             "title": "Invia il primo evento",
             "paragraphs": [],
             "steps": [
-              "Apri Tutti i progetti e crea un progetto nel workspace. Da questa pagina puoi anche creare un workspace; dal menu account puoi cambiarlo.",
-              "Apri il progetto. La guida al primo evento crea un token di ingestione, mostra una richiesta curl e permette di inviare un evento di prova.",
-              "Copia il token prima di lasciare la pagina. Quando arriva l’evento, il progetto apre il Log Explorer.",
-              "Per un progetto esistente, crea un token in Impostazioni → Token API e usa gli esempi API o FiveM di questa guida."
+              "Apri il riquadro del workspace in cima alla barra per scegliere un workspace. Crea un progetto dall’elenco dei progetti.",
+              "Apri il progetto. La guida al primo evento crea un token ingest e mostra una richiesta curl. Copia il token prima di lasciare la pagina.",
+              "Invia un evento, poi apri Esplora log. Per un progetto esistente, crea i token da Impostazioni progetto → Token."
             ]
           },
           {
-            "title": "Navigazione",
+            "title": "Orientati",
             "paragraphs": [
-              "La barra principale cambia progetto. La colonna del progetto apre explorer, live, avvisi, integrazioni, storage e impostazioni. Ctrl K (⌘K su Mac) apre la ricerca dei comandi di navigazione. La documentazione resta nella barra principale anche senza un progetto.",
-              "Alcune voci sono segnaposto e indicano che la funzione non è ancora disponibile. Questa guida descrive i flussi implementati per explorer, token, membri, avvisi, canali di notifica e storage."
+              "La barra laterale permette di cambiare workspace e progetto. Il menu del progetto apre log, avvisi, dashboard e utilizzo. Usa l’ingranaggio per le impostazioni progetto e Gestisci per workspace e amministrazione istanza.",
+              "Apri Account per password, sessioni, metodi di sicurezza facoltativi, lingua e tema. Ctrl K (⌘K su Mac) cerca i comandi di navigazione. Puoi leggere la documentazione anche senza workspace o progetto."
             ]
           }
         ]
@@ -785,15 +747,25 @@
           {
             "title": "Campi evento e tentativi",
             "paragraphs": [
-              "Usa level, event, message e attributes per descrivere l’evento. Il contesto opzionale comprende timestamp, id, service, host, resource, stream ed environment. Usa timestamp UTC in formato RFC 3339. Un id stabile permette di ritentare lo stesso evento senza creare un nuovo evento logico.",
-              "Con 429 o 503 rispetta Retry-After e aumenta l’attesa. Correggi gli eventi non validi con 422, dividi i batch troppo grandi con 413 e verifica credenziali e scope con 401/403. Evita tentativi immediati continui."
+              "Descrivi l’evento con level, event, message e attributes. Aggiungi stream, environment, service, host o resource per il contesto. Usa timestamp UTC RFC 3339 e mantieni lo stesso id quando ripeti un evento. Il server risponde 202 dopo aver scritto l’evento nello spool persistente; la ricerca lo mostra dopo la scrittura in ClickHouse.",
+              "Su 429 o 503 rispetta Retry-After e attendi prima di riprovare. Correggi gli eventi su 422, dividi i payload su 413 e controlla credenziali e permessi su 401/403. Leggi i conteggi accepted e rejected nelle risposte batch."
             ]
           },
           {
             "title": "Riferimento API e OpenTelemetry",
             "paragraphs": [
-              "Il contratto completo delle API è api/openapi.yaml nel repository Ervisio/ErvisioLogs. Esiste un ricevitore sperimentale OTLP/HTTP su POST /v1/logs (JSON o protobuf, con token di ingestione). Non è stato validato con un exporter OpenTelemetry o Collector reale; per l’integrazione documentata usa gli esempi JSON precedenti."
+              "Il contratto versionato si trova in api/openapi.yaml. Invia OTLP/HTTP JSON o protobuf a POST /v1/logs con un token ingest. Per gli exporter che aggiungono /v1/logs indica l’URL base dell’istanza.",
+              "scripts/collector-test.py prepara app, database e un OpenTelemetry Collector reale in uno stack isolato per verificare inoltro e ricerca. Nella verifica 0.2 non è stato possibile eseguire la prova perché il daemon Docker non rispondeva."
             ]
+          },
+          {
+            "title": "Tag, attore e bersaglio",
+            "paragraphs": [
+              "Aggiungi fino a 20 tag, ciascuno da 1 a 40 caratteri. Usa lettere minuscole, cifre, punto, underscore, due punti, slash o trattino. Cerca un tag con tag:economy. Inizia ogni tag con una lettera minuscola o una cifra.",
+              "Inserisci actor e target in attributes quando invii JSON. Ogni entità ha type e id; name è facoltativo. L’SDK TypeScript accetta actor e target anche nelle opzioni dell’evento e li inserisce in attributes. Raccogli identificatori e nomi dei giocatori secondo la tua informativa privacy."
+            ],
+            "code": "{\n  \"level\": \"INFO\",\n  \"event\": \"money.add\",\n  \"message\": \"Reward paid\",\n  \"stream\": \"economy\",\n  \"tags\": [\n    \"economy\",\n    \"reward\"\n  ],\n  \"attributes\": {\n    \"actor\": {\n      \"type\": \"admin\",\n      \"id\": \"17\",\n      \"name\": \"Ada\"\n    },\n    \"target\": {\n      \"type\": \"player\",\n      \"id\": 42\n    },\n    \"amount\": 250,\n    \"account\": \"bank\"\n  }\n}",
+            "language": "JSON"
           }
         ]
       },
@@ -803,25 +775,26 @@
         "summary": "Filtra gli eventi, esamina gli attributi e segui i nuovi log.",
         "sections": [
           {
-            "title": "Sintassi della ricerca",
+            "title": "Sintassi di ricerca",
             "paragraphs": [
-              "Il testo libero cerca nei messaggi. Le espressioni sugli attributi diventano filtri separati; racchiudi tra virgolette i valori con spazi. Gli operatori supportati sono =, !=, ~ (contiene), >, >=, <, <= e has:chiave. Combina espressioni e testo libero nella stessa ricerca."
+              "Il testo libero cerca nei messaggi. I filtri attributo supportano =, !=, ~ (contiene), >, >=, <, <= e has:key. Racchiudi tra virgolette i valori con spazi. Il costruttore di filtri permette di scegliere campo, operatore e valore."
             ],
-            "code": "player_id=42 action=add\nitem~bread count>=2 has:player_id\nreason=\"card declined\" payment",
+            "code": "tag:economy amount>=250\nactor.id=17 target.type=player\nreason=\"card declined\" payment",
             "language": "Search"
           },
           {
-            "title": "Restringi i risultati",
+            "title": "Leggi gli eventi e restringi l’intervallo",
             "paragraphs": [
-              "Scegli intervallo temporale, livelli, stream e ambiente per restringere la ricerca nel progetto. Apri una riga per esaminare evento e attributi. Carica altri aggiunge una pagina di risultati. Le viste salvate permettono di riutilizzare una ricerca.",
-              "Le ricerche negli archivi possono essere più lente di quelle sui dati recenti. Se un risultato è parziale, consideralo incompleto e verifica la disponibilità dell’archivio prima di concludere che un evento manchi."
+              "Le righe mostrano ora relativa, livello, titolo del catalogo e messaggio leggibile. Le etichette di attore, bersaglio e tag aggiungono contesto. Apri una riga per i gruppi Chi, Cosa, Dove, Quando e Tecnico; espandi l’originale per leggere il JSON. Clicca un valore o un tag per aggiungere un filtro.",
+              "Scegli livelli, evento, categoria, stream e ambiente in Filtri. Trascina sui gruppi dell’istogramma per impostare l’intervallo; da tastiera puoi selezionare un gruppo. Le etichette dei livelli mantengono i conteggi quando selezioni un altro livello. Le viste salvate conservano ricerca e filtri.",
+              "Il badge Archivio indica le righe lette dall’archivio. Un risultato parziale segnala che parte dei dati selezionati non era disponibile; controlla la destinazione prima di concludere che un evento manchi."
             ]
           },
           {
-            "title": "Live ed esportazione",
+            "title": "Live ed export",
             "paragraphs": [
-              "Live segue gli eventi appena arrivati. Cerca quelli storici nell’explorer con un intervallo appropriato. Una disconnessione del live non dimostra che l’ingestione si sia fermata.",
-              "L’esportazione richiede logs:export e l’accesso al progetto. Restringi intervallo e filtri prima di esportare grandi volumi."
+              "Attiva Live nell’explorer per seguire i nuovi eventi con i filtri attivi su testo, tag, eventi e attributi. Usa l’intervallo temporale per cercare eventi passati. Una connessione Live interrotta non dimostra che l’ingest si sia fermato.",
+              "L’export richiede logs:export. Restringi intervallo e filtri prima di esportare molti risultati."
             ]
           }
         ]
@@ -840,16 +813,18 @@
             ]
           },
           {
-            "title": "Ruoli del workspace",
+            "title": "Ruoli e inviti workspace",
             "paragraphs": [
-              "Owner gestisce workspace e membri. Admin gestisce progetti, token, membri e avvisi ma non può assegnare la proprietà o modificare gli owner. Developer può creare progetti, gestire token e avvisi, leggere ed esportare log. Analyst legge ed esporta; Viewer legge.",
-              "In Impostazioni → Utenti puoi aggiungere un account esistente tramite email o cambiarne il ruolo. Deve rimanere almeno un owner. L’amministrazione dell’istanza è distinta dall’appartenenza ai workspace e non dà automaticamente accesso ai loro log."
+              "Owner gestisce il workspace e i proprietari. Admin gestisce progetti, membri, token e avvisi. Developer gestisce progetti, token e avvisi e legge/esporta i log. Analyst legge ed esporta; Viewer legge. Il workspace deve mantenere un proprietario.",
+              "Apri Impostazioni workspace → Membri per aggiungere un account o invitare un indirizzo email. Con SMTP configurato l’app invia il link; altrimenti copia l’URL restituito. Il destinatario deve usare l’indirizzo invitato.",
+              "Gli amministratori istanza gestiscono utenti e configurazione del servizio. Il ruolo d’istanza non concede appartenenza ai workspace o accesso ai log dei tenant."
             ]
           },
           {
-            "title": "Amministrazione dello storage",
+            "title": "Token operatore e amministrazione archivio",
             "paragraphs": [
-              "La pagina Storage è riservata agli amministratori dell’istanza perché destinazioni degli archivi e budget della cache locale riguardano tutto il server. Essere owner del workspace non basta."
+              "In Amministrazione → Token operatore crea un token evl_adm_ con i permessi admin:* necessari e una scadenza entro un anno. Copia il valore mostrato alla creazione, conservalo come segreto e revocalo al termine dell’accesso. Questi token gestiscono istanza e tenancy; non leggono, esportano o eliminano log.",
+              "Amministrazione → Archivio contiene destinazioni condivise e budget cache dell’istanza. La conservazione di workspace e progetto si gestisce nelle rispettive impostazioni."
             ]
           }
         ]
@@ -870,7 +845,7 @@
             "title": "Aggiungi e attiva una destinazione",
             "paragraphs": [],
             "steps": [
-              "Come amministratore dell’istanza, apri Storage da un progetto.",
+              "Come amministratore istanza, apri Amministrazione → Archivio.",
               "Aggiungi bucket S3, destinazione SFTP o percorso assoluto di una cartella sul server. Per una cartella, il servizio deve avere i permessi necessari.",
               "Inserisci le credenziali nel modulo, carica un file dal computer o indica un file già presente nella directory dei segreti configurata.",
               "Prova la destinazione e poi attivala. L’attivazione indirizza i nuovi segmenti di archivio; non migra quelli vecchi.",
@@ -895,7 +870,7 @@
           {
             "title": "Retention e destinazioni precedenti",
             "paragraphs": [
-              "La retention del progetto eredita i valori dell’istanza salvo override. Controlla la policy effettiva prima di salvare: la scadenza della retention completa elimina definitivamente i dati.",
+              "La conservazione eredita da istanza a workspace, progetto e stream. Imposta le eccezioni nelle impostazioni workspace e progetto; lascia un campo vuoto per ereditarlo o svuotali entrambi per rimuovere l’eccezione. La scadenza della conservazione totale elimina i dati.",
               "Mantieni raggiungibili le vecchie destinazioni finché esistono segmenti catalogati che le usano. Cambiare destinazione attiva non migra i dati. Se l’archiver è disattivato, configuralo sul server prima di aspettarti archivi remoti o rimozione dei dati locali."
             ]
           }
@@ -931,6 +906,15 @@
               "Esegui ervisio_logs_status nella console server per vedere i contatori. Un 401/403 interrompe l’invio: correggi il token e usa ervisio_logs_resume.",
               "L’integrazione e gli adattatori di esempio non sono stati verificati in game. Provali sul server di sviluppo prima di usarli in produzione."
             ]
+          },
+          {
+            "title": "Log v2 e privacy",
+            "paragraphs": [
+              "Passa un array tags come sesto argomento di Log oppure usa tags negli eventi LogBatch. Inserisci le entità actor e target in attributes. Le impostazioni progetto permettono di creare gli stream sconosciuti durante l’ingest; disattiva la funzione o imposta un limite se vuoi un catalogo fisso.",
+              "Applica il preset FiveM da Impostazioni progetto → Eventi e campi per titoli e modelli degli eventi. Nomi e identificatori dei giocatori restano facoltativi in config.lua; un modello del catalogo non ne attiva la raccolta. Verifica hook e payload sul tuo server di gioco prima del deploy."
+            ],
+            "code": "exports.ervisio_logs:Log('economy', 'INFO', 'money.add', 'Reward paid', {\n    actor = { type = 'admin', id = '17' },\n    target = { type = 'player', id = source },\n    amount = 250,\n}, { 'economy', 'reward' })",
+            "language": "Lua / server"
           }
         ]
       },
@@ -942,24 +926,29 @@
           {
             "title": "Crea un canale di notifica",
             "paragraphs": [
-              "In Integrazioni aggiungi un canale con URL webhook HTTPS. Scegli Discord, Slack o JSON firmato per un tuo endpoint. Invia una prova e controlla lo stato dell’ultima consegna.",
-              "I canali JSON firmati mostrano il segreto di firma una volta sola. Salvalo sull’endpoint ricevente; la rotazione invalida il valore precedente. Il webhook riceve notifiche degli avvisi, non una copia di ogni evento acquisito."
+              "Apri Impostazioni workspace → Canali di notifica. Scegli webhook, email o Telegram. I webhook supportano Discord, Slack e JSON firmato. Per email inserisci il destinatario e chiedi a un amministratore istanza di configurare SMTP. Per Telegram inserisci token del bot e ID chat; il bot deve avere accesso alla chat.",
+              "Verifica il canale, poi controlla successi ed errori nello storico consegne. Il server conserva le credenziali Telegram cifrate e non restituisce il token del bot. I canali JSON firmati mostrano il segreto alla creazione; configura quel segreto nel ricevitore."
             ]
           },
           {
             "title": "Crea un avviso",
             "paragraphs": [],
             "steps": [
-              "Apri Avvisi e crea una regola con la stessa sintassi dell’explorer. Se necessario, scegli stream e livelli degli eventi.",
-              "Scegli finestra temporale, soglia e intervallo di controllo. La regola scatta quando il numero di eventi corrispondenti supera la soglia.",
-              "Seleziona i canali e salva. Senza canali la regola cambia stato solo nell’app.",
-              "Consulta lo storico per attivazione, risoluzione ed errori di valutazione. Metti in pausa la regola quando le notifiche non servono temporaneamente."
+              "Apri Avvisi nel progetto e scegli un modello o definisci la ricerca. Seleziona evento, stream, ambiente e livelli.",
+              "Imposta finestra di osservazione, soglia e intervallo di controllo. La regola scatta quando il conteggio supera la soglia.",
+              "Seleziona i canali e salva. Controlla il riepilogo in frase e lo storico. Senza un canale, la regola cambia stato nell’app senza inviare notifiche."
             ]
           },
           {
             "title": "Problemi di consegna",
             "paragraphs": [
               "Verifica che il canale sia attivo, che il test riesca e che il servizio remoto accetti il webhook. Se la regola è in errore, consulta lo storico prima di cambiare la soglia."
+            ]
+          },
+          {
+            "title": "Avvisi di sistema",
+            "paragraphs": [
+              "Gli amministratori istanza configurano gli avvisi su pressione dello spool, ritardo archivio e destinazioni in errore da Amministrazione → Avvisi di sistema. Queste regole controllano il servizio; le regole sugli eventi restano nel progetto."
             ]
           }
         ]
@@ -972,8 +961,10 @@
           {
             "title": "Plugin Ervisio",
             "paragraphs": [
-              "Installa il plugin firmato Ervisio Logs da Plugin → Sfoglia. Può distribuire Docker Compose o un servizio standalone e configurare l’indirizzo tramite un’installazione Caddy esistente. Apri avvia l’app, che ha account propri.",
-              "Per aggiornare, aggiorna il plugin in Ervisio e poi premi Aggiorna nella pagina del plugin Ervisio Logs. Aggiornare solo il pacchetto del plugin non sostituisce l’app in esecuzione. Il plugin distribuisce la versione dell’app inclusa nel suo pacchetto."
+              "Il plugin comprende Panoramica, Istanza, Workspace, Progetti, Utenti, Archivio, Server, Indirizzo e Console. Istanza modifica le impostazioni runtime; Server modifica le variabili dell’host e permette il riavvio. Console conserva le ultime 20 operazioni della sessione della pagina.",
+              "La gestione locale usa il socket Unix amministrativo tramite le capability approvate dell’SDK. Lo stack Docker rootful predefinito usa /var/lib/docker/volumes/ervisiologs_admin/_data/admin.sock; standalone usa /run/ervisio-logs/admin.sock. L’accesso al socket concede i permessi di gestione operatore.",
+              "Per un’istanza remota o un percorso socket diverso, scegli HTTPS e un token evl_adm_ in Istanza. Ervisio chiede all’amministratore di approvare l’host e ricarica il plugin alla prima approvazione; collegati di nuovo dopo il caricamento. Il plugin conserva il token nella memoria della pagina e omette i cookie del browser.",
+              "Aggiorna il pacchetto plugin in Ervisio, poi aggiorna l’app dalla sua pagina. Il pacchetto contiene il bundle corrispondente; sostituire il plugin non riavvia né aggiorna l’app. L’integrazione 0.2 non è stata verificata in un pannello Ervisio reale."
             ]
           },
           {
@@ -1003,7 +994,7 @@
             "steps": [
               "Controlla URL di invio e progetto proprietario del token. Esamina lo stato HTTP di ingestione e gli eventi rifiutati.",
               "Rimuovi testo e filtri, seleziona ambiente e stream corretti e allarga l’intervallo temporale. Controlla l’orologio del mittente e i timestamp.",
-              "Se l’ingestione è accettata ma la visibilità tarda, controlla Stato del sistema, log del servizio e connessioni ai database.",
+              "Se gli eventi accettati non compaiono, controlla Amministrazione → Panoramica, coda dello spool, log del servizio e connessione ai database.",
               "Per FiveM consulta ervisio_logs_status; dopo aver corretto un token rifiutato, esegui ervisio_logs_resume."
             ]
           },
@@ -1017,522 +1008,372 @@
           {
             "title": "Problemi di storage e accesso",
             "paragraphs": [
-              "Un owner che non può aprire Storage ha bisogno del ruolo separato di amministratore dell’istanza. Se le credenziali non si salvano, fai controllare all’operatore la directory dei segreti configurata e i permessi di scrittura del servizio.",
+              "Le destinazioni archivio richiedono il ruolo separato di amministratore istanza. Per la scrittura delle credenziali controlla la directory dei segreti e i permessi del servizio.",
               "Per S3 verifica bucket, regione, endpoint e permessi delle chiavi. Per SFTP verifica porta, chiave host, autenticazione e permessi della directory. Prova la destinazione e mantieni accessibili quelle che conservano segmenti precedenti.",
-              "Usa Stato del sistema e log del backend per problemi delle dipendenze. Quando chiedi assistenza, copia gli errori senza includere token, password o chiavi private."
+              "Controlla Amministrazione → Panoramica e i log backend per gli errori delle dipendenze. Rimuovi token, password e chiavi private dai testi diagnostici che condividi."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "settings",
+        "title": "Impostazioni e catalogo eventi",
+        "summary": "Trova le impostazioni di istanza, workspace e progetto.",
+        "sections": [
+          {
+            "title": "Ambiti ed ereditarietà",
+            "paragraphs": [
+              "Usa Amministrazione per destinazioni archivio, accesso, email, limiti ingest e impostazioni del servizio. Le impostazioni workspace contengono membri, inviti, canali e valori del workspace. Le impostazioni progetto contengono ambienti, stream, token, catalogo ed eccezioni del progetto.",
+              "Ogni impostazione runtime mostra la fonte. Un valore nell’ambiente blocca l’impostazione; modificalo sull’host e riavvia il servizio. I valori nel database passano dal servizio delle impostazioni runtime. Ripristina un’eccezione per ereditare il valore del livello superiore."
+            ]
+          },
+          {
+            "title": "Titoli evento e regole campi",
+            "paragraphs": [
+              "Apri Impostazioni progetto → Eventi e campi. Assegna a ogni nome evento un titolo, modello del messaggio, icona, categoria, colore e fino a dieci campi attributo in evidenza. I nomi osservati entrano nel catalogo per essere descritti; il preset FiveM fornisce valori iniziali modificabili.",
+              "I modelli usano percorsi attributo come {actor.name} e {amount}. Le regole campi impostano etichette, formati e visibilità. Nascondere un campo cambia la presentazione. Attiva Oscura per sostituire quel campo nei nuovi eventi prima dell’ingest persistente; cambiare una regola non riscrive gli eventi salvati."
+            ]
+          },
+          {
+            "title": "Aspetto",
+            "paragraphs": [
+              "Scegli Chiaro, Scuro o AMOLED in Account. AMOLED mantiene nera l’area degli eventi. L’interfaccia rispetta la preferenza del dispositivo per il movimento ridotto nelle animazioni dello sfondo."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "account-security",
+        "title": "Sicurezza account",
+        "summary": "Gestisci password, sessioni, codici authenticator e passkey facoltativi.",
+        "sections": [
+          {
+            "title": "Password e sessioni",
+            "paragraphs": [
+              "Usa Account per cambiare password o revocare un’altra sessione attiva. Il cambio password chiude le altre sessioni. Se l’hai dimenticata, richiedi un link dal login; l’istanza deve avere SMTP funzionante per inviarlo."
+            ]
+          },
+          {
+            "title": "Authenticator e codici di recupero facoltativi",
+            "paragraphs": [
+              "I codici authenticator (TOTP) e le passkey sono facoltativi per ciascun account. Per attivare TOTP apri Account → Sicurezza, conferma la password, aggiungi il segreto mostrato all’authenticator e inserisci il codice corrente. Per un account senza password locale, accedi di nuovo tramite il provider esterno prima di modificare i metodi di sicurezza.",
+              "Copia i codici di recupero quando attivi TOTP e conservali fuori da questo account. Ogni codice funziona una volta. Usa un codice authenticator o un codice di recupero non usato quando il login richiede la verifica. Per disattivare TOTP serve la verifica; la disattivazione rimuove i relativi codici di recupero."
+            ]
+          },
+          {
+            "title": "Passkey",
+            "paragraphs": [
+              "Usa HTTPS e un browser con supporto WebAuthn. In Account → Sicurezza assegna un nome alla passkey, aggiungila e completa la verifica del dispositivo nel browser. Usa il pulsante passkey al login per accedere con quel dispositivo o con la credenziale sincronizzata.",
+              "Mantieni un metodo di accesso funzionante prima di eliminare una passkey. Le verifiche 0.2 includono un authenticator virtuale; i dispositivi fisici e il login con provider reali richiedono ancora una prova sull’host."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "dashboards",
+        "title": "Dashboard e utilizzo",
+        "summary": "Crea pannelli dalle viste salvate e controlla attività e quote del progetto.",
+        "sections": [
+          {
+            "title": "Pannelli da viste salvate",
+            "paragraphs": [],
+            "steps": [
+              "Salva una ricerca in Esplora log con i filtri e l’intervallo da riutilizzare.",
+              "Apri Dashboard nel progetto e crea un pannello. Seleziona la vista salvata e scegli conteggio, serie temporale o valori principali. Per i valori principali indica anche un campo attributo.",
+              "Assegna un nome e salva. Modifica o elimina il pannello dalla sua scheda. I permessi workspace regolano modifiche e accesso ai log di origine."
+            ]
+          },
+          {
+            "title": "Utilizzo e quote",
+            "paragraphs": [
+              "Utilizzo mostra conteggi evento e byte per intervallo e stream del progetto selezionato. I byte misurano il payload testuale non compresso e differiscono dall’uso di ClickHouse compresso, archivio e disco. Controlla gli avvisi di risultato parziale prima di usare i totali.",
+              "Gli amministratori possono impostare limiti di frequenza e quote giornaliere di eventi e byte per workspace o progetto. Zero indica assenza di limite. I contatori delle quote appartengono al processo e ripartono al suo riavvio; più repliche non condividono questi contatori."
             ]
           }
         ]
       }
     ]
   },
-  "adminUsers": {
-    "title": "Utenti",
-    "instanceScope": "Amministrazione / Istanza",
-    "instanceAccount": "Account di istanza",
-    "intro": "Gestisci l’accesso a Ervisio Logs. Per le appartenenze ai workspace usa Membri e inviti. Il ruolo di admin istanza non concede accesso ai log dei workspace.",
-    "forbidden": "Solo un amministratore di istanza può gestire questi account.",
-    "create": "Crea utente",
-    "search": "Cerca",
-    "searchPlaceholder": "Cerca email o username",
-    "list": "Utenti dell’istanza",
-    "loading": "Carico gli utenti…",
-    "loadFailed": "Impossibile caricare gli utenti.",
-    "empty": "Nessun account corrisponde",
-    "emptyHelp": "Cambia la ricerca o crea un account.",
-    "manageUser": "Gestisci {{name}}",
-    "you": "Tu",
+  "manage": {
+    "workspaceSettings": "Impostazioni workspace",
+    "projectSettings": "Impostazioni progetto",
+    "administration": "Amministrazione",
+    "account": "Account",
+    "instance": "Istanza",
+    "switchWorkspace": "Seleziona workspace",
+    "overview": "Panoramica",
+    "users": "Utenti",
+    "workspaces": "Workspace",
+    "settings": "Impostazioni runtime",
+    "archive": "Archivio",
+    "tokens": "Token",
+    "audit": "Registro attività",
+    "system-alerts": "Avvisi di sistema",
+    "saved": "Salvato.",
+    "failed": "Operazione non riuscita. Riprova.",
+    "save": "Salva",
+    "create": "Crea",
+    "delete": "Elimina",
+    "danger": "Zona pericolosa",
+    "confirmSlug": "Questa operazione è irreversibile. Digita {{slug}} per confermare.",
+    "confirmation": "Conferma",
+    "general": "Generale",
+    "environments": "Ambienti",
+    "streams": "Stream",
+    "catalog": "Eventi e campi",
+    "retention": "Conservazione",
+    "members": "Membri e inviti",
+    "channels": "Canali di notifica",
+    "locked": "Impostata dal server: {{env}}",
+    "source": "Origine: {{source}}",
+    "seconds": "secondi",
+    "inherit": "Ripristina ereditato",
+    "name": "Nome",
+    "technicalName": "Nome tecnico",
+    "displayName": "Nome visibile",
+    "description": "Descrizione",
+    "color": "Colore",
+    "deleteNamed": "Eliminare {{name}}?",
+    "retentionHint": "I valori sono espressi in ore. Lascia vuoto per ereditare dal livello superiore.",
+    "localHours": "Conservazione locale (ore)",
+    "globalHours": "Conservazione totale (ore)",
+    "purge": "Elimina log",
+    "from": "Da",
+    "to": "A",
+    "runtimeHint": "Le modifiche si applicano senza riavvio. I valori imposti dal server restano bloccati.",
+    "health": "Salute dell’istanza",
+    "refresh": "Aggiorna",
+    "available": "Disponibile",
+    "unavailable": "Non disponibile",
+    "wal": "Spazio coda su disco",
+    "queue": "Eventi in attesa",
+    "uploads": "Upload in attesa",
+    "failedUploads": "Upload falliti",
+    "lastUpload": "Ultimo upload verificato",
+    "destination": "Destinazione attiva",
+    "none": "Nessuna",
+    "searchUsers": "Cerca per nome o email",
+    "createUser": "Crea utente",
+    "instanceAdmin": "Admin istanza",
     "active": "Attivo",
     "disabled": "Disabilitato",
-    "admin": "Admin istanza",
-    "regularUser": "Utente",
-    "page": "Pagina {{page}}",
-    "previous": "Precedente",
-    "next": "Successiva",
-    "details": "Dettaglio utente",
-    "closeDetails": "Chiudi dettaglio utente",
-    "closeDialog": "Chiudi finestra",
-    "created": "Creato",
-    "email": "Email",
-    "username": "Username",
-    "verified": "Verificata",
-    "unverified": "Non verificata",
-    "access": "Accesso",
-    "disable": "Disabilita account",
-    "activate": "Riattiva account",
-    "demote": "Revoca admin istanza",
-    "promote": "Promuovi ad admin istanza",
+    "empty": "Nessun risultato.",
+    "firstPage": "Prima pagina",
+    "next": "Pagina successiva",
+    "optionalPassword": "Facoltativa: senza password si accede con un provider esterno.",
+    "adminScopeHint": "Il ruolo di istanza non concede accesso ai log. I permessi sui dati dipendono dai workspace.",
+    "ownAccount": "Gestisci password e sessioni nel tuo Account",
+    "status": "Stato",
     "resetPassword": "Reimposta password",
-    "selfHelp": "Da qui non puoi cambiare stato, ruolo admin o password, né eliminare il tuo account. Per cambiare la password usa Account.",
-    "sessions": "Sessioni",
-    "viewSessions": "Mostra sessioni",
-    "deletion": "Eliminazione",
-    "delete": "Elimina account",
-    "deleteHelp": "L’eliminazione rimuove sessioni e appartenenze. I token creati dall’utente smettono di funzionare.",
-    "cancel": "Annulla",
-    "usernameHelp": "Da 3 a 32 caratteri: minuscole, numeri, punto, trattino o underscore.",
-    "optionalPassword": "Password (facoltativa)",
+    "resetPasswordHint": "Imposta una nuova password e chiude tutte le sessioni dell’utente.",
     "newPassword": "Nuova password",
-    "passwordHelp": "Almeno 10 caratteri e al massimo 128 byte. Deve essere diversa da email e username.",
-    "confirmUsername": "Scrivi {{name}} per confermare",
-    "confirmMismatch": "La conferma non corrisponde allo username.",
-    "actionFailed": "L’azione non è riuscita. Riprova.",
-    "sessionsFailed": "Impossibile caricare o modificare le sessioni.",
-    "sessionsRevoked": "Sessioni revocate.",
-    "sessionHelp": "La revoca di tutte le sessioni mantiene quella che invia la richiesta. Revocare la sessione corrente ti disconnette.",
-    "loadingSessions": "Carico le sessioni…",
-    "noSessions": "Nessuna sessione attiva.",
-    "unknownBrowser": "Browser non indicato",
-    "revokeSession": "Revoca",
+    "deleteUser": "Elimina utente",
+    "sessions": "Sessioni attive",
+    "unknownDevice": "Dispositivo sconosciuto",
     "currentSession": "Sessione corrente",
-    "lastSeen": "Ultimo uso",
-    "expires": "Scade",
-    "notAvailable": "Non indicato",
-    "revokeOthers": "Revoca le altre sessioni",
-    "revokeAll": "Revoca tutte le sessioni",
-    "actionTitle": {
-      "status": "Modifica accesso · {{name}}",
-      "admin": "Modifica ruolo admin · {{name}}",
-      "password": "Reimposta password · {{name}}",
-      "sessions": "Sessioni · {{name}}",
-      "delete": "Elimina {{name}}",
-      "disable": "Disabilita {{name}}",
-      "activate": "Riattiva {{name}}",
-      "promote": "Promuovi {{name}} ad admin istanza",
-      "demote": "Revoca admin istanza a {{name}}"
-    },
-    "actionHelp": {
-      "create": "Crea un account di istanza. Senza password, l’account può accedere solo con un provider esterno che verifica l’indirizzo.",
-      "status": "Modifica la possibilità di accedere a questo account.",
-      "admin": "Il ruolo di admin istanza non modifica i ruoli nei workspace.",
-      "disable": "L’utente non potrà più accedere. Tutte le sue sessioni verranno revocate.",
-      "activate": "L’utente potrà accedere nuovamente. Le sessioni precedenti resteranno revocate.",
-      "promote": "L’utente potrà gestire l’istanza e i suoi account. Questo ruolo non concede accesso ai log dei workspace.",
-      "demote": "L’utente perderà la gestione dell’istanza. I suoi ruoli nei workspace resteranno invariati.",
-      "password": "Imposta una nuova password e revoca tutte le sessioni dell’utente. Comunica la password attraverso un canale appropriato.",
-      "delete": "Elimina l’account, le sessioni e le appartenenze. I token creati dall’utente smettono di funzionare. Il server mantiene almeno un admin attivo e un owner per workspace."
-    },
-    "submit": {
-      "create": "Crea utente",
-      "status": "Conferma modifica",
-      "admin": "Conferma modifica",
-      "password": "Reimposta password",
-      "delete": "Elimina account"
-    },
-    "success": {
-      "create": "Utente creato.",
-      "status": "Accesso all’account aggiornato.",
-      "admin": "Ruolo di admin istanza aggiornato.",
-      "password": "Password reimpostata e sessioni dell’utente revocate.",
-      "delete": "Account eliminato."
-    }
-  },
-  "settings": {
-    "title": "Impostazioni",
-    "scope": "Ambito",
-    "sections": "Sezioni delle impostazioni",
-    "forbidden": "Non hai il permesso di aprire queste impostazioni.",
-    "readOnly": "Puoi leggere le impostazioni. Il tuo ruolo nel workspace non consente modifiche in questo ambito.",
-    "loadFailed": "Impossibile caricare le impostazioni.",
-    "saveFailed": "Impossibile salvare questo valore.",
-    "refreshFailed": "I valori sono stati scritti, ma non è stato possibile ricaricare le impostazioni. Controlla il server prima di riprovare.",
-    "checkValues": "Controlla i valori indicati prima di salvare.",
-    "partial": "{{saved}} valori salvati; {{failed}} valori non sono stati salvati e restano da correggere.",
-    "saved_one": "{{count}} valore salvato.",
-    "saved_other": "{{count}} valori salvati.",
-    "saving": "Salvataggio…",
-    "unsaved": "Modifiche da salvare.",
-    "noChanges": "Nessuna modifica da salvare.",
-    "empty": "Nessuna impostazione disponibile in questo ambito.",
-    "enabled": "Abilitata",
-    "disabled": "Disabilitata",
-    "notSet": "Non impostato",
-    "technical": "Dettagli tecnici",
-    "seconds": "Secondi",
-    "locked": "Impostata con una variabile sul server. Questo valore si cambia nella configurazione del server.",
-    "pending": "Modifica da salvare",
-    "useDefault": "Usa il valore predefinito",
-    "useInherited": "Usa il valore ereditato",
-    "resetValue": "Ripristina valore ereditato",
-    "invalidBoolean": "Scegli abilitata o disabilitata.",
-    "invalidNumber": "Inserisci un numero intero tra {{min}} e {{max}}.",
-    "invalidChoice": "Scegli uno dei valori disponibili.",
-    "invalidText": "Usa testo senza caratteri di controllo, entro {{max}} byte.",
-    "scopes": {
+    "revoke": "Revoca",
+    "revokeOthers": "Chiudi le altre sessioni",
+    "operatorTokens": "Token amministrazione",
+    "operatorHint": "Per collegare il plugin a un’istanza remota. Scegli solo i permessi necessari e una scadenza.",
+    "expires": "Scadenza",
+    "scopes": "Permessi",
+    "fivemPreset": "Importa preset FiveM",
+    "createEvent": "Crea tipo evento",
+    "event_name": "Nome tecnico evento",
+    "event_title": "Titolo",
+    "event_template": "Frase modello",
+    "event_icon": "Nome icona Lucide",
+    "event_category": "Categoria",
+    "event_color": "Colore",
+    "templateHint": "Inserisci i campi tra parentesi, ad esempio {actor.name} e {amount}.",
+    "featuredFields": "Campi in evidenza (separati da virgola)",
+    "fieldRules": "Regole dei campi",
+    "redactionHint": "I campi nascosti non compaiono nel dettaglio. La redazione sostituisce i dati prima del salvataggio e vale solo per i nuovi eventi.",
+    "fieldPath": "Percorso campo",
+    "format": "Formato",
+    "hidden": "Nascondi",
+    "redact": "Redigi all’ingresso",
+    "addField": "Aggiungi campo",
+    "noPanels": "Crea una vista salvata nell’explorer, poi usala per aggiungere un pannello.",
+    "edit": "Modifica",
+    "createPanel": "Aggiungi pannello",
+    "savedQuery": "Vista salvata",
+    "choose": "Seleziona…",
+    "panelType": "Tipo di pannello",
+    "panel_count": "Conteggio",
+    "panel_timeseries": "Serie temporale",
+    "panel_top": "Valori più frequenti",
+    "events": "Eventi",
+    "payloadBytes": "Dimensione dei contenuti",
+    "usageHint": "Dimensione dei contenuti non compressi. Le quote giornaliere si azzerano a mezzanotte UTC; i contatori del processo ripartono al riavvio.",
+    "dailyQuota": "Quota giornaliera",
+    "unlimited": "Illimitata",
+    "systemAlertsHint": "Invia avvisi quando la coda supera l’80%, l’archivio è in ritardo o la destinazione non risponde. Seleziona i canali di un workspace che gestisci.",
+    "profile": "Profilo",
+    "verified": "Verificata",
+    "unverified": "Da verificare",
+    "resendVerification": "Invia link di verifica",
+    "preferences": "Preferenze",
+    "theme": "Tema",
+    "changePassword": "Cambia password",
+    "currentPassword": "Password attuale",
+    "security": "Sicurezza",
+    "optionalSecurity": "Authenticator e passkey sono facoltativi. Puoi configurarli separatamente. Conserva i codici di recupero in un posto sicuro.",
+    "securityPasswordHint": "Per account esterni senza password, accedi di nuovo al provider prima di modificare la sicurezza.",
+    "authenticatorCode": "Codice authenticator o recupero",
+    "authenticator": "App authenticator",
+    "disable": "Disabilita",
+    "setupAuthenticator": "Configura authenticator",
+    "authenticatorHint": "Aggiungi questa chiave nella tua app authenticator, poi inserisci il codice per confermare.",
+    "openAuthenticator": "Apri nell’app authenticator",
+    "confirm": "Conferma",
+    "recoveryHint": "Salva questi codici: vengono mostrati una sola volta. Ogni codice permette un solo accesso.",
+    "savedRecovery": "Ho salvato i codici",
+    "passkeys": "Passkey",
+    "passkeyName": "Nome della passkey",
+    "addPasskey": "Aggiungi passkey",
+    "passkeyUnsupported": "Le passkey richiedono un browser aggiornato e un contesto HTTPS.",
+    "link_forgot-password": "Password dimenticata",
+    "link_reset-password": "Reimposta password",
+    "link_verify-email": "Verifica email",
+    "link_invite": "Invito al workspace",
+    "forgotSent": "Se esiste un account per questo indirizzo, riceverai un link per reimpostare la password.",
+    "completed": "Operazione completata.",
+    "invalidLink": "Link non valido o incompleto.",
+    "continue": "Continua",
+    "signInToAccept": "Accedi per accettare l’invito",
+    "backToApp": "Torna all’app",
+    "forgotPassword": "Password dimenticata?",
+    "usePasskey": "Accedi con una passkey",
+    "mfaRecoveryHint": "Inserisci il codice dell’app oppure un codice di recupero non ancora usato.",
+    "back": "Indietro",
+    "filters": "Filtri",
+    "addFilter": "Aggiungi filtro",
+    "operator": "Operatore",
+    "value": "Valore",
+    "histogram": "Eventi nel tempo",
+    "histogramHint": "Trascina sulle barre per selezionare un intervallo.",
+    "resetRange": "Ripristina intervallo",
+    "original": "Mostra originale",
+    "who": "Chi",
+    "what": "Cosa",
+    "where": "Dove",
+    "when": "Quando",
+    "technical": "Tecnico",
+    "tags": "Tag",
+    "actor": "Attore",
+    "target": "Bersaglio",
+    "category": "Categoria",
+    "filterBy": "Filtra per {{field}}: {{value}}",
+    "filterEvents": "Tipo di evento",
+    "allEvents": "Tutti gli eventi",
+    "liveMalformed": "Il flusso Live ha inviato un evento non valido.",
+    "copyFailed": "Copia non riuscita.",
+    "sources": {
+      "env": "Server",
+      "default": "Default",
       "instance": "Istanza",
       "workspace": "Workspace",
       "project": "Progetto"
-    },
-    "headings": {
-      "instance": "Configura l'istanza",
-      "workspace": "Impostazioni del workspace",
-      "project": "Impostazioni del progetto"
-    },
-    "intro": {
-      "instance": "Gestisci i valori predefiniti. Le variabili del server hanno sempre la precedenza.",
-      "workspace": "Definisci i valori condivisi dai progetti di questo workspace.",
-      "project": "Scegli cosa ereditare e cosa personalizzare per questo progetto."
-    },
-    "sources": {
-      "env": "Impostata dal server",
-      "instance": "Valore dell'istanza",
-      "workspace": "Valore del workspace",
-      "project": "Valore del progetto",
-      "default": "Valore predefinito"
-    },
-    "unknown": {
-      "label": "Altra impostazione",
-      "hint": "Apri i dettagli tecnici per identificare questa impostazione del server."
-    },
-    "groups": {
-      "access": {
-        "label": "Accesso",
-        "hint": "Registrazione e durata delle sessioni."
-      },
-      "collection": {
-        "label": "Raccolta log",
-        "hint": "Controlla gli stream e il ritmo di invio."
-      },
-      "quotas": {
-        "label": "Limiti giornalieri",
-        "hint": "Le quote si azzerano a mezzanotte UTC. Zero significa nessun limite."
-      },
-      "metadata": {
-        "label": "Ambienti e stream",
-        "hint": "Nomi leggibili, descrizioni e colori. Il nome tecnico rimane invariato."
-      },
-      "email": {
-        "label": "Email",
-        "hint": "Collegamento SMTP per gli inviti e il recupero dell’account."
-      },
-      "archive": {
-        "label": "Archivio e avvisi",
-        "hint": "Intervalli di lavoro e storico. Le durate sono espresse in secondi."
-      },
-      "advanced": {
-        "label": "Avanzate",
-        "hint": "Esportazione e diagnostica del server."
-      }
-    },
-    "metadata": {
-      "choose": "Modifica",
-      "stream": "Stream",
-      "environment": "Ambiente",
-      "technicalName": "Nome tecnico",
-      "immutable": "È l'identificatore usato dai client. Non si può rinominare.",
-      "displayName": "Nome visibile",
-      "description": "Descrizione",
-      "color": "Colore",
-      "colorHint": "Un colore a sei cifre come #ffb547, oppure vuoto per rimuoverlo.",
-      "noInheritance": "I metadati appartengono a questo elemento e non ereditano valori dal workspace.",
-      "empty": "Questo progetto non ha stream o ambienti.",
-      "loadFailed": "Impossibile caricare stream e ambienti.",
-      "invalidName": "Il nome visibile accetta fino a 100 caratteri, senza caratteri NUL.",
-      "invalidDescription": "La descrizione accetta fino a 500 caratteri, senza caratteri NUL.",
-      "invalidColor": "Usa un colore come #ffb547, oppure lascia vuoto.",
-      "saved": "Metadati salvati."
-    },
-    "duration": {
-      "days_one": "{{count}} giorno",
-      "days_other": "{{count}} giorni",
-      "hours_one": "{{count}} ora",
-      "hours_other": "{{count}} ore",
-      "minutes_one": "{{count}} minuto",
-      "minutes_other": "{{count}} minuti",
-      "seconds_one": "{{count}} secondo",
-      "seconds_other": "{{count}} secondi"
-    },
-    "fields": {
-      "auth_open_registration": {
-        "label": "Registrazione aperta",
-        "hint": "Consenti di creare un account senza invito."
-      },
-      "auth_session_ttl": {
-        "label": "Durata delle sessioni",
-        "hint": "Validità di una sessione dopo l’accesso."
-      },
-      "ingest_auto_create_streams": {
-        "label": "Crea gli stream automaticamente",
-        "hint": "Accetta i nuovi nomi di stream inviati dai tuoi server."
-      },
-      "ingest_max_streams": {
-        "label": "Numero massimo di stream",
-        "hint": "Vale anche per la creazione manuale. Zero significa nessun limite."
-      },
-      "ingest_rate_per_token": {
-        "label": "Eventi al secondo per token",
-        "hint": "Ogni token ha il proprio limite. Zero significa nessun limite."
-      },
-      "ingest_rate_per_project": {
-        "label": "Eventi al secondo per progetto",
-        "hint": "Somma degli eventi di tutti i token del progetto."
-      },
-      "ingest_rate_per_workspace": {
-        "label": "Eventi al secondo nel workspace",
-        "hint": "Limite complessivo dei progetti del workspace."
-      },
-      "ingest_rate_burst_seconds": {
-        "label": "Margine per i picchi di invio",
-        "hint": "Quanti secondi del limite si possono consumare in un picco."
-      },
-      "ingest_max_future_skew": {
-        "label": "Anticipo massimo degli eventi",
-        "hint": "Scarto accettato quando l’orologio del client è avanti."
-      },
-      "ingest_max_past_age": {
-        "label": "Età massima degli eventi",
-        "hint": "Rifiuta gli eventi più vecchi di questo intervallo."
-      },
-      "ingest_project_quota_events": {
-        "label": "Eventi al giorno per progetto",
-        "hint": "Numero complessivo di eventi accettati nel giorno UTC."
-      },
-      "ingest_project_quota_bytes": {
-        "label": "Byte al giorno per progetto",
-        "hint": "Dimensione dei dati accettati, prima dell’archiviazione."
-      },
-      "ingest_workspace_quota_events": {
-        "label": "Eventi al giorno nel workspace",
-        "hint": "Quota condivisa da tutti i progetti del workspace."
-      },
-      "ingest_workspace_quota_bytes": {
-        "label": "Byte al giorno nel workspace",
-        "hint": "Dimensione complessiva dei dati del workspace."
-      },
-      "email_smtp_host": {
-        "label": "Server SMTP",
-        "hint": "Solo il nome host, senza porta. Lascia vuoto per disattivare l’email."
-      },
-      "email_smtp_port": {
-        "label": "Porta SMTP",
-        "hint": "La porta del server di posta."
-      },
-      "email_smtp_security": {
-        "label": "Sicurezza della connessione",
-        "hint": "Usa la modalità richiesta dal tuo server SMTP."
-      },
-      "email_smtp_username": {
-        "label": "Utente SMTP",
-        "hint": "Nome utente dell’account di posta."
-      },
-      "email_smtp_password_file": {
-        "label": "File della password SMTP",
-        "hint": "Nome del file nella cartella dei segreti. La password non compare qui."
-      },
-      "email_from": {
-        "label": "Mittente",
-        "hint": "Per esempio Ervisio Logs <logs@example.test>."
-      },
-      "archive_interval": {
-        "label": "Frequenza dell’archiviazione",
-        "hint": "Intervallo tra due passaggi dell’archiviatore."
-      },
-      "archive_grace": {
-        "label": "Attesa dopo la fine del giorno",
-        "hint": "Prima di archiviare una giornata UTC conclusa."
-      },
-      "archive_late_interval": {
-        "label": "Intervallo per gli eventi in ritardo",
-        "hint": "Evita piccoli archivi ravvicinati per la stessa giornata."
-      },
-      "alerts_interval": {
-        "label": "Frequenza dei controlli degli avvisi",
-        "hint": "Quanto spesso vengono valutate le regole."
-      },
-      "alerts_history_retention": {
-        "label": "Durata dello storico degli avvisi",
-        "hint": "Conservazione dei risultati delle regole."
-      },
-      "alerts_webhook_allow_private": {
-        "label": "Webhook verso indirizzi privati",
-        "hint": "Consenti destinazioni locali o interne alla rete."
-      },
-      "export_max_rows": {
-        "label": "Righe massime per esportazione",
-        "hint": "Un limite protegge l’istanza dalle esportazioni molto grandi."
-      },
-      "server_log_level": {
-        "label": "Livello dei log del server",
-        "hint": "Riguarda la diagnostica di Ervisio Logs, non i log raccolti."
-      }
-    },
-    "save": "Salva",
-    "cancel": "Annulla",
-    "loading": "Caricamento impostazioni…"
+    }
   },
-  "accountPage": {
-    "title": "Account",
-    "sections": "Impostazioni account",
-    "profile": "Profilo",
-    "password": "Password",
-    "sessions": "Sessioni",
-    "readOnly": "I dati del tuo account.",
-    "username": "Username",
-    "email": "Email",
-    "created": "Creato",
-    "emailVerified": "Email verificata",
-    "emailUnverified": "Email non verificata",
-    "resendVerification": "Invia email di verifica",
-    "verificationSent": "Email di verifica richiesta. Controlla la posta.",
-    "passwordIntro": "Inserisci la password attuale per sceglierne una nuova. La sessione corrente resta attiva; le altre vengono revocate. Gli account che accedono solo tramite un provider esterno potrebbero non avere una password.",
-    "currentPassword": "Password attuale",
-    "changePassword": "Cambia password",
-    "passwordChanged": "Password cambiata. La sessione corrente resta attiva; le altre sono state revocate.",
-    "sessionsIntro": "Controlla le tue sessioni attive. Revocare le altre mantiene questa sessione. Revocare la sessione corrente ti disconnette.",
-    "loadingSessions": "Carico le sessioni…",
-    "noSessions": "Nessuna sessione attiva.",
-    "notReported": "Non indicato",
-    "revokeSession": "Revoca sessione",
-    "revokeCurrent": "Revoca sessione corrente",
-    "currentSession": "Sessione corrente",
-    "lastSeen": "Ultimo uso",
-    "expires": "Scade",
-    "revokeOthers": "Revoca le altre sessioni",
-    "sessionsRevoked": "Sessioni revocate."
+  "settingLabels": {
+    "auth_open_registration": "Registrazione aperta",
+    "auth_session_ttl": "Durata sessione",
+    "server_log_level": "Livello log del server",
+    "ingest_max_future_skew": "Scarto massimo nel futuro",
+    "ingest_max_past_age": "Età massima eventi",
+    "ingest_auto_create_streams": "Crea automaticamente gli stream",
+    "ingest_max_streams": "Numero massimo di stream (0 = illimitato)",
+    "archive_interval": "Intervallo archiviatore",
+    "archive_grace": "Attesa prima di archiviare",
+    "archive_late_interval": "Intervallo eventi tardivi",
+    "alerts_interval": "Intervallo verifica avvisi",
+    "alerts_history_retention": "Storico avvisi",
+    "alerts_webhook_allow_private": "Consenti webhook verso reti private",
+    "export_max_rows": "Righe massime per export",
+    "email_smtp_host": "Server SMTP",
+    "email_smtp_port": "Porta SMTP",
+    "email_smtp_security": "Sicurezza SMTP",
+    "email_smtp_username": "Utente SMTP",
+    "email_smtp_password_file": "File segreto SMTP",
+    "email_from": "Mittente email",
+    "ingest_rate_per_token": "Eventi al secondo per token",
+    "ingest_rate_per_project": "Eventi al secondo per progetto",
+    "ingest_rate_per_workspace": "Eventi al secondo per workspace",
+    "ingest_rate_burst_seconds": "Tolleranza picchi",
+    "ingest_workspace_quota_events": "Quota eventi giornaliera workspace",
+    "ingest_workspace_quota_bytes": "Quota byte giornaliera workspace",
+    "ingest_project_quota_events": "Quota eventi giornaliera progetto",
+    "ingest_project_quota_bytes": "Quota byte giornaliera progetto"
   },
-  "emailFlow": {
-    "signIn": "Accedi",
-    "email": "Email",
-    "username": "Username",
-    "newPassword": "Nuova password",
-    "passwordHelp": "Almeno 10 caratteri e al massimo 128 byte. Deve essere diversa da email e username.",
-    "usernameHelp": "Da 3 a 32 caratteri: minuscole, numeri, punto, trattino o underscore.",
-    "forgotTitle": "Recupera la password",
-    "forgotHelp": "Inserisci l’email del tuo account per richiedere un link di recupero.",
-    "sendReset": "Richiedi link di recupero",
-    "forgotNeutral": "Se questo indirizzo appartiene a un account attivo, riceverai un’email con le istruzioni.",
-    "resetTitle": "Scegli una nuova password",
-    "resetHelp": "Il link funziona una sola volta. Reimpostare la password revoca tutte le tue sessioni.",
-    "resetSubmit": "Imposta nuova password",
-    "resetDone": "Password reimpostata. Accedi con la nuova password.",
-    "verifyTitle": "Verifica la tua email",
-    "verifyHelp": "Conferma per verificare l’indirizzo associato a questo link.",
-    "verifySubmit": "Verifica email",
-    "verifyDone": "Email verificata.",
-    "missingLink": "Apri il link completo ricevuto per email. Se hai ricaricato questa pagina o hai effettuato l’accesso con un provider esterno, apri di nuovo il link nell’email.",
-    "expired": "Il link non è valido, è già stato usato o è scaduto. Richiedine uno nuovo o contatta chi ti ha invitato.",
-    "rateLimited": "Troppe richieste. Riprova tra {{seconds}} secondi.",
-    "failed": "La richiesta non è riuscita. Riprova tra poco.",
-    "inviteTitle": "Invito al workspace",
-    "loadingInvite": "Carico l’invito…",
-    "loadingAccount": "Controllo l’account…",
-    "inviteRole": "Ruolo dell’invito: {{role}}",
-    "inviteExpires": "Scade il {{date}}",
-    "signedInAs": "Hai effettuato l’accesso come {{email}}",
-    "acceptInvite": "Accetta invito",
-    "inviteDone": "Invito accettato.",
-    "signInInvite": "Accedi con l’indirizzo invitato per accettare questo invito.",
-    "inviteContinuity": "L’invito resta in memoria durante l’accesso con password in questa scheda. Dopo un refresh o l’accesso con un provider esterno, apri di nuovo il link nell’email.",
-    "registerInviteHelp": "Crea un account per l’indirizzo invitato ed entra nel workspace. Un invito valido funziona anche con le registrazioni pubbliche chiuse.",
-    "registerInvite": "Crea account e accetta",
-    "wrongAccount": "L’invito è per un altro indirizzo. Esci e accedi con l’account invitato.",
-    "switchAccount": "Usa l’account invitato"
+  "levelNames": {
+    "TRACE": "Traccia",
+    "DEBUG": "Debug",
+    "INFO": "Info",
+    "NOTICE": "Nota",
+    "WARN": "Attenzione",
+    "ERROR": "Errore",
+    "FATAL": "Critico"
   },
-  "instanceAdmin": {
-    "forbidden": "Questa pagina è riservata agli amministratori dell’istanza.",
-    "loading": "Caricamento dati dell’istanza…",
-    "refresh": "Aggiorna",
-    "saving": "Salvataggio…",
-    "enabled": "Abilitato",
-    "disabled": "Disabilitato",
-    "unavailable": "Non disponibile",
-    "health": {
-      "title": "Panoramica istanza",
-      "intro": "Valori attuali restituiti dall’istanza. Aggiornamento ogni 30 secondi circa.",
-      "loadFailed": "Impossibile leggere la salute dell’istanza. Riprova per richiedere dati aggiornati.",
-      "stale": "Aggiornamento non riuscito. I valori mostrati provengono dall’ultima risposta valida.",
-      "updated": "Ultima risposta: {{at}}",
-      "status": {
-        "ok": "L’istanza segnala un funzionamento regolare",
-        "degraded": "L’istanza segnala un funzionamento degradato",
-        "unknown": "Stato dell’istanza non disponibile"
-      },
-      "databases": "Database",
-      "checkOk": "Verifica riuscita",
-      "checkFailed": "Verifica non riuscita",
-      "errorReported": "L’istanza ha segnalato un errore. I dettagli della connessione non vengono mostrati qui.",
-      "wal": "Coda persistente degli eventi",
-      "walUnavailable": "L’istanza non ha restituito le statistiche della coda.",
-      "walBytes": "Dimensione della coda",
-      "walMax": "Capacità della coda",
-      "segments": "Segmenti",
-      "pending": "Record in attesa",
-      "lag": "Ritardo di scrittura",
-      "seconds": "s",
-      "archive": "Archivio e coda upload",
-      "waiting": "Upload in attesa",
-      "waitingBytes": "Byte da caricare",
-      "failed": "Upload falliti",
-      "failedBytes": "Byte degli upload falliti",
-      "archiver": "Archiviatore",
-      "destination": "Destinazione archivio",
-      "noDestination": "Nessuna destinazione restituita",
-      "verified": "Ultimo archivio verificato",
-      "oldest": "Evento più vecchio da archiviare",
-      "destinationStatus": "Stato della destinazione",
-      "lastCheck": "Ultima verifica della destinazione",
-      "destinationError": "L’istanza ha segnalato un errore della destinazione archivio. Credenziali e dettagli della connessione non vengono mostrati."
+  "flows": {
+    "copyFailed": "Copia non riuscita",
+    "next": "Avanti",
+    "back": "Indietro",
+    "views": {
+      "update": "Aggiorna vista",
+      "updated": "“{{name}}” aggiornata.",
+      "loadFailed": "Impossibile caricare le viste salvate."
     },
-    "scopes": {
-      "read": {
-        "label": "Leggi amministrazione",
-        "hint": "Leggi le informazioni di gestione dell’istanza senza modificarle. Non concede accesso ai log raccolti."
-      },
-      "users": {
-        "label": "Gestisci utenti",
-        "hint": "Crea e gestisci account, password e sessioni."
-      },
-      "settings": {
-        "label": "Gestisci impostazioni runtime",
-        "hint": "Modifica le impostazioni runtime dell’istanza."
-      },
-      "tenancy": {
-        "label": "Gestisci workspace e progetti",
-        "hint": "Gestisci workspace, progetti, membri e token di acquisizione."
-      },
-      "storage": {
-        "label": "Gestisci archivio e conservazione",
-        "hint": "Gestisci destinazioni archivio, file delle credenziali e regole di conservazione."
-      }
+    "invites": {
+      "title": "Inviti",
+      "hint": "Invita una persona via email. Potrà accettare dopo aver creato il proprio account o effettuato l’accesso.",
+      "send": "Invia invito",
+      "none": "Nessun invito in attesa.",
+      "cancel": "Annulla invito",
+      "cancelConfirm": "Annullare l’invito per {{email}}?"
     },
     "tokens": {
-      "title": "Token admin d’istanza",
-      "intro": "Token per il plugin Ervisio o altri strumenti di gestione. Creazione e revoca richiedono la tua sessione amministratore.",
-      "validity": "Un token è valido solo mentre il suo creatore è un amministratore istanza attivo. “Non revocato” descrive la revoca salvata, non l’accesso attuale del creatore.",
-      "create": "Crea token admin",
-      "loadFailed": "Impossibile caricare i token admin.",
-      "empty": "Non sono stati creati token admin.",
-      "scopes": "Permessi",
-      "created": "Creato",
-      "expires": "Scade",
-      "lastUsed": "Ultimo utilizzo",
-      "revokedAt": "Revocato",
-      "creator": "ID creatore",
-      "never": "Mai",
-      "revoked": "Revocato",
-      "expired": "Scaduto",
-      "notRevoked": "Non revocato",
-      "revoke": "Revoca token",
-      "revokeNamed": "Revoca {{name}}",
-      "name": "Nome del token",
-      "expiry": "Scadenza",
-      "expiryHint": "Obbligatoria, futura ed entro 365 giorni. Questo controllo usa l’ora locale del dispositivo.",
-      "invalidName": "Inserisci un nome da 1 a 100 caratteri, senza caratteri NUL.",
-      "invalidScopes": "Seleziona almeno uno dei cinque permessi amministratore.",
-      "invalidExpiry": "Scegli una scadenza futura entro 365 giorni.",
-      "createFailed": "Impossibile creare il token.",
-      "createdTitle": "Token creato: {{name}}",
-      "once": "Copia il token prima di chiudere. Il valore completo viene restituito una sola volta e viene rimosso dalla pagina quando chiudi.",
-      "secret": "Nuovo token admin",
-      "show": "Mostra token",
-      "hide": "Nascondi token",
-      "copy": "Copia token",
-      "done": "Chiudi e cancella il token",
-      "copied": "Token copiato negli appunti.",
-      "copyFailed": "Impossibile copiare il token. Mostralo per copiarlo manualmente prima di chiudere.",
-      "confirmName": "Ripeti il nome del token",
-      "revokeHint": "Ripeti “{{name}}” per revocare questo token. Gli strumenti che lo usano perderanno l’accesso.",
-      "revokeFailed": "Impossibile revocare il token."
+      "rotate": "Ruota",
+      "rotateConfirm": "Ruotare “{{name}}”? Il token attuale smetterà subito di funzionare. Aggiorna i client con quello sostitutivo.",
+      "rotateFailed": "Impossibile ruotare il token.",
+      "expiry": "Scadenza (facoltativa)",
+      "expiryHint": "Lascia vuoto per nessuna scadenza. La data usa il tuo fuso orario.",
+      "expiryInvalid": "Scegli una data di scadenza futura."
+    },
+    "alerts": {
+      "stepEvent": "Evento",
+      "stepCondition": "Condizione",
+      "stepNotify": "Notifica e verifica",
+      "templates": "Parti da un modello",
+      "errors": "Qualsiasi errore",
+      "errorsName": "Errori negli ultimi cinque minuti",
+      "failures": "Pagamenti falliti",
+      "failuresName": "Pagamento fallito rilevato",
+      "security": "Attività di moderazione",
+      "securityName": "Ban giocatore rilevato",
+      "review": "Riepilogo regola",
+      "reviewText": "Quando più di {{threshold}} eventi corrispondono in {{window}}, controlla ogni {{interval}} e notifica {{channels}}.",
+      "noDestination": "Nessun canale di notifica selezionato",
+      "events": "Nomi evento (facoltativi)",
+      "eventsHint": "Nomi tecnici degli eventi separati da virgole. Lascia vuoto per tutti gli eventi."
+    },
+    "channels": {
+      "type": "Metodo di invio",
+      "webhook": "Webhook",
+      "email": "Email",
+      "telegram": "Telegram",
+      "recipient": "Email del destinatario",
+      "botToken": "Token del bot",
+      "chatId": "ID chat",
+      "credentialsHint": "Crea un bot con BotFather e aggiungilo alla chat destinataria. Il token non verrà più mostrato.",
+      "recipientRequired": "Inserisci un’email destinataria valida.",
+      "telegramRequired": "Inserisci token del bot e ID chat.",
+      "history": "Cronologia invii",
+      "noHistory": "Nessun invio registrato.",
+      "delivered": "Consegnato",
+      "failed": "Fallito",
+      "intro": "Invia gli avvisi a un webhook firmato, Slack, Discord, email o Telegram. Prova una destinazione e controlla gli invii recenti."
     }
   }
 }

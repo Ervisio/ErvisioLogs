@@ -83,3 +83,26 @@ test('ensureSecrets fills missing and change_me secrets with random values', () 
   assert.match(envGet(out, 'ERVISIO_LOGS_SECRET_KEY') ?? '', /^[A-Za-z0-9]{48}$/);
   assert.equal(envGet(out, 'OTHER'), '1');
 });
+
+test('server editor covers the documented deployment environment and masks secret values', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { SERVER_ENV_KEYS, secretEnvKey } = await import('../src/api/server-env.ts');
+  const example = await readFile(new URL('../../../.env.example', import.meta.url), 'utf8');
+  const keys = [...example.matchAll(/^\s*(?:#\s*)?((?:ERVISIO_LOGS_|POSTGRES_|CLICKHOUSE_)[A-Z0-9_]+)=/gm)].map((m) => m[1]);
+  for (const key of keys) assert.ok(SERVER_ENV_KEYS.includes(key), key);
+  for (const key of ['ERVISIO_LOGS_SECRET_KEY', 'ERVISIO_LOGS_POSTGRES_DSN', 'POSTGRES_PASSWORD', 'ERVISIO_LOGS_SMTP_PASSWORD']) assert.equal(secretEnvKey(key), true);
+  assert.equal(secretEnvKey('ERVISIO_LOGS_SECRET_KEY_FILE'), false);
+});
+test('admin socket capabilities authorize management routes and never log data or session endpoints', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const manifest = JSON.parse(await readFile(new URL('../plugin/manifest.json', import.meta.url), 'utf8'));
+  for (const name of ['logs-admin-docker', 'logs-admin-standalone']) {
+    const capability = manifest.capabilities.http.find((c) => c.name === name);
+    const pattern = new RegExp(`^(?:${capability.rules[0].path})$`);
+    for (const path of ['/admin/health', '/admin/settings/log.level', '/admin/users/aabb/password', '/admin/users/aabb/sessions/ccdd', '/workspaces', '/workspaces/aabb/members/ccdd', '/projects/aabb/settings/streams.auto_create', '/projects/aabb/streams/ccdd', '/tokens', '/admin/storage/secrets/s3.json', '/admin/retention/instance/aabb']) assert.equal(pattern.test(`/api/v1${path}`), true, `${name} ${path}`);
+    for (const path of ['/logs/search', '/logs/export', '/auth/me', '/admin/tokens', '/ingest', '/admin/users/aabb/password/anything']) assert.equal(pattern.test(`/api/v1${path}`), false, path);
+    assert.equal(capability.admin, true);
+    assert.ok(manifest.capabilities.sockets.includes(capability.socket));
+  }
+  assert.equal(manifest.capabilities.network.userHosts, true);
+});

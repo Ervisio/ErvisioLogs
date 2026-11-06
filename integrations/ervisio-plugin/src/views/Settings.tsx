@@ -4,6 +4,8 @@
  * while the backend would refuse to start with these values.
  */
 import { useMemo, useState } from 'react';
+import { SERVER_ENV_KEYS, secretEnvKey } from '../api/server-env';
+import { tr } from './Admin';
 import { envGet, envSet, oneLine } from '../api/env';
 import * as logs from '../api/logs';
 import { Badge, Button, Icon, Input, Segmented, Skeleton, Switch } from '../kit';
@@ -71,7 +73,9 @@ function apply(fields: FieldDef[], env: string, d: Draft): string {
 export function Settings({ ctx }: { ctx: Ctx }) {
   const { mode, runner, settingsEdits: edits, setSettingsEdits: setEdits } = ctx;
   const file = useLoad(() => logs.readEnv(mode), [mode]);
-  const fields = mode === 'docker' ? DOCKER : STANDALONE;
+  const [filter, setFilter] = useState('');
+  const primaryFields = mode === 'docker' ? DOCKER : STANDALONE;
+  const fields = useMemo(() => [...primaryFields, ...SERVER_ENV_KEYS.filter((key) => !primaryFields.some((f) => f.key === key)).map((key): FieldDef => ({ key, label: key, kind: secretEnvKey(key) ? 'secret' : 'text' }))], [primaryFields]);
   const env = file.data ?? null;
   const base = useMemo(() => (env == null ? null : initial(fields, env)), [env, fields]);
   const [saving, setSaving] = useState(false);
@@ -134,29 +138,31 @@ export function Settings({ ctx }: { ctx: Ctx }) {
     <>
       <section className="el-card">
         <h3><Icon name="cog" />{t('set.title')}<span className="el-count el-mono">{logs.envPathFor(mode)}</span></h3>
+        <p className="el-muted">{tr('Host environment changes require a restart. Runtime settings belong to Instance; an environment override locks the corresponding runtime setting.', 'Le modifiche all’ambiente richiedono un riavvio. Le impostazioni runtime sono in Istanza; un valore qui blocca la corrispondente impostazione runtime.')}</p>
+        <Input label={tr('Find environment variable', 'Cerca variabile ambiente')} value={filter} onChange={(e) => setFilter(e.target.value)} />
         <div className="el-sets">
-          {fields.map((f) => {
+          {fields.filter((f) => `${f.key} ${f.label}`.toLowerCase().includes(filter.toLowerCase())).map((f) => {
             const cur = envGet(env, f.key);
             return (
               <div key={f.key} className="el-set">
                 <span className="el-set-t">
-                  <b>{t(f.label)}</b>
+                  <b>{f.label.startsWith('ERVISIO_') || f.label.startsWith('POSTGRES_') || f.label.startsWith('CLICKHOUSE_') ? f.label : t(f.label)}</b>
                   {f.help && <span>{t(f.help)}</span>}
                   {f.kind === 'secret' && <span>{t(cur ? 'set.secretSet' : 'set.secretEmpty')}</span>}
                 </span>
                 <span className="el-set-c">
                   {f.kind === 'env' ? (
                     <Segmented
-                      aria-label={t(f.label)}
+                      aria-label={f.label.startsWith('ERVISIO_') || f.label.startsWith('POSTGRES_') || f.label.startsWith('CLICKHOUSE_') ? f.label : t(f.label)}
                       value={draft[f.key] || 'development'}
                       onChange={(v) => set(f.key, v)}
                       options={[{ value: 'development', label: t('set.dev') }, { value: 'production', label: t('set.prod') }]}
                     />
                   ) : f.kind === 'bool' ? (
-                    <Switch aria-label={t(f.label)} checked={draft[f.key] === 'true'} onChange={(v) => set(f.key, v ? 'true' : 'false')} />
+                    <Switch aria-label={f.label.startsWith('ERVISIO_') || f.label.startsWith('POSTGRES_') || f.label.startsWith('CLICKHOUSE_') ? f.label : t(f.label)} checked={draft[f.key] === 'true'} onChange={(v) => set(f.key, v ? 'true' : 'false')} />
                   ) : (
                     <Input
-                      aria-label={t(f.label)}
+                      aria-label={f.label.startsWith('ERVISIO_') || f.label.startsWith('POSTGRES_') || f.label.startsWith('CLICKHOUSE_') ? f.label : t(f.label)}
                       type={f.kind === 'secret' ? 'password' : 'text'}
                       autoComplete="off"
                       mono

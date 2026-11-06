@@ -163,22 +163,26 @@ Si parte da F2 (scelta 2026-11-04). F2 è divisa in PR:
 - F2e socket admin locale + token admin d'istanza + CORS per Bearer.
 - F2f `/admin/health`, limiti e quote di ingest, purge.
 
-## Ripresa del 2026-11-04
+## Avanzamento al 2026-11-06
 
-- F2a-f e i fix F1 web/plugin sono presenti nel checkout di partenza (`dcd3bdc`); il vecchio handoff li collocava ancora su `feat/runtime-settings`.
-- Seguiti F1 implementati in locale: slug backend per nomi senza caratteri ASCII, conteggi livelli indipendenti dal filtro livello, provenienza hot/archive per riga e rimozione della ricerca web aggiuntiva.
-- F0: approvata A, «Navigazione unificata» (`a6bd837dfa14`), impostazioni 002 A (`2b78002d7bb2`), utenti remix 005 A (`b40fdd483bc3`), plugin 004 B (`befd1a6aae91`); [brief, token e prove delle decisioni](DESIGN.md).
-- Port della scelta A: sidebar unica, URL con scope e compatibilità dei link precedenti, menu senza voci future, filtri laterali, righe leggibili e dettaglio raggruppato. Le azioni usano le API esistenti; catalogo eventi, tag, aggregazioni e istogramma reali restano F4. Impostazioni complete e separazione conservazione restano F3.
-- Il parser conserva virgolette, backslash e valori multilinea nei filtri salvati o scelti dai dettagli. La QA browser usa risposte API simulate, senza scritture a un'istanza reale.
-- La validazione locale distingue unit/lint da integrazione: il test dei permessi socket richiede un ambiente Unix; i nuovi test con Postgres/ClickHouse/archivio richiedono servizi di test disponibili.
-- Nessun rilascio, push o deploy da questa ripresa.
+F2a–F2f e F1 completate. F0 completata: shell B014, impostazioni B015, utenti B016 e plugin A017
+approvati; riferimenti in `docs/DESIGN.md`, prototipi autonomi in `docs/redesign/approved/`,
+token allineati in `web/src/index.css`. Build, lint e 67 test web passati.
+Prossima fase F3: nuova shell e impostazioni web, poi F4–F9 nell’ordine concordato.
+Le preview non sono integrazioni React/API/SDK. Nessun deploy o push in questa sessione.
 
-### Avanzamento gestione web e plugin
+## Avanzamento implementazione 0.2 (2026-11-06)
 
-- F3 parziale: impostazioni runtime a tre livelli, fonti/ereditarietà/env bloccate e salvataggi parziali recuperabili; metadati di ambienti e stream; utenti admin con sessioni e conferme; Account, recupero password, verifica email e accettazione/registrazione da invito; panoramica salute e token admin d'istanza. Route e navigazione sono collegate alle API esistenti.
-- Corretta la race di bootstrap autenticazione che poteva sovrascrivere un nuovo accesso e il CSRF; l'anteprima invito attende il controllo sessione. Test di regressione riproducono entrambi i problemi prima delle correzioni.
-- F5 implementato in locale: navigazione B nel kit SDK, client tipizzato condiviso, impostazioni/utenti/tenancy/archivio/audit/salute, trasporti socket e HTTPS, console con storico. SDK 0.3.0 privo di vault: token remoto solo nella memoria della pagina; la persistenza protetta resta subordinata al supporto SDK. Il plugin non è stato eseguito nell'host Ervisio reale.
-- QA gestione web: 72 controlli browser con API simulate (28 impostazioni/utenti, 28 account/email, 16 panoramica/token), desktop/mobile e due temi. Nessuna prova di consegna SMTP, Postgres/ClickHouse o gestione reale via plugin da questi controlli.
-- Restano in F3: UI generale per rename/delete workspace/progetti, creazione/eliminazione ambienti e stream, creazione/elenco/revoca inviti, split completo Archivio/Conservazione e purge manuale. Le API di conservazione attuali sono amministrative: evitare di esporle come permesso tenant implicito.
-- F4 e F6-F9 restano da implementare; nessuna voce futura aggiunta al menu. Le parti anticipabili (registro attività del plugin, sessioni account) non chiudono quelle fasi.
-- Verifica finale locale: 150 test web in 17 file, lint, typecheck/build web, build backend con UI aggiornata e build plugin passano. Il bundle web supera 500 kB (avviso di build); la suite Go completa conserva il fallimento Windows del test sui permessi Unix socket. Nessuna normalizzazione globale dei fine-riga o modifica ai servizi per aggirarlo.
+F3–F9 implementate nel checkout: shell e gestione per scope, Log v2 con catalogo/redazione,
+plugin a nove sezioni e client condiviso, avvisi email/Telegram e di sistema, dashboard/utilizzo,
+SDK/FiveM e sicurezza account facoltativa (TOTP, recupero e passkey). Versione plugin preparata 0.2.0.
+Dettagli e limiti in `docs/releases/0.2.0.md` e contratti in `docs/redesign/SECURITY-API.md`.
+
+Verificati: 115 test web, lint/typecheck/build, Go race/vet e compilazione dei test integration,
+OpenAPI valida, SDK22, plugin15, client condiviso7 e FiveM28. Build Linux amd64/arm64 con web incorporata
+e build plugin da sorgenti isolati passate. QA della build web a1440/390 con API fixture senza errori o overflow.
+
+La validazione dello stack resta aperta: Docker non risponde nemmeno a `/_ping` sul socket.
+Non eseguiti integration PostgreSQL/ClickHouse/archivio, smoke,13 scenari E2E reali e Collector;
+i test sono preparati e i relativi comandi/CI sono aggiornati. Non verificati host Ervisio,
+provider OAuth reali, dispositivi passkey fisici e hook in-game. Nessun commit/push/tag/deploy.

@@ -108,3 +108,19 @@ npm run typecheck   # tsc --noEmit
 npm run build       # ESM in dist/esm, CommonJS in dist/cjs, both with .d.ts
 npm test            # vitest
 ```
+
+### Tags and entities
+
+Tags are lowercase tokens (up to 20 per event, 40 characters each). The SDK lowercases and deduplicates them and reports dropped invalid tags through `onError`. Search with `tags: ["economy"]`; multiple tags all need to match.
+
+```ts
+logs.info("money.transfer", "Player 7 transferred 100 to player 8", { amount: 100, account: "bank" }, {
+  tags: ["economy", "transfer"],
+  actor: { type: "player", id: 7 },
+  target: { type: "player", id: 8 },
+});
+```
+
+`actor` and `target` in overrides become `attributes.actor` and `attributes.target`; use the same `{type, id, name?}` shape directly in attributes if preferred. Names are optional: send them only with the player's consent and your project's privacy policy. Avoid personal data in messages and tags. Project field rules can redact attribute paths before the server writes the WAL; they do not change previously stored events.
+
+Configure event titles, plain-text templates (`{actor.name}`, `{amount}`), featured fields and the FiveM preset in project settings. Ingest automatically discovers new technical event names without replacing custom metadata.

@@ -3,6 +3,8 @@ import type { Attributes, EventOverrides, Level, LevelInput } from "./types.js";
 /** Server limits, mirrored from backend/internal/ingest/event.go. */
 export const LIMITS = {
   maxBatchEvents: 1000,
+  maxTags: 20,
+  maxTagLen: 40,
   maxIdLen: 128,
   maxNameLen: 128,
   maxMessageBytes: 32 * 1024,
@@ -281,7 +283,18 @@ export function buildEvent(
     else problems.push("span_id must be hexadecimal of at most 32 characters; it was dropped");
   }
 
-  const attrs = sanitizeAttributes(attributes, problems);
+  if (o.tags !== undefined) {
+    const tags = [...new Set(o.tags.map((tag) => String(tag).trim().toLowerCase()))];
+    wire.tags = tags.filter((tag) => /^[a-z0-9][a-z0-9._:/-]*$/.test(tag) && tag.length <= LIMITS.maxTagLen).slice(0, LIMITS.maxTags);
+    if (tags.length > LIMITS.maxTags || (wire.tags as string[]).length !== tags.length) problems.push("tags must contain at most 20 lowercase values of 1 to 40 characters; invalid values were dropped");
+  }
+  let eventAttributes = attributes;
+  if (o.actor !== undefined || o.target !== undefined) {
+    eventAttributes = { ...(typeof attributes === "object" && attributes !== null && !Array.isArray(attributes) ? attributes : {}),
+      ...(o.actor === undefined ? {} : { actor: o.actor }),
+      ...(o.target === undefined ? {} : { target: o.target }) };
+  }
+  const attrs = sanitizeAttributes(eventAttributes, problems);
   if (attrs) wire.attributes = attrs;
 
   const json = JSON.stringify(wire);

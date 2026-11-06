@@ -21,7 +21,9 @@
 
 local function elog(level, event, message, attributes)
     pcall(function()
-        exports.ervisio_logs:Log(nil, level, event, message, attributes)
+        if attributes.player_id then attributes.actor = { type = 'player', id = attributes.player_id } end
+        if attributes.target_id then attributes.target = { type = 'player', id = attributes.target_id } end
+        exports.ervisio_logs:Log(nil, level, event, message, attributes, { 'inventory' })
     end)
 end
 

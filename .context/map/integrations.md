@@ -13,6 +13,8 @@ Invariants:
 - Wire format identical to the TS SDK; keep in sync with backend ingest limits.
 Gotchas: tests are pure Lua (tests/queue_spec.lua) with injected deps (now, json_encode, http), not run by `make test`/CI; run manually with lua. fxmanifest version is hand-bumped, independent of platform.
 
+Log v2: Log optional sixth tags argument and LogBatch tags; lowercases/dedupes/drops invalid tags. Built-in connection events carry attributes.actor, actor.name only when privacy.player_name=true. Examples use IDs without names and category tags; server auto-creates streams only when project permits.
+
 ## Ervisio plugin (id `ervisio-logs`, version tracks the platform release, 0.1.5)
 Purpose: inside the Ervisio panel, install Ervisio Logs as Docker Compose stack (/opt/stacks/ervisio-logs, project `ervisio-logs`) or systemd service (standalone), edit its env, and publish it through Caddy.
 Flow: activate(sdk) registers page `logs` (views/LogsPage.tsx: Setup/Overview/Settings/Address/Console/Secrets). Every host action is a command declared in plugin/manifest.json `capabilities.commands` (argv templates, `admin`, `adminUnlessGroup`, arg regex patterns); api/*.ts can only call those. Mode stored in ~/.config/ervisio/plugins/ervisio-logs/settings.json.

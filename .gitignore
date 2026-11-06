@@ -29,3 +29,6 @@ web/playwright-report/
 dist/
 .context/now.md
 .context/.last-nudge
+
+# Local browser automation diagnostics
+.playwright-mcp/

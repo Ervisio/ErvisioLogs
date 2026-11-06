@@ -1,27 +1,12 @@
 {
-  "id": "befd1a6aae91",
-  "at": "2026-11-04T21:32:56.500Z",
-  "round": "004-plugin",
+  "round": "017-plugin-navigation",
   "action": "choose",
   "selected": [
-    "b"
+    "a"
   ],
-  "note": "",
-  "variants": {},
-  "viewed_at": {
-    "viewport": "laptop",
-    "width": 1280,
-    "theme": "dark",
-    "layout": "focus"
-  },
-  "approved": {
-    "variant": "b",
-    "at": "2026-11-04T21:32:56.499Z"
-  },
-  "files": {
-    "b": "prototype.html"
-  },
-  "screenshots": {
-    "b": "screenshot.png"
-  }
+  "id": "42c8e0d15968",
+  "approved_at": "2026-11-06T11:15:21.785Z",
+  "scope": "Plugin Ervisio: menu laterale con nove sezioni e panoramica. Direzione visiva, non collegamento SDK/API.",
+  "prototype": "prototype.html",
+  "screenshot": "screenshot.png"
 }

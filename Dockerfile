@@ -7,7 +7,23 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
+COPY packages/admin-client /src/packages/admin-client
 RUN npm run build
+RUN node <<'JS'
+const fs = require('node:fs');
+const path = require('node:path');
+const packages = JSON.parse(fs.readFileSync('package-lock.json', 'utf8')).packages;
+fs.mkdirSync('/out/licenses', { recursive: true });
+for (const [name, metadata] of Object.entries(packages)) {
+  if (!name || metadata.dev) continue;
+  if (metadata.optional && !fs.existsSync(name)) continue;
+  const files = fs.readdirSync(name).filter((file) => /^(licen[cs]e|copying|notice)(\.|$)/i.test(file));
+  if (!files.length) throw new Error(`No license notice for ${name}`);
+  const target = path.join('/out/licenses', name.replace(/^node_modules\//, '').replaceAll('/', '__'));
+  fs.mkdirSync(target, { recursive: true });
+  for (const file of files) fs.copyFileSync(path.join(name, file), path.join(target, file));
+}
+JS
 
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS build
 WORKDIR /src/backend
@@ -27,6 +43,7 @@ RUN mkdir -p /out/data/spool /out/data/cache /out/data/tls /out/data/socket
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 COPY --from=build /out/ervisio-logs /usr/local/bin/ervisio-logs
+COPY --from=web /out/licenses /usr/share/licenses/ervisio-logs
 # 65532 is "nonroot" in distroless. Without this, Docker would create the volume mount points as root.
 COPY --from=build --chown=65532:65532 /out/data /var/lib/ervisio-logs
 USER nonroot:nonroot

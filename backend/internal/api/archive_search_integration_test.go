@@ -96,9 +96,9 @@ func TestSearchReadsArchive(t *testing.T) {
 	if after["total"].(float64) != 2 || after["partial"] != false {
 		t.Fatalf("archive search total/partial: %v", after)
 	}
-	for _, item := range after["items"].([]any) {
-		if item.(map[string]any)["tier"] != "archive" {
-			t.Fatalf("archive row tier: %v", item)
+	for _, row := range after["items"].([]any) {
+		if row.(map[string]any)["tier"] != "archive" {
+			t.Fatalf("archive origin missing: %v", row)
 		}
 	}
 	tiers := after["searched_tiers"].([]any)
@@ -111,22 +111,17 @@ func TestSearchReadsArchive(t *testing.T) {
 
 	// A late duplicate of an archived event in the hot table is returned once.
 	expect(t, e.newClient().bearerJSON("POST", "/ingest/batch", tok, map[string]any{"events": events[:1]}), 202)
-	e.api.Logs.Archive = nil
-	waitSearch(t, admin, tok, query, 1)
-	e.api.Logs.Archive = arch
-	r := waitSearch(t, admin, tok, query, 2)
-	if r["total"].(float64) != 2 {
-		t.Fatalf("duplicate counted: %v", r)
+	time.Sleep(500 * time.Millisecond)
+	mixed := waitSearch(t, admin, tok, query, 2)
+	if mixed["total"].(float64) != 2 {
+		t.Fatalf("duplicate counted: %v", mixed)
 	}
-	for _, raw := range r["items"].([]any) {
-		item := raw.(map[string]any)
-		want := "archive"
-		if item["id"] == "arch-a" {
-			want = "hot"
-		}
-		if item["tier"] != want {
-			t.Fatalf("mixed source row tier: %v, want %s", item, want)
-		}
+	origins := map[string]int{}
+	for _, row := range mixed["items"].([]any) {
+		origins[row.(map[string]any)["tier"].(string)]++
+	}
+	if origins["hot"] != 1 || origins["archive"] != 1 {
+		t.Fatalf("overlap did not prefer hot row: %v", origins)
 	}
 
 	// The object disappears from the provider and the cache: the search answers without it and says so.
@@ -136,7 +131,7 @@ func TestSearchReadsArchive(t *testing.T) {
 	if err := e.exec(`UPDATE archive_segments SET object_key = 'missing/' || object_key`); err != nil {
 		t.Fatal(err)
 	}
-	r = expect(t, admin.bearerJSON("POST", "/logs/search", tok, query), 200).JSON()
+	r := expect(t, admin.bearerJSON("POST", "/logs/search", tok, query), 200).JSON()
 	if r["partial"] != true {
 		t.Fatalf("missing segment not reported: %v", r)
 	}

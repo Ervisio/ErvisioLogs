@@ -122,6 +122,9 @@ func (a *API) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		fail("account_disabled")
 		return
 	}
+	if a.mfaChallenge(w, r, u, true) {
+		return
+	}
 	if !a.startSession(w, r, u) {
 		return
 	}

@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Activity, LogOut, Moon, Sun, UserRound } from 'lucide-react';
+import { Activity, LogOut, User } from 'lucide-react';
 import { useAuth, useSession } from '../lib/auth';
-import { useTenancy } from '../lib/tenancy';
-import { applyTheme, currentTheme } from '../lib/theme';
+import { applyTheme, currentTheme, type Theme } from '../lib/theme';
 import { languages, type Language } from '../i18n';
 
-const ROW = 'text-ink2 hover:bg-sunk hover:text-ink flex min-h-11 w-full items-center gap-2 rounded-row px-2 text-left md:min-h-9';
+const ROW =
+  'text-ink2 hover:bg-sunk hover:text-ink flex min-h-11 w-full items-center gap-2 rounded-row px-2 text-left md:min-h-9';
 const SELECT = 'bg-sunk text-ink border-field h-11 max-w-[150px] truncate rounded-row border px-1.5 md:h-8';
 
 export default function AccountMenu({ onClose, onNavigate }: { onClose: () => void; onNavigate: () => void }) {
   const { t, i18n } = useTranslation();
   const { user } = useSession();
   const { logout } = useAuth();
-  const { workspaces, workspace, selectWorkspace } = useTenancy();
   const [theme, setTheme] = useState(currentTheme);
   const [failed, setFailed] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -28,12 +27,6 @@ export default function AccountMenu({ onClose, onNavigate }: { onClose: () => vo
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [onClose]);
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
-    setTheme(next);
-  };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -63,25 +56,14 @@ export default function AccountMenu({ onClose, onNavigate }: { onClose: () => vo
         <p className="text-ink2 truncate text-[13px]">{user.email}</p>
       </div>
       <div className="bg-line -mx-2 my-1 h-px" />
-      <Link to="/account" onClick={onNavigate} className={ROW}>
-        <UserRound className="size-4" aria-hidden />
-        {t('account.open')}
-      </Link>
-      {workspaces.length > 1 && (
-        <label className="text-ink2 flex items-center justify-between gap-2 px-2 py-1 text-[13px]">
-          {t('account.workspace')}
-          <select value={workspace?.id} onChange={(e) => selectWorkspace(e.target.value)} className={SELECT}>
-            {workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+
       <label className="text-ink2 flex items-center justify-between gap-2 px-2 py-1 text-[13px]">
         {t('language')}
-        <select value={i18n.resolvedLanguage} onChange={(e) => void i18n.changeLanguage(e.target.value as Language)} className={SELECT}>
+        <select
+          value={i18n.resolvedLanguage}
+          onChange={(e) => void i18n.changeLanguage(e.target.value as Language)}
+          className={SELECT}
+        >
           {languages.map((l) => (
             <option key={l} value={l}>
               {l === 'en' ? 'English' : 'Italiano'}
@@ -89,10 +71,29 @@ export default function AccountMenu({ onClose, onNavigate }: { onClose: () => vo
           ))}
         </select>
       </label>
-      <button type="button" onClick={toggleTheme} aria-label={t('theme.toggle')} className={ROW}>
-        {theme === 'dark' ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-        {theme === 'dark' ? t('theme.light') : t('theme.dark')}
-      </button>
+      <label className="text-ink2 flex min-h-11 items-center justify-between gap-2 px-2">
+        {t('manage.theme')}
+        <select
+          aria-label={t('manage.theme')}
+          className={SELECT}
+          value={theme}
+          onChange={(e) => {
+            const next = e.target.value as Theme;
+            applyTheme(next);
+            setTheme(next);
+          }}
+        >
+          {['dark', 'light', 'amoled'].map((key) => (
+            <option key={key} value={key}>
+              {t(`theme.${key}`)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Link to="/account" onClick={onNavigate} className={ROW}>
+        <User className="size-4" />
+        {t('manage.account')}
+      </Link>
       <Link to="/status" onClick={onNavigate} className={ROW}>
         <Activity className="size-4" aria-hidden />
         {t('nav.status')}

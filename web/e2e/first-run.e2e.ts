@@ -1,15 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
-/**
- * One instance, one story: the first administrator creates a workspace and a project, gets a token
- * from the setup wizard, sends an event with it and finds that event in search. Later tests reuse the
- * account, so this file runs in order (workers: 1).
- */
-// A missing code fails the run: a skipped end-to-end test must never look like a pass.
-const setupCode = process.env.E2E_SETUP_CODE;
-if (!setupCode) throw new Error('E2E_SETUP_CODE is not set: run scripts/e2e.sh');
+import { administrator as admin, setupCode } from './fixture';
+
 const stamp = Date.now().toString(36);
-const admin = { email: `admin-${stamp}@example.com`, username: `admin-${stamp}`, password: `pw-${stamp}-long-enough` };
 const projectName = 'Game server';
 
 test.describe.configure({ mode: 'serial' });
@@ -18,9 +11,9 @@ async function signIn(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Email or username').fill(admin.username);
   await page.getByLabel('Password', { exact: true }).fill(admin.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   // The project rail hides in the drawer on phones; the explorer heading shows on every size.
-  await expect(page.getByRole('heading', { name: 'All streams', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: projectName, level: 1 })).toBeVisible();
 }
 
 test('first run: setup, project, token, ingest, search', async ({ page, request }) => {
@@ -50,7 +43,7 @@ test('first run: setup, project, token, ingest, search', async ({ page, request 
 
   await page.getByRole('button', { name: 'Send a test event' }).click();
   // The live tail sees the event and the explorer replaces the wizard.
-  await expect(page.getByRole('cell', { name: 'ervisio.test' }).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('cell').filter({ hasText: 'ervisio.test' }).first()).toBeVisible({ timeout: 20_000 });
 
   // A second event straight from "a server": token only, no cookie.
   const res = await request.post('/api/v1/ingest', {
@@ -67,20 +60,22 @@ test('first run: setup, project, token, ingest, search', async ({ page, request 
     await search.press('Enter');
     await search.fill(`user=ada ${stamp}`);
     await search.press('Enter');
-    await expect(page.getByRole('cell', { name: 'payment.failed' })).toBeVisible({ timeout: 2_000 });
+    await expect(page.getByRole('cell').filter({ hasText: 'payment.failed' })).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
-  await expect(page.getByRole('cell', { name: 'ervisio.test' })).toHaveCount(0);
+  await expect(page.getByRole('cell').filter({ hasText: 'ervisio.test' })).toHaveCount(0);
 
   // The event opens in the detail dialog.
-  await page.getByRole('cell', { name: 'payment.failed' }).click();
+  await page.getByRole('cell').filter({ hasText: 'payment.failed' }).click();
   const dialog = page.getByRole('dialog', { name: 'payment.failed' });
   await expect(dialog).toContainText(`card declined ${stamp}`);
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
 
   // The wizard's token shows up on the tokens page.
-  await page.goto(page.url().replace(/\/projects\/([^/?]+).*/, '/projects/$1/tokens'));
-  await expect(page.getByText('First server', { exact: true })).toBeVisible();
+  const scoped = new URL(page.url()).pathname.match(/^\/w\/([^/]+)\/p\/([^/]+)/);
+  expect(scoped).not.toBeNull();
+  await page.goto(`/w/${scoped?.[1]}/p/${scoped?.[2]}/settings/tokens`);
+  await expect(page.getByText(/^First server \(/)).toBeVisible();
 });
 
 test('mobile: no sideways scroll, navigation in the drawer', async ({ page }) => {
@@ -90,17 +85,19 @@ test('mobile: no sideways scroll, navigation in the drawer', async ({ page }) =>
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(await overflow()).toBeLessThanOrEqual(0);
 
-  // Tokens and users sit under Settings: the drawer lists them once you are inside it.
   const sections = page.getByRole('complementary', { name: 'Project sections' });
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await sections.getByRole('link', { name: 'Settings' }).click();
-  if (!(await sections.getByRole('link', { name: 'Users' }).isVisible())) {
-    await page.getByRole('button', { name: 'Open navigation' }).click();
-  }
-  await expect(sections.getByRole('link', { name: 'API tokens' })).toBeVisible();
-  await sections.getByRole('link', { name: 'Users' }).click();
+  await sections.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Project settings' })).toBeVisible();
+  const tabs = page.getByRole('combobox', { name: 'Project settings' });
+  await tabs.selectOption({ label: 'Tokens' });
+  await expect(page).toHaveURL(/\/settings\/tokens$/);
+  await expect(page.getByRole('heading', { name: 'Active tokens', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await sections.getByRole('link', { name: 'Workspace settings' }).click();
+  await page.getByRole('combobox', { name: 'Workspace settings' }).selectOption({ label: 'Members and invitations' });
   await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
-  await expect(page.getByText(admin.email)).toBeVisible();
+  await expect(page.getByText(admin.email, { exact: true })).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
 
   // Targets on touch screens stay at least 44px tall.
@@ -108,13 +105,12 @@ test('mobile: no sideways scroll, navigation in the drawer', async ({ page }) =>
   expect(leave?.height ?? 0).toBeGreaterThanOrEqual(44);
 });
 
-test('dark theme persists across reloads', async ({ page }) => {
+test('all theme choices persist across reloads', async ({ page }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Account', exact: true }).click();
-  const before = await page.evaluate(() => document.documentElement.dataset.theme ?? '');
-  await page.getByRole('button', { name: 'Switch theme' }).click();
-  const after = await page.evaluate(() => document.documentElement.dataset.theme ?? '');
-  expect(after).not.toBe(before);
-  await page.reload();
-  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme ?? '')).toBe(after);
+  for (const theme of ['light', 'amoled', 'dark']) {
+    await page.getByRole('button', { name: 'Account', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Theme' }).selectOption(theme);
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme ?? '')).toBe(theme);
+  }
 });

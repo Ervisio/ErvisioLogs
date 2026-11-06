@@ -10,8 +10,13 @@ const en: Record<string, string> = {
 
   'nav.label': 'Ervisio Logs',
   'nav.overview': 'Overview',
+  'nav.instance': 'Instance',
+  'nav.workspaces': 'Workspaces',
+  'nav.projects': 'Projects',
+  'nav.users': 'Users',
+  'nav.storage': 'Archive',
   'nav.address': 'Address',
-  'nav.settings': 'Settings',
+  'nav.settings': 'Server',
   'nav.console': 'Console',
 
   'status.running': 'Running',
@@ -220,8 +225,13 @@ const it: Record<string, string> = {
 
   'nav.label': 'Ervisio Logs',
   'nav.overview': 'Panoramica',
+  'nav.instance': 'Istanza',
+  'nav.workspaces': 'Workspace',
+  'nav.projects': 'Progetti',
+  'nav.users': 'Utenti',
+  'nav.storage': 'Archivio',
   'nav.address': 'Indirizzo',
-  'nav.settings': 'Impostazioni',
+  'nav.settings': 'Server',
   'nav.console': 'Console',
 
   'status.running': 'In esecuzione',

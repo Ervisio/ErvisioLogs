@@ -1,10 +1,35 @@
-import { useState } from 'react';
+/**
+ * The Ervisio Logs page: a header with the state of the app, an inner menu like plugin-docker's, and one section at a
+ * time (overview, address and Caddy, settings, console). With no mode chosen yet, the setup steps (Setup.tsx).
+ */
+import { useMemo, useState } from 'react';
+import { getSdk } from '../sdk';
 import * as logs from '../api/logs';
-import { Button, EmptyState, Skeleton } from '../kit';
+import { Badge, Button, EmptyState, Icon, Skeleton, type HueId, Select } from '../kit';
+import { adminClient, type Connection } from '../api/admin';
+import { AuditPanel, ConnectionPanel, HealthPanel, ProjectsPanel, RuntimeSettings, StoragePanel, UsersPanel, WorkspacesPanel } from './Admin';
+import { Address } from './Address';
+import { Console } from './Console';
+import { Overview } from './Overview';
+import { Settings } from './Settings';
 import { Setup } from './Setup';
-import { Management } from './management/Management';
-import { errText, t, useLoad, useRunner, type Runner } from './util';
-export type SectionId = 'overview' | 'address' | 'settings' | 'console';
+import { errText, hostOf, t, useLoad, useRunner, type Runner } from './util';
+
+export type SectionId = 'overview' | 'instance' | 'workspaces' | 'projects' | 'users' | 'storage' | 'address' | 'settings' | 'console';
+
+const SECTIONS: { id: SectionId; hue: HueId; icon: string }[] = [
+  { id: 'overview', hue: 'ov', icon: 'overview' },
+  { id: 'instance', hue: 'sw', icon: 'cog' },
+  { id: 'workspaces', hue: 'file', icon: 'layers' },
+  { id: 'projects', hue: 'log', icon: 'logs' },
+  { id: 'users', hue: 'usr', icon: 'users' },
+  { id: 'storage', hue: 'file', icon: 'database' },
+  { id: 'settings', hue: 'sw', icon: 'cog' },
+  { id: 'address', hue: 'svc', icon: 'globe' },
+  { id: 'console', hue: 'term', icon: 'terminal' },
+];
+
+/** What every section gets: the mode, the last state read, a reload, and the shared action runner. */
 export interface Ctx {
   mode: logs.Mode;
   status: logs.Status;
@@ -12,32 +37,112 @@ export interface Ctx {
   runner: Runner;
   go(s: SectionId): void;
   changeMode(): void;
+  /** Unsaved edits of the Settings fields, kept here so they survive a change of section. */
   settingsEdits: Record<string, string>;
-  setSettingsEdits(edits: Record<string, string>): void;
+  setSettingsEdits(e: Record<string, string>): void;
 }
+
 export function LogsPage() {
   const prefs = useLoad(logs.loadPrefs);
+  const mode = prefs.data?.mode ?? null;
   if (!prefs.data) {
     if (prefs.loading) return <Loading />;
-    return <Management setup={<EmptyState icon="alert" title={t('error.title')} text={errText(prefs.error)} action={<Button onClick={prefs.reload}>{t('retry')}</Button>} />} />;
+    return (
+      <div className="el-root hue-log">
+        <EmptyState icon="alert" hue="log" title={t('error.title')} text={errText(prefs.error)}
+          action={<Button icon="refresh" onClick={prefs.reload}>{t('retry')}</Button>} />
+      </div>
+    );
   }
-  if (!prefs.data.mode) return <Management setup={<Setup onChosen={prefs.reload} />} />;
-  return <Installed mode={prefs.data.mode} onModeReset={async () => { await logs.savePrefs({ mode: null }); prefs.reload(); }} />;
+  if (!mode) {
+    return (
+      <div className="el-root hue-log">
+        <Setup onChosen={prefs.reload} />
+      </div>
+    );
+  }
+  return <Installed mode={mode} onModeReset={async () => { await logs.savePrefs({ mode: null }); prefs.reload(); }} />;
 }
+
 function Loading() {
-return <div className="el-root">
-    <Skeleton height={56} />
-    <Skeleton height={320} />
-  </div>;
+  return (
+    <div className="el-root hue-log">
+      <Skeleton height={56} style={{ borderRadius: 18 }} />
+      <div className="el-inner"><Skeleton height={200} style={{ borderRadius: 18 }} /><Skeleton height={320} style={{ borderRadius: 18 }} /></div>
+    </div>
+  );
 }
+
 function Installed({ mode, onModeReset }: { mode: logs.Mode; onModeReset(): void }) {
-  const status = useLoad(() => logs.status(mode), [mode]);
-  const runner = useRunner(status.reload);
+  const st = useLoad(() => logs.status(mode), [mode]);
+  const runner = useRunner(st.reload);
+  const [connection, setConnection] = useState<Connection>({ kind: 'local' });
+  const client = useMemo(() => adminClient(mode, connection), [mode, connection]);
+  const [section, setSection] = useState<SectionId>('overview');
   const [settingsEdits, setSettingsEdits] = useState<Record<string, string>>({});
-  if (!status.data) {
-    if (status.loading) return <Loading />;
-    return <Management setup={<EmptyState icon="alert" title={t('error.title')} text={errText(status.error)} action={<Button onClick={status.reload}>{t('retry')}</Button>} />} />;
+
+  if (!st.data) {
+    if (st.loading) return <Loading />;
+    return (
+      <div className="el-root hue-log">
+        <EmptyState icon="alert" hue="log" title={t('error.title')} text={errText(st.error)}
+          action={<Button icon="refresh" onClick={st.reload}>{t('retry')}</Button>} />
+      </div>
+    );
   }
-  const ctx: Ctx = { mode, status: status.data, reload: status.reload, runner, go: () => { }, changeMode: onModeReset, settingsEdits, setSettingsEdits };
-  return <Management ctx={ctx} />;
+
+  const s = st.data;
+  const ctx: Ctx = { mode, status: s, reload: st.reload, runner, go: setSection, changeMode: onModeReset, settingsEdits, setSettingsEdits };
+  const host = hostOf(s.publicUrl);
+  const tone = !s.installed ? 'neutral' : !s.running ? 'warn' : s.healthy === false ? 'err' : 'ok';
+  const label = !s.installed ? t('status.notInstalled') : !s.running ? t('status.stopped') : s.healthy === false ? t('status.unhealthy') : t('status.running');
+  const canOpen = s.running && !!s.publicUrl;
+
+  return (
+    <div className="el-root hue-log">
+      <header className="el-ph">
+        <span className="el-tile"><Icon name="logs" /></span>
+        <div className="el-ph-t">
+          <h1>Ervisio Logs</h1>
+          <p>
+            <Badge tone={tone} dot>{label}</Badge>
+            <span>{t(mode === 'docker' ? 'mode.docker' : 'mode.standalone')}</span>
+            {s.version && <span>{t('status.version', { v: s.version })}</span>}
+            {host && canOpen && (
+              <button type="button" className="el-linkbtn" onClick={() => getSdk().openExternal(s.publicUrl!)}>{host}</button>
+            )}
+          </p>
+        </div>
+        {runner.busy && <Badge tone="info" dot>{runner.job?.title}</Badge>}
+        {canOpen && (
+          <Button variant="primary" icon="externallink" onClick={() => getSdk().openExternal(s.publicUrl!)}>{t('act.open')}</Button>
+        )}
+      </header>
+
+      <div className="el-mobile-nav"><Select label={t('nav.label')} value={section} options={SECTIONS.map((it) => ({ value: it.id, label: t(`nav.${it.id}`) }))} onChange={(v) => { const found = SECTIONS.find((it) => it.id === v); if (found) setSection(found.id); }} /></div>
+      <div className="el-inner">
+        <nav className="el-nav" aria-label={t('nav.label')}>
+          <div className="el-nav-lab">{t('nav.label')}</div>
+          {SECTIONS.map((it) => (
+            <button key={it.id} type="button" className="el-nav-it" aria-current={section === it.id ? 'page' : undefined} onClick={() => setSection(it.id)}>
+              <span className={`el-ki hue-${it.hue}`}><Icon name={it.icon} /></span>
+              {t(`nav.${it.id}`)}
+              {it.id === 'console' && runner.job && <i className={`el-nav-dot ${runner.job.running ? 'is-run' : runner.job.failed ? 'is-err' : 'is-ok'}`} />}
+            </button>
+          ))}
+        </nav>
+        <div className="el-main">
+          {section === 'overview' && <><Overview ctx={ctx} />{s.installed && <HealthPanel client={client} />}</>}
+          {section === 'instance' && <><ConnectionPanel mode={mode} connection={connection} setConnection={setConnection} /><RuntimeSettings client={client} /><AuditPanel client={client} /></>}
+          {section === 'workspaces' && <WorkspacesPanel client={client} />}
+          {section === 'projects' && <ProjectsPanel client={client} />}
+          {section === 'users' && <UsersPanel client={client} />}
+          {section === 'storage' && <StoragePanel client={client} />}
+          {section === 'address' && <Address ctx={ctx} />}
+          {section === 'settings' && <Settings ctx={ctx} />}
+          {section === 'console' && <Console ctx={ctx} />}
+        </div>
+      </div>
+    </div>
+  );
 }

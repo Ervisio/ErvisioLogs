@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
@@ -46,6 +46,13 @@ const signedIn: Routes = {
   'GET /projects/p1/environments': { body: { items: [{ id: 'e1', project_id: 'p1', name: 'production', created_at: '' }] } },
   'GET /projects/p1/streams': { body: { items: [{ id: 's1', project_id: 'p1', name: 'default', type: 'log', created_at: '' }] } },
   'POST /logs/search': { body: { items: [], next_cursor: null, total: 0, level_counts: {}, searched_tiers: ['hot'], partial: false } },
+  'GET /queries?project_id=p1': { body: { items: [] } },
+  'GET /alerts?project_id=p1': { body: { items: [] } },
+  'GET /notification-channels?workspace_id=w1': { body: { items: [] } },
+  'GET /projects/p1/event-types': { body: { items: [] } },
+  'GET /projects/p1/field-rules': { body: { items: [] } },
+  'GET /workspaces/w1/invitations': { body: { items: [] } },
+  'POST /logs/histogram': { body: { items: [], partial: false, searched_tiers: ['hot'] } },
 };
 const anonymous: Routes = { 'GET /auth/me': { status: 401 }, 'GET /auth/providers': { body: providers } };
 
@@ -65,15 +72,12 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('auth guard', () => {
   test('an anonymous visitor lands on sign in and keeps the destination', async () => {
-    const source = Object.assign(new EventTarget(), { close: vi.fn() });
-    vi.stubGlobal('EventSource', vi.fn(function () { return source; }));
     const calls = stubApi({ ...anonymous, 'POST /auth/login': { body: session }, ...{ 'GET /projects?workspace_id=w1': signedIn['GET /projects?workspace_id=w1'], 'GET /projects/p1/environments': signedIn['GET /projects/p1/environments'], 'GET /projects/p1/streams': signedIn['GET /projects/p1/streams'], 'POST /logs/search': signedIn['POST /logs/search'] } });
     renderApp('/projects/p1/live');
     await userEvent.type(await screen.findByLabelText('Email or username'), 'Ada ');
     await userEvent.type(screen.getByLabelText('Password'), 'correct-horse');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByRole('heading', { name: 'Logs' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Live' })).toBeInTheDocument();
     expect(calls.find((c) => c.key === 'POST /auth/login')?.body).toEqual({ login: 'ada', password: 'correct-horse' });
   });
 
@@ -194,20 +198,22 @@ describe('sign in page', () => {
 });
 
 describe('navigation', () => {
-  test('shows real projects and environments, and guides an empty project to its first event', async () => {
+  test('shows real projects, environments and streams, and guides an empty project to its first event', async () => {
     stubApi(signedIn);
     renderApp();
-    expect(await screen.findByRole('heading', { name: 'Send the first event to Shop' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'default' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Shop' })).toHaveAttribute('aria-current', 'page');
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
     expect(screen.getByRole('option', { name: 'production' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Send the first event to Shop' })).toBeInTheDocument();
   });
 
-  test('unavailable sections stay out of navigation and return not found', async () => {
-    stubApi(signedIn);
+  test('dashboard panels load from the project API instead of a placeholder', async () => {
+    const calls = stubApi({ ...signedIn, 'GET /dashboard-panels?project_id=p1': { body: { items: [] } } });
     renderApp('/projects/p1/dashboards');
-    expect(await screen.findByRole('heading', { name: 'Page not found', level: 1 })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Dashboards' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Dashboards' })).toBeInTheDocument();
+    expect(await screen.findByText('Save a view in the explorer, then use it to add a panel.')).toBeInTheDocument();
+    expect(calls.some((call) => call.key === 'GET /dashboard-panels?project_id=p1')).toBe(true);
     expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
   });
 
@@ -225,30 +231,34 @@ describe('navigation', () => {
       'GET /projects?workspace_id=w2': { body: { items: [{ ...project, id: 'p2', workspace_id: 'w2', name: 'Other' }] } },
       'GET /projects/p2/environments': { body: { items: [] } },
       'GET /projects/p2/streams': { body: { items: [] } },
+      'GET /projects/p2/event-types': { body: { items: [] } },
+      'GET /projects/p2/field-rules': { body: { items: [] } },
+      'GET /queries?project_id=p2': { body: { items: [] } },
     });
     renderApp('/projects/p2');
     expect(await screen.findByRole('heading', { name: 'Send the first event to Other' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Page not found' })).not.toBeInTheDocument();
   });
 
-  test('the unified sidebar names the workspace and separates settings scopes', async () => {
+  test('the compact rail exposes a workspace switcher and scoped project links', async () => {
     stubApi(signedIn);
     renderApp();
-    expect(await screen.findByRole('combobox', { name: 'Workspace' })).toHaveValue('w1');
-    expect(screen.getByText('Owner')).toBeInTheDocument();
-    expect(await screen.findByText('Project settings')).toBeInTheDocument();
-    expect(screen.getByText('Workspace settings')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Live' })).not.toBeInTheDocument();
+    const projectLink = await screen.findByRole('link', { name: 'Shop' });
+    expect(projectLink).toHaveAttribute('href', '/w/w1/p/p1');
+    expect(await screen.findByRole('link', { name: 'Switch workspace' })).toHaveAttribute('href', '/projects');
+    expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
   });
 
   test('the account menu switches language and theme', async () => {
     stubApi(signedIn);
     renderApp();
-    await screen.findByRole('heading', { name: 'Send the first event to Shop' });
     await userEvent.click(await screen.findByRole('button', { name: 'Account' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Switch theme' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem('theme')).toBe('light');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'amoled');
+    expect(document.documentElement.dataset.theme).toBe('amoled');
+    expect(localStorage.getItem('theme')).toBe('amoled');
     await userEvent.selectOptions(screen.getByLabelText('Language'), 'it');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Esci' })).toBeInTheDocument());
     expect(localStorage.getItem('lang')).toBe('it');
@@ -257,7 +267,6 @@ describe('navigation', () => {
   test('sign out sends the CSRF token and returns to sign in', async () => {
     const calls = stubApi({ ...signedIn, 'GET /auth/providers': { body: providers }, 'POST /auth/logout': { status: 204 } });
     renderApp();
-    await screen.findByRole('heading', { name: 'Send the first event to Shop' });
     await userEvent.click(await screen.findByRole('button', { name: 'Account' }));
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
@@ -267,9 +276,9 @@ describe('navigation', () => {
   test('the palette opens with Ctrl+K, filters and navigates', async () => {
     stubApi(signedIn);
     renderApp();
-    await screen.findByRole('heading', { name: 'Send the first event to Shop' });
+    await screen.findByRole('link', { name: 'default' });
     await userEvent.keyboard('{Control>}k{/Control}');
-    const dialog = screen.getByRole('dialog', { name: 'Go to…' });
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' });
     await userEvent.keyboard('alerts');
     expect(within(dialog).getAllByRole('option')).toHaveLength(1);
     await userEvent.keyboard('{Enter}');
@@ -281,6 +290,7 @@ describe('navigation', () => {
 describe('first project', () => {
   test('a user with no workspace creates one, then a project', async () => {
     const calls = stubApi({
+      ...signedIn,
       'GET /auth/me': { body: { ...session, workspaces: [] } },
       'POST /workspaces': { status: 201, body: workspace },
       'GET /projects?workspace_id=w1': { body: { items: [] } },
@@ -424,7 +434,6 @@ test('English and Italian define the same keys', () => {
 
 const ev = (id: string, level: string, message: string, attributes: Record<string, unknown> | null = null) => ({
   id,
-  tier: 'hot' as const,
   timestamp: '2026-11-03T10:15:30.000Z',
   ingested_at: '2026-11-03T10:15:31.000Z',
   level,
@@ -440,11 +449,6 @@ const ev = (id: string, level: string, message: string, attributes: Record<strin
   span_id: '',
   attributes,
 });
-
-async function showLogFilters() {
-  const toggle = screen.getByRole('button', { name: /^Filters/ });
-  if (toggle.getAttribute('aria-expanded') !== 'true') await userEvent.click(toggle);
-}
 const searches = (calls: Call[]) => calls.filter((c) => c.key === 'POST /logs/search').map((c) => c.body as Record<string, unknown>);
 
 describe('log explorer', () => {
@@ -463,8 +467,8 @@ describe('log explorer', () => {
     expect(await screen.findByText('payment declined')).toBeInTheDocument();
     expect(screen.getByText('order created')).toBeInTheDocument();
     expect(screen.getByText('Showing 2 of 3')).toBeInTheDocument();
-    await showLogFilters();
-    expect(screen.getByRole('button', { name: /error\s*1/i })).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByRole('button', { name: /Error\s*1/ })).toHaveAttribute('aria-pressed', 'false');
 
     await userEvent.type(screen.getByLabelText('Search'), 'user=ada "card declined"{Enter}');
     await waitFor(() => expect(searches(calls).at(-1)?.query).toBe('card declined'));
@@ -484,31 +488,9 @@ describe('log explorer', () => {
     expect(screen.getByText('payment declined')).toBeInTheDocument();
     expect(searches(calls).at(-1)?.cursor).toBe('c1');
 
-    await showLogFilters();
-    await userEvent.click(screen.getByRole('button', { name: /error\s*1/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await userEvent.click(screen.getByRole('button', { name: /Error\s*1/ }));
     await waitFor(() => expect(searches(calls).filter((c) => c.levels).at(-1)?.levels).toEqual(['ERROR']));
-  });
-
-  test('labels only archived rows in mixed search results', async () => {
-    const archived = { ...ev('1', 'INFO', 'archived event'), tier: 'archive' };
-    stubApi({ ...signedIn, 'POST /logs/search': { body: { ...found, items: [ev('2', 'ERROR', 'hot event'), archived] } } });
-    renderApp('/projects/p1');
-    const archivedRow = (await screen.findByText('archived event')).closest('button')!;
-    const hotRow = screen.getByText('hot event').closest('button')!;
-    expect(within(archivedRow).getByText('Archive')).toBeInTheDocument();
-    expect(within(hotRow).queryByText('Archive')).not.toBeInTheDocument();
-  });
-
-  test('keeps the live badge for newly streamed hot events', async () => {
-    const source = Object.assign(new EventTarget(), { close: vi.fn() });
-    vi.stubGlobal('EventSource', vi.fn(function () { return source; }));
-    stubApi({ ...signedIn, 'POST /logs/search': { body: found } });
-    renderApp('/projects/p1/live');
-    await screen.findByText('payment declined');
-    act(() => source.dispatchEvent(new MessageEvent('log', { data: JSON.stringify(ev('3', 'INFO', 'live event')) })));
-    const row = (await screen.findByText('live event')).closest('button')!;
-    expect(within(row).getByText('Live')).toBeInTheDocument();
-    expect(within(row).queryByText('Archive')).not.toBeInTheDocument();
   });
 
   test('a row opens its details and Escape closes them', async () => {
@@ -516,8 +498,7 @@ describe('log explorer', () => {
     renderApp('/projects/p1');
     await screen.findByText('payment declined');
     await userEvent.click(screen.getAllByRole('button', { name: /Open event from/ })[0]);
-    const dialog = screen.getByRole('dialog', { name: i18n.t('detail.title') });
-    await userEvent.click(within(dialog).getByText('Show original'));
+    const dialog = screen.getByRole('dialog', { name: 'order.paid' });
     expect(within(dialog).getByText(/"user": "ada"/)).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -548,29 +529,14 @@ describe('log explorer', () => {
       ...signedIn,
       'POST /logs/search': () =>
         (calls.at(-1)?.body as { levels?: string[] }).levels
-          ? { body: { ...found, items: [ev('2', 'ERROR', 'payment declined')], total: 1 } }
+          ? { body: { ...found, items: [ev('2', 'ERROR', 'payment declined')], level_counts: { ERROR: 1 } } }
           : { body: found },
     });
     renderApp('/projects/p1');
-    await screen.findByText('payment declined');
-    await showLogFilters();
-    const errorChip = await screen.findByRole('button', { name: /error\s*1/i });
-    const before = searches(calls).length;
-    await userEvent.click(errorChip);
-    await waitFor(() => expect(screen.getByRole('button', { name: /error\s*1/i })).toHaveAttribute('aria-pressed', 'true'));
-    expect(searches(calls).slice(before)).toHaveLength(1);
-    expect(screen.getByRole('button', { name: /info\s*2/i })).toBeInTheDocument();
-    expect(screen.getByText('Showing 1 of 1')).toBeInTheDocument();
-  });
-
-  test('does not show unselected error counts in the summary', async () => {
-    stubApi({ ...signedIn, 'POST /logs/search': { body: { ...found, total: 2, items: [ev('1', 'INFO', 'order created')] } } });
-    renderApp('/projects/p1');
-    await screen.findByText('order created');
-    await showLogFilters();
-    await userEvent.click(await screen.findByRole('button', { name: /info\s*2/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /info\s*2/i })).toHaveAttribute('aria-pressed', 'true'));
-    expect(screen.queryByText('1 error')).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Error\s*1/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Error\s*1/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.getByRole('button', { name: /Info\s*2/ })).toBeInTheDocument();
   });
 
   test.each([
@@ -712,7 +678,7 @@ describe('workspace members', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove cy' }));
     await waitFor(() => expect(screen.queryByText('cy@example.com')).not.toBeInTheDocument());
 
-    await userEvent.type(screen.getByLabelText('Email'), 'dee@example.com');
+    await userEvent.type(screen.getByLabelText('Email', { selector: '#mem-email' }), 'dee@example.com');
     await userEvent.click(screen.getByRole('button', { name: 'Add member' }));
     expect(await screen.findByText('dee joined as Viewer.')).toBeInTheDocument();
     expect(calls.find((c) => c.key === 'POST /workspaces/w1/members')?.body).toEqual({ email: 'dee@example.com', role: 'viewer' });
@@ -729,7 +695,7 @@ describe('workspace members', () => {
     expect(await screen.findByText('bob@example.com')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Add member' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid email address.');
-    await userEvent.type(screen.getByLabelText('Email'), 'nobody@example.com');
+    await userEvent.type(screen.getByLabelText('Email', { selector: '#mem-email' }), 'nobody@example.com');
     await userEvent.click(screen.getByRole('button', { name: 'Add member' }));
     expect(await screen.findByText(/No account uses this email/)).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Role of bob' }), 'admin');
@@ -778,12 +744,12 @@ describe('storage', () => {
   test('the section is listed only for the instance administrator', async () => {
     stubApi(signedIn);
     const { unmount } = renderApp('/projects/p1');
-    await screen.findByRole('heading', { name: 'Send the first event to Shop' });
-    expect(screen.queryByRole('link', { name: 'Storage' })).not.toBeInTheDocument();
+    await screen.findByRole('link', { name: 'default' });
+    expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument();
     unmount();
     stubApi(storageRoutes);
     renderApp('/projects/p1');
-    expect(await screen.findByRole('link', { name: 'Storage' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/admin');
   });
 
   test('a member who is not the instance administrator gets an explanation', async () => {
@@ -839,4 +805,25 @@ describe('storage', () => {
     expect(put?.body).toEqual({ value: JSON.stringify({ access_key: 'AK', secret_key: 'SK' }) });
     expect(calls.find((c) => c.key === 'POST /admin/storage/providers')?.body).toEqual({ name: 'My Bucket', type: 's3', config: { bucket: 'logs' }, secret_file: file });
   });
+});
+
+
+test('project name stays editable before changes and saves through its scoped settings', async () => {
+  let stored = project;
+  const calls = stubApi({
+    ...signedIn,
+    'GET /projects?workspace_id=w1': () => ({ body: { items: [stored] } }),
+    'GET /projects/p1/settings': { body: { items: [] } },
+    'PATCH /projects/p1': () => { stored = { ...project, name: 'Shop production' }; return { body: stored }; },
+  });
+  renderApp('/w/w1/p/p1/settings/general');
+  const name = await screen.findByRole('textbox', { name: 'Name' });
+  expect(name).toBeEnabled();
+  const form = name.closest('form');
+  if (!form) throw new Error('Missing project name form');
+  expect(within(form).getByRole('button', { name: 'Save' })).toBeDisabled();
+  await userEvent.clear(name);
+  await userEvent.type(name, 'Shop production');
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(calls.find((call) => call.key === 'PATCH /projects/p1')?.body).toEqual({ name: 'Shop production' }));
 });

@@ -1,0 +1,12 @@
+{
+  "round": "016-admin-users",
+  "action": "choose",
+  "selected": [
+    "b"
+  ],
+  "id": "f99e4d71a68d",
+  "approved_at": "2026-11-06T11:02:37.123Z",
+  "scope": "Gestione utenti: elenco con dettaglio nella riga, ruoli istanza e dialoghi. Direzione visiva, non integrazione API.",
+  "prototype": "prototype.html",
+  "screenshot": "screenshot.png"
+}

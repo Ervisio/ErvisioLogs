@@ -165,3 +165,26 @@
   .el-li, .el-pub { flex-wrap: wrap; }
   .el-form > .ui-btn, .el-up-row .ui-btn { width: 100%; justify-content: center; }
 }
+
+.el-root { --acc: #afc2ff; --acc-s: color-mix(in srgb, #7798ff 18%, var(--surface)); }
+.el-inner { grid-template-columns: 202px minmax(0, 1fr); gap: 18px; }
+.el-nav { padding: 8px; border-radius: 16px; background: color-mix(in srgb, var(--surface) 78%, transparent); }
+.el-card { background: color-mix(in srgb, var(--surface) 82%, var(--sunk)); border: 1px solid color-mix(in srgb, var(--ink) 7%, transparent); }
+.el-mobile-nav { display: none; }
+.el-admin-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); min-width: 0; }
+.el-admin-row:last-child { border-bottom: 0; }
+.el-admin-row .el-li-t { min-width: 140px; }
+.el-admin-row .el-li-t span { white-space: normal; overflow-wrap: anywhere; }
+.el-admin-row .el-acts { justify-content: flex-end; }
+.el-admin-detail { padding: 16px; background: var(--surface); border-radius: 12px; }
+.el-result { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; user-select: all; }
+.el-root summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.el-root .el-set-t b { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .el-inner { grid-template-columns: minmax(0, 1fr); }
+  .el-nav { display: none; }
+  .el-mobile-nav { display: block; }
+  .el-admin-row { align-items: flex-start; flex-wrap: wrap; }
+  .el-admin-row .el-acts { justify-content: flex-start; }
+  .el-root button { min-height: 44px; }
+}

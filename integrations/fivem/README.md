@@ -184,3 +184,21 @@ Console warnings are rate limited (about one per minute per kind).
 off by default) using a fake clock and a mocked HTTP function. They were **written but not
 executed**. To run them yourself, install Lua 5.4 and busted and, from this folder, run
 `busted tests/queue_spec.lua`.
+
+## Tags, actors and privacy
+
+`Log(stream, level, event, message, attributes, tags)` accepts an optional sixth argument. `LogBatch` entries accept `tags` too. Tags are lowercased and deduplicated; invalid tokens are dropped with a rate-limited warning (maximum 20 tokens, 40 characters each; letters, digits, `. _ : / -`).
+
+```lua
+exports.ervisio_logs:Log('economy', 'INFO', 'money.transfer', 'Player 7 transferred 100 to player 8', {
+    actor = { type = 'player', id = 7 },
+    target = { type = 'player', id = 8 },
+    amount = 100, account = 'bank',
+}, { 'economy', 'transfer' })
+```
+
+Built-in connection events include `attributes.actor = {type='player', id=serverId}`. `actor.name` and the legacy `player_name` are sent only when `privacy.player_name = true` (default false). Examples use numeric server IDs and omit player names. Identifiers and IP addresses remain opt-in. Custom attributes are your responsibility: avoid copying player names or identifiers into messages and tags, which are not removed by the player-name toggle.
+
+Apply the FiveM event preset in the project's event catalog; it supplies titles, templates and featured fields for all built-in events and the ESX, inventory and moderation examples. Existing customized catalog entries are preserved. Missing streams are created by the server when the project's automatic stream creation setting permits it; otherwise ingest rejects that event, so create the configured streams first.
+
+Project field rules with `redact: true` replace matching attribute values with `[REDACTED]` before WAL persistence. They affect newly ingested events only.

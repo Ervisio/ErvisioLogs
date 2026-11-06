@@ -5,7 +5,9 @@
 
 local function elog(level, event, message, attributes)
     pcall(function()
-        exports.ervisio_logs:Log(nil, level, event, message, attributes)
+        if attributes.admin_id then attributes.actor = { type = 'admin', id = attributes.admin_id } end
+        if attributes.player_id then attributes.target = { type = 'player', id = attributes.player_id } end
+        exports.ervisio_logs:Log(nil, level, event, message, attributes, { 'moderation' })
     end)
 end
 

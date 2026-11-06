@@ -11,7 +11,11 @@ local ESX = exports['es_extended']:getSharedObject()
 -- must never break your gameplay code.
 local function elog(level, event, message, attributes)
     pcall(function()
-        exports.ervisio_logs:Log(nil, level, event, message, attributes)
+        if attributes.player_id then attributes.actor = { type = 'player', id = attributes.player_id } end
+        if attributes.target_id then attributes.target = { type = 'player', id = attributes.target_id } end
+        if attributes.from_player then attributes.actor = { type = 'player', id = attributes.from_player } end
+        if attributes.to_player then attributes.target = { type = 'player', id = attributes.to_player } end
+        exports.ervisio_logs:Log(nil, level, event, message, attributes, { 'economy' })
     end)
 end
 

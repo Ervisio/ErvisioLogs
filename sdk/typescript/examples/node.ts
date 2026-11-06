@@ -22,7 +22,10 @@ const logs = new ErvisioLogs({
   },
 });
 
-logs.info("app.started", "example app started", { pid: process.pid, node: process.version });
+logs.info("app.started", "Application started", { pid: process.pid, node: process.version }, { tags: ["lifecycle"] });
+logs.info("money.transfer", "Player 7 transferred 100 to player 8", { amount: 100, account: "bank" }, {
+  tags: ["economy", "transfer"], actor: { type: "player", id: 7 }, target: { type: "player", id: 8 },
+});
 logs.warn("cache.miss", "cold cache", { key: "user:42", ttl_ms: 0 });
 logs.error("payment.failed", "card declined", { order: 1234, reason: "insufficient_funds" }, { trace_id: "0af7651916cd43dd8448eb211c80319c" });
 

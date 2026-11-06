@@ -191,6 +191,9 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.loginAccountIP.Reset(accountIP)
+	if a.mfaChallenge(w, r, u, false) {
+		return
+	}
 	if !a.startSession(w, r, u) {
 		return
 	}

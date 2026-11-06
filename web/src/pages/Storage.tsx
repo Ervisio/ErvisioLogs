@@ -139,7 +139,7 @@ function Section({ id, title, intro, children }: { id: string; title: string; in
 }
 
 /** The one picture on the page: how close local disk is to the cap the archiver defends. */
-function Usage({ overview }: { overview: StorageOverview }) {
+export function Usage({ overview }: { overview: StorageOverview }) {
   const { t, i18n } = useTranslation();
   const u: StorageUsage | undefined = overview.usage;
   const archived = overview.segments;
@@ -335,7 +335,7 @@ function ProjectRetention(props: { project: Project; instance?: RetentionPolicy;
   );
 }
 
-function InstanceRetention({ instance, onSaved }: { instance?: RetentionPolicy; onSaved: () => void }) {
+export function InstanceRetention({ instance, onSaved }: { instance?: RetentionPolicy; onSaved: () => void }) {
   const { t } = useTranslation();
   const problem = useProblem();
   const [local, setLocal] = useState(days(instance?.local_age_hours));
@@ -425,7 +425,7 @@ function InstanceRetention({ instance, onSaved }: { instance?: RetentionPolicy; 
 
 const STATUS_DOT: Record<StorageProvider['status'], string> = { ok: 'bg-ok', error: 'bg-err', unknown: 'bg-ink3' };
 
-function Destinations({ providers, onChanged }: { providers: StorageProvider[]; onChanged: () => void }) {
+export function Destinations({ providers, onChanged }: { providers: StorageProvider[]; onChanged: () => void }) {
   const { t, i18n } = useTranslation();
   const problem = useProblem();
   const [busy, setBusy] = useState<string | null>(null);

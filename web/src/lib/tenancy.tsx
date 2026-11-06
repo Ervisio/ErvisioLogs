@@ -1,8 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useMatch, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { api, ApiError, type Project, type Workspace } from './api';
 import { useAuth, useSession } from './auth';
-import { workspacePath } from './sections';
 
 type ProjectsState = { status: 'loading' } | { status: 'failed' } | { status: 'ready'; projects: Project[] };
 
@@ -14,6 +13,7 @@ type TenancyValue = {
   projects: ProjectsState;
   addProject: (project: Project) => void;
   reload: () => void;
+  refreshWorkspaces: () => Promise<void>;
 };
 
 const TenancyContext = createContext<TenancyValue | null>(null);
@@ -21,21 +21,18 @@ const TenancyContext = createContext<TenancyValue | null>(null);
 export function TenancyProvider({ children }: { children: ReactNode }) {
   const session = useSession();
   const { retry } = useAuth();
-  const navigate = useNavigate();
-  const scopedWorkspaceId = useMatch('/w/:workspaceId/*')?.params.workspaceId;
   const [workspaces, setWorkspaces] = useState(session.workspaces ?? []);
+  const [selected, setSelected] = useState(() => localStorage.getItem('workspace'));
   const [loaded, setLoaded] = useState<{ key: string; result: ProjectsState } | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const workspace = scopedWorkspaceId
-    ? workspaces.find((w) => w.id === scopedWorkspaceId) ?? null
-    : workspaces.find((w) => w.id === localStorage.getItem('workspace')) ?? workspaces[0] ?? null;
+  const location = useLocation();
+  const scopedId = location.pathname.match(/^\/w\/([^/]+)/)?.[1];
+  const workspace = scopedId
+    ? (workspaces.find((w) => w.id === scopedId) ?? null)
+    : (workspaces.find((w) => w.id === selected) ?? workspaces[0] ?? null);
   const workspaceId = workspace?.id ?? null;
   const loadKey = `${workspaceId}:${attempt}`;
-
-  useEffect(() => {
-    if (workspaceId) localStorage.setItem('workspace', workspaceId);
-  }, [workspaceId]);
 
   // A result counts only for the request that produced it, so switching workspace shows "loading".
   const projects = useMemo<ProjectsState>(() => {
@@ -48,9 +45,7 @@ export function TenancyProvider({ children }: { children: ReactNode }) {
     const ctrl = new AbortController();
     api
       .projects(workspaceId, ctrl.signal)
-      .then((list) => {
-        if (!ctrl.signal.aborted) setLoaded({ key: loadKey, result: { status: 'ready', projects: list.filter((p) => p.workspace_id === workspaceId) } });
-      })
+      .then((list) => setLoaded({ key: loadKey, result: { status: 'ready', projects: list } }))
       .catch((err: unknown) => {
         if (ctrl.signal.aborted) return;
         // An expired session asks the auth layer again, and the guard sends the user to sign in.
@@ -62,22 +57,31 @@ export function TenancyProvider({ children }: { children: ReactNode }) {
 
   const selectWorkspace = useCallback((id: string) => {
     localStorage.setItem('workspace', id);
-    navigate(workspacePath(id));
-  }, [navigate]);
+    setSelected(id);
+  }, []);
   const addWorkspace = useCallback((created: Workspace) => {
     setWorkspaces((cur) => [...cur, created]);
     localStorage.setItem('workspace', created.id);
-    navigate(workspacePath(created.id));
-  }, [navigate]);
+    setSelected(created.id);
+  }, []);
   const addProject = useCallback((created: Project) => {
-    if (created.workspace_id !== workspaceId) return;
-    setLoaded((cur) => (cur?.key === loadKey && cur.result.status === 'ready' ? { key: cur.key, result: { status: 'ready', projects: [...cur.result.projects, created] } } : cur));
-  }, [workspaceId, loadKey]);
+    setLoaded((cur) =>
+      cur?.result.status === 'ready'
+        ? { key: cur.key, result: { status: 'ready', projects: [...cur.result.projects, created] } }
+        : cur,
+    );
+  }, []);
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
 
+  const refreshWorkspaces = useCallback(async () => {
+    const result = await api.me();
+    setWorkspaces(result.workspaces ?? []);
+    setAttempt((n) => n + 1);
+  }, []);
+
   const value = useMemo(
-    () => ({ workspaces, workspace, selectWorkspace, addWorkspace, projects, addProject, reload }),
-    [workspaces, workspace, selectWorkspace, addWorkspace, projects, addProject, reload],
+    () => ({ workspaces, workspace, selectWorkspace, addWorkspace, projects, addProject, reload, refreshWorkspaces }),
+    [workspaces, workspace, selectWorkspace, addWorkspace, projects, addProject, reload, refreshWorkspaces],
   );
   return <TenancyContext.Provider value={value}>{children}</TenancyContext.Provider>;
 }
@@ -90,7 +94,11 @@ export function useTenancy() {
 
 /** Up to two letters for a project's circle in the rail. */
 export function initials(name: string): string {
-  const words = name.trim().split(/[\s._-]+/).filter(Boolean);
-  const letters = words.length > 1 ? [words[0], words[1]].map((w) => Array.from(w)[0]) : Array.from(words[0] ?? '?').slice(0, 2);
+  const words = name
+    .trim()
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+  const letters =
+    words.length > 1 ? [words[0], words[1]].map((w) => Array.from(w)[0]) : Array.from(words[0] ?? '?').slice(0, 2);
   return letters.join('').toUpperCase();
 }
