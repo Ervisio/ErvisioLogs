@@ -218,7 +218,7 @@ function SecuritySettings() {
             {state.data.passkeys.map((key) => (
               <div key={key.id} className="flex items-center justify-between gap-3">
                 <span>
-                  {key.name}
+                  <span>{key.name}</span>
                   <span className="text-ink3 ml-2 text-xs">{new Date(key.created_at).toLocaleDateString()}</span>
                 </span>
                 <button

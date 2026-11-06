@@ -91,7 +91,7 @@ test('catalog templates and tags render while redacted values never reach search
   expect(result.items[0].attributes.secret).toBe('[REDACTED]');
   expect(JSON.stringify(result)).not.toContain('never-store-this-value');
   await page.goto(fixture.path);
-  await page.getByLabel('Search', { exact: true }).fill('#economy');
+  await page.getByLabel('Search', { exact: true }).fill('tag:economy');
   await page.getByLabel('Search', { exact: true }).press('Enter');
   await expect(page.getByRole('cell').filter({ hasText: 'Money transfer' })).toContainText('Ada paid 42');
   await page.getByRole('button', { name: /Open event from/ }).click();

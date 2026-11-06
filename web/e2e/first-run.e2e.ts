@@ -91,7 +91,8 @@ test('mobile: no sideways scroll, navigation in the drawer', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Project settings' })).toBeVisible();
   const tabs = page.getByRole('combobox', { name: 'Project settings' });
   await tabs.selectOption({ label: 'Tokens' });
-  await expect(page.getByRole('heading', { name: 'API tokens' })).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\/tokens$/);
+  await expect(page.getByRole('heading', { name: 'Active tokens', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await sections.getByRole('link', { name: 'Workspace settings' }).click();
   await page.getByRole('combobox', { name: 'Workspace settings' }).selectOption({ label: 'Members and invitations' });

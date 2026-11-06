@@ -1,6 +1,6 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import i18n from '../i18n';
-import { useAction, useRemote } from './Management';
+import { Field, useAction, useRemote } from './Management';
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
@@ -73,4 +73,18 @@ test('a response from the previous scope cannot replace the current result', asy
     previous.resolve('stale');
   });
   expect(result.current.data).toBe('current');
+});
+
+test('field labels exclude select options and explain hints separately', () => {
+  render(
+    <Field label="Saved view" hint="Choose a query">
+      <select defaultValue="one">
+        <option value="one">Failed invoices</option>
+      </select>
+    </Field>,
+  );
+  const control = screen.getByRole('combobox', { name: 'Saved view' });
+  expect(control).toHaveAccessibleName('Saved view');
+  expect(control).toHaveAccessibleDescription('Choose a query');
+  expect(screen.getByText('Saved view').tagName).toBe('LABEL');
 });

@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { NavLink, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { ShellContext } from './Shell';
@@ -151,14 +161,27 @@ export function Page({
   );
 }
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  const generatedId = useId();
+  const element = isValidElement<{ id?: string; 'aria-describedby'?: string }>(children) ? children : null;
+  const id = element?.props.id ?? generatedId;
+  const hintId = `${id}-hint`;
+  const describedBy =
+    [element?.props['aria-describedby'], hint ? hintId : undefined].filter(Boolean).join(' ') || undefined;
   return (
-    <label className="manage-field">
-      <span className="font-medium">{label}</span>
-      {children}
-      {hint && <span className="text-ink3 text-xs">{hint}</span>}
-    </label>
+    <div className="manage-field">
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
+      {element ? cloneElement(element, { id, 'aria-describedby': describedBy }) : children}
+      {hint && (
+        <span id={hintId} className="text-ink3 text-xs">
+          {hint}
+        </span>
+      )}
+    </div>
   );
 }
+
 export function ActionForm({
   children,
   submit,
