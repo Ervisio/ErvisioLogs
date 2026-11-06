@@ -96,6 +96,11 @@ func TestSearchReadsArchive(t *testing.T) {
 	if after["total"].(float64) != 2 || after["partial"] != false {
 		t.Fatalf("archive search total/partial: %v", after)
 	}
+	for _, row := range after["items"].([]any) {
+		if row.(map[string]any)["tier"] != "archive" {
+			t.Fatalf("archive origin missing: %v", row)
+		}
+	}
 	tiers := after["searched_tiers"].([]any)
 	if len(tiers) != 2 || tiers[0] != "hot" || tiers[1] != "archive" {
 		t.Fatalf("tiers %v", tiers)
@@ -107,8 +112,16 @@ func TestSearchReadsArchive(t *testing.T) {
 	// A late duplicate of an archived event in the hot table is returned once.
 	expect(t, e.newClient().bearerJSON("POST", "/ingest/batch", tok, map[string]any{"events": events[:1]}), 202)
 	time.Sleep(500 * time.Millisecond)
-	if r := waitSearch(t, admin, tok, query, 2); r["total"].(float64) != 2 {
-		t.Fatalf("duplicate counted: %v", r)
+	mixed := waitSearch(t, admin, tok, query, 2)
+	if mixed["total"].(float64) != 2 {
+		t.Fatalf("duplicate counted: %v", mixed)
+	}
+	origins := map[string]int{}
+	for _, row := range mixed["items"].([]any) {
+		origins[row.(map[string]any)["tier"].(string)]++
+	}
+	if origins["hot"] != 1 || origins["archive"] != 1 {
+		t.Fatalf("overlap did not prefer hot row: %v", origins)
 	}
 
 	// The object disappears from the provider and the cache: the search answers without it and says so.

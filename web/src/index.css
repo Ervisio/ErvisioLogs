@@ -1,44 +1,112 @@
 @import 'tailwindcss';
 
-/* Design tokens follow Ervisio's DESIGN-RULES (OLED default) and the approved prototypes
-   in ervisio-logs-spec/design/approved. Text tokens keep at least 4.5:1 on every surface. */
+/* Approved 0.2 tokens: docs/DESIGN.md. */
 :root {
-  --bg: #000000;
-  --surface: #0e0e10;
-  --sunk: #18181b;
-  --raised: #26262b;
-  --line: #232327;
+  --bg: #17181c;
+  --surface: #202127;
+  --sunk: #2b2d35;
+  --raised: #373a44;
+  --line: #363941;
   --field: #6b6b75;
-  --ink: #f4f4f6;
-  --ink2: #b0b0ba;
-  --ink3: #8f8f9a;
-  --hue: #ffb547; /* Ervisio "Logs" section colour, as text */
-  --accent: #ffb547; /* the same colour, as a fill */
-  --accent-ink: #1c1100;
+  --ink: #f1f2f5;
+  --ink2: #bfc2cd;
+  --ink3: #a0a5b3;
+  --hue: #afc2ff;
+  --accent: #7798ff;
+  --accent-fill: var(--accent);
+  --accent-ink: #0c193c;
+  --accent-soft: #283650;
   --discord: #7983f5;
-  --ok: #3ddc97;
-  --err: #ff6b81;
-  --warn: #f2c94c;
+  --ok: #65d9aa;
+  --err: #ff8796;
+  --warn: #eed085;
+  --trace: #aab2c2;
+  --debug: #b9c5dd;
+  --info: #86cbed;
+  --notice: #cfb9ed;
+  --critical: #ffa5bb;
+  --rail-bg: #17181c;
+  --panel-bg: #202127;
+  --sheet-bg: #25262d;
+  --row-line: #32343c;
+  --glass-opacity: 72%;
+  --glass-blur: 24px;
+  --content-blur: 28px;
+  --glass-edge: #ffffff1c;
+  --shadow: 0 8px 28px #00000024;
+  --radius-panel: 18px;
+  --radius-server: 15px;
+  --log-row-height: 42px;
+  --log-row-height-mobile: 54px;
+  --object-blue: #5b83ea;
+  --object-cyan: #53a8d4;
+  --object-violet: #8d78dc;
+  --object-blur: 42px;
+  --object-opacity: 0.42;
+  --object-duration: 16s;
+  --object-duration-slow: 22s;
+  --object-travel: 90px;
+  --ambient-ease: ease-in-out;
   color-scheme: dark;
 }
 :root[data-theme='light'] {
-  --bg: #ececef;
-  --surface: #f7f7f9;
-  --sunk: #ffffff;
-  --raised: #dcdce2;
-  --line: #dcdce2;
+  --bg: #e6eef8;
+  --surface: #f4f7fb;
+  --sunk: #edf2f8;
+  --raised: #dde6f2;
+  --line: #d4deec;
   --field: #84848e;
-  --ink: #16161a;
-  --ink2: #50505b;
-  --ink3: #5f5f6a;
-  --hue: #865000;
-  --accent: #ffb547;
-  --accent-ink: #1c1100;
+  --ink: #202b3d;
+  --ink2: #41516b;
+  --ink3: #4e5d73;
+  --hue: #294fae;
+  --accent: #4266d5;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4ecff;
   --discord: #4f5bd5;
-  --ok: #0f7a50;
-  --err: #c42d4a;
-  --warn: #7a5600;
+  --ok: #147653;
+  --err: #bb3b51;
+  --warn: #806017;
+  --trace: #5b6578;
+  --debug: #4b6288;
+  --info: #1a6b90;
+  --notice: #785496;
+  --critical: #a82b58;
+  --rail-bg: #e6eef8;
+  --panel-bg: #f5f8fc;
+  --sheet-bg: #ffffff;
+  --row-line: #e7edf5;
+  --glass-opacity: 84%;
+  --glass-edge: #ffffffd9;
+  --shadow: 0 8px 30px #21324a12;
+  --object-blue: #6d96ec;
+  --object-cyan: #66b8d9;
+  --object-violet: #aaa2e0;
+  --object-blur: 45px;
+  --object-opacity: 0.3;
   color-scheme: light;
+}
+:root[data-theme='amoled'] {
+  --bg: #000000;
+  --surface: #090a0c;
+  --sunk: #15171b;
+  --raised: #23262d;
+  --line: #23262d;
+  --ink: #f2f3f6;
+  --ink2: #bbc0cc;
+  --ink3: #979fae;
+  --accent-soft: #151e33;
+  --rail-bg: #000000;
+  --panel-bg: #08090b;
+  --sheet-bg: #000000;
+  --row-line: #1a1c21;
+  --glass-opacity: 100%;
+  --glass-blur: 0px;
+  --content-blur: 0px;
+  --glass-edge: #ffffff14;
+  --shadow: none;
+  --object-opacity: 0.24;
+  color-scheme: dark;
 }
 
 @theme {
@@ -60,20 +128,26 @@
   --color-hue: var(--hue);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
   --color-discord: var(--discord);
   --color-ok: var(--ok);
   --color-err: var(--err);
   --color-warn: var(--warn);
-  --radius-card: 18px;
-  --radius-control: 12px;
-  --radius-row: 7px;
+  --color-trace: var(--trace);
+  --color-debug: var(--debug);
+  --color-info: var(--info);
+  --color-notice: var(--notice);
+  --color-critical: var(--critical);
+  --radius-card: var(--radius-panel);
+  --radius-control: 11px;
+  --radius-row: 9px;
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-weight: 500;
+  font-weight: 400;
   font-size: 14px;
 }
 
@@ -114,3 +188,26 @@ button {
     animation: none !important;
   }
 }
+
+.shell-rail { background: color-mix(in srgb, var(--rail-bg) 85%, transparent); }
+.shell-side { background: color-mix(in srgb, var(--panel-bg) 88%, transparent); backdrop-filter: blur(var(--glass-blur)); border: 1px solid var(--glass-edge); }
+.shell-main { background: color-mix(in srgb, var(--surface) var(--glass-opacity), transparent); backdrop-filter: blur(var(--content-blur)); border: 1px solid var(--glass-edge); box-shadow: var(--shadow); }
+:root[data-theme='amoled'] .shell-main { background: #000; }
+.ambient { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ambient i { position: absolute; width: 120px; height: 120px; border-radius: 50%; background: var(--object-blue); opacity: var(--object-opacity); filter: blur(var(--object-blur)); animation: ambient-drift var(--object-duration) var(--ambient-ease) infinite alternate; }
+.ambient i:nth-child(1) { left: 15%; top: 12%; }
+.ambient i:nth-child(2) { left: 44%; top: 4%; width: 148px; height: 148px; background: var(--object-violet); animation-delay: -8s; animation-duration: 22s; }
+.ambient i:nth-child(3) { right: 5%; top: 24%; width: 96px; height: 96px; background: var(--object-cyan); animation-delay: -3s; }
+.ambient i:nth-child(4) { left: 22%; bottom: 8%; background: var(--object-violet); animation-delay: -12s; animation-duration: 19s; }
+.ambient i:nth-child(5) { left: 62%; bottom: 22%; width: 90px; height: 90px; background: var(--object-cyan); animation-delay: -6s; animation-duration: 14s; }
+.ambient i:nth-child(6) { right: 4%; bottom: 3%; width: 140px; height: 140px; animation-delay: -10s; animation-duration: 20s; }
+@keyframes ambient-drift { from { transform: translate(-30px, -25px); } to { transform: translate(70px, 60px); } }
+@media (prefers-reduced-motion: reduce) { .ambient i { animation: none; } }
+@media (prefers-reduced-transparency: reduce), (max-width: 720px) { .shell-main, .shell-side { background: var(--surface); backdrop-filter: none; } }
+.manage-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); padding: 8px 20px; flex: none; }
+.manage-field { display: grid; gap: 6px; min-width: 0; }
+.manage-input { background: var(--sunk); border: 1px solid var(--field); border-radius: 9px; min-height: 44px; padding: 8px 12px; width: 100%; min-width: 0; }
+.manage-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; background: var(--sunk); font-weight: 600; }
+.manage-button:disabled { opacity: .5; cursor: default; }
+.manage-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.manage-section { display: grid; gap: 16px; padding: 24px 0; border-bottom: 1px solid var(--line); }

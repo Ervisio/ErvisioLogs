@@ -30,3 +30,26 @@ Rules the code keeps: no `confirm()` (the frame has no `allow-modals`), no secre
 deletes volumes or data, every Caddy change validated and rolled back on failure.
 
 `LICENSE-plugin-caddy` covers the Caddyfile and Docker code adapted from Ervisio/plugin-caddy (MIT).
+
+## Instance management (0.2 interface)
+
+The nine sections separate runtime instance settings from host configuration. Workspace and project management,
+users and sessions, archive destinations and credentials, retention and audit use `packages/admin-client`.
+The console retains up to 20 operations and 2,000 lines per operation for the current page session.
+
+Local management uses SDK HTTP capabilities, with no user session or log-reading permission:
+
+- Docker: `/var/lib/docker/volumes/ervisiologs_admin/_data/admin.sock`, the rootful Docker volume from the bundled Compose stack.
+- Standalone: `/run/ervisio-logs/admin.sock`, as configured by the standalone installer.
+
+The Ervisio administrator must approve these socket capabilities. A custom Docker data directory or custom admin
+socket path can instead use the HTTPS connection in **Instance** with a scoped `evl_adm_` token created by an
+instance administrator in the web app. The SDK requests approval for the exact remote host before any request.
+The panel reloads on first approval; reconnect afterwards. Tokens stay in memory and are never written to plugin
+preferences, job output or local storage. Remote calls omit cookies. Tokens need the scopes for the operations
+being used (`admin:read`, `admin:settings`, `admin:users`, `admin:tenancy`, `admin:storage`).
+Operators can issue ingest tokens; read/export token creation still requires workspace membership.
+
+**Server** exposes all documented environment variables, masks secret values, preserves existing secrets when
+fields are empty, and reports values the installed Compose file does not pass. Environment changes require an
+explicit restart. Runtime values belong in **Instance**; environment overrides lock those runtime values.

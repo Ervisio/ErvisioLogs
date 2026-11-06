@@ -19,4 +19,5 @@ Gotchas:
 - Config values are clamped (clampInt), not rejected; bad options are silently coerced.
 - SDK version (0.1.0) is independent from the platform version (0.1.5); not bumped by release.sh and not in CI release.yml (publish is manual: `npm publish`, prepublishOnly runs typecheck+build).
 Commands: cd sdk/typescript && npm ci && npm test (vitest) | npm run typecheck | npm run build. examples/ holds usage samples.
+Log v2: EventOverrides tags (lowercase/dedupe/drop invalid with validation notice), actor/target Entity -> attributes.actor/target. InEvent tags, Entity exported; limits maxTags20/maxTagLen40 mirror backend.
 Related: map/backend.md (ingest), map/integrations.md (FiveM re-implements the same protocol in Lua), map/deploy.md

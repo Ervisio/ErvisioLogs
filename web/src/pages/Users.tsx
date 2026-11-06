@@ -5,6 +5,9 @@ import type { ShellContext } from '../components/Shell';
 import { api, ApiError, type Member, type Workspace } from '../lib/api';
 import { useAuth, useSession } from '../lib/auth';
 import { initials } from '../lib/tenancy';
+import { management } from '../lib/manage-api';
+import { Field, State, useAction, useRemote } from '../components/Management';
+import { CopyButton } from './Tokens';
 
 const ROLES = ['owner', 'admin', 'developer', 'analyst', 'viewer'] as const;
 const MANAGERS = new Set(['owner', 'admin']);
@@ -12,7 +15,7 @@ const MANAGERS = new Set(['owner', 'admin']);
 type Loaded = { status: 'ready'; members: Member[] } | { status: 'failed'; forbidden: boolean };
 
 /** Members belong to the workspace, so this page shows the same people for every project in it. */
-export default function Users({ workspace }: { workspace: Workspace }) {
+export default function Users({ workspace, embedded = false }: { embedded?: boolean; workspace: Workspace }) {
   const { t, i18n } = useTranslation();
   const { retry } = useAuth();
   const { user } = useSession();
@@ -40,9 +43,14 @@ export default function Users({ workspace }: { workspace: Workspace }) {
 
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
   const result = loaded?.key === key ? loaded.result : null;
-  const date = (iso: string) => new Date(iso).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = (iso: string) =>
+    new Date(iso).toLocaleDateString(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' });
   const problem = (err: unknown, fallback: string) =>
-    err instanceof ApiError && err.status === 409 ? t('users.lastOwner') : err instanceof ApiError && err.status < 500 && err.status !== 401 ? err.message : t(fallback);
+    err instanceof ApiError && err.status === 409
+      ? t('users.lastOwner')
+      : err instanceof ApiError && err.status < 500 && err.status !== 401
+        ? err.message
+        : t(fallback);
 
   const changeRole = async (m: Member, role: string) => {
     setBusy(m.user_id);
@@ -79,8 +87,8 @@ export default function Users({ workspace }: { workspace: Workspace }) {
 
   return (
     <>
-      {topbar(<h1 className="truncate text-base font-bold">{t('nav.users')}</h1>)}
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      {!embedded && topbar(<h1 className="truncate text-base font-bold">{t('nav.users')}</h1>)}
+      <div className={embedded ? 'min-w-0' : 'flex-1 overflow-auto p-4 md:p-6'}>
         <div className="mx-auto grid max-w-[760px] grid-cols-[minmax(0,1fr)] gap-8">
           <p className="text-ink2 max-w-[60ch]">{t('users.intro', { workspace: workspace.name })}</p>
 
@@ -98,7 +106,11 @@ export default function Users({ workspace }: { workspace: Workspace }) {
               <div role="alert">
                 <p className="text-ink2 mb-2">{result.forbidden ? t('users.forbidden') : t('users.loadFailed')}</p>
                 {!result.forbidden && (
-                  <button type="button" onClick={reload} className="text-hue min-h-11 font-semibold underline underline-offset-2">
+                  <button
+                    type="button"
+                    onClick={reload}
+                    className="text-hue min-h-11 font-semibold underline underline-offset-2"
+                  >
                     {t('common.retry')}
                   </button>
                 )}
@@ -110,10 +122,13 @@ export default function Users({ workspace }: { workspace: Workspace }) {
                   const self = m.user_id === user.id;
                   return (
                     <li key={m.user_id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
-                      <span aria-hidden className="bg-sunk grid size-9 flex-none place-items-center rounded-full text-xs font-bold">
+                      <span
+                        aria-hidden
+                        className="bg-sunk grid size-9 flex-none place-items-center rounded-full text-xs font-bold"
+                      >
                         {initials(m.username)}
                       </span>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-auto">
                         <p className="truncate font-semibold">
                           {m.username}
                           {self && <span className="text-ink3 ml-2 text-[13px] font-normal">{t('users.you')}</span>}
@@ -136,7 +151,9 @@ export default function Users({ workspace }: { workspace: Workspace }) {
                           ))}
                         </select>
                       ) : (
-                        <span className="bg-sunk rounded-row px-2.5 py-1 text-[13px] font-semibold">{t(`users.role.${m.role}`, { defaultValue: m.role })}</span>
+                        <span className="bg-sunk rounded-row px-2.5 py-1 text-[13px] font-semibold">
+                          {t(`users.role.${m.role}`, { defaultValue: m.role })}
+                        </span>
                       )}
                       {(editable(m) || self) && (
                         <button
@@ -161,6 +178,8 @@ export default function Users({ workspace }: { workspace: Workspace }) {
             )}
           </section>
 
+          {canManage && <Invitations workspace={workspace} roles={grantable} />}
+
           {canManage && <AddMember workspace={workspace} roles={grantable} onAdded={reload} />}
 
           <section aria-labelledby="roles-help" className="grid gap-2">
@@ -182,7 +201,15 @@ export default function Users({ workspace }: { workspace: Workspace }) {
   );
 }
 
-function AddMember({ workspace, roles, onAdded }: { workspace: Workspace; roles: readonly string[]; onAdded: () => void }) {
+function AddMember({
+  workspace,
+  roles,
+  onAdded,
+}: {
+  workspace: Workspace;
+  roles: readonly string[];
+  onAdded: () => void;
+}) {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('viewer');
@@ -204,7 +231,15 @@ function AddMember({ workspace, roles, onAdded }: { workspace: Workspace; roles:
       onAdded();
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
-      setError(status === 404 ? t('users.noAccount') : status === 409 ? t('users.already') : status === 403 ? t('users.forbidden') : t('users.addFailed'));
+      setError(
+        status === 404
+          ? t('users.noAccount')
+          : status === 409
+            ? t('users.already')
+            : status === 403
+              ? t('users.forbidden')
+              : t('users.addFailed'),
+      );
     } finally {
       setBusy(false);
     }
@@ -238,7 +273,12 @@ function AddMember({ workspace, roles, onAdded }: { workspace: Workspace; roles:
           <label htmlFor="mem-role" className="font-semibold">
             {t('users.roleLabel')}
           </label>
-          <select id="mem-role" value={role} onChange={(e) => setRole(e.target.value)} className="bg-sunk border-field h-12 rounded-row border px-2 md:h-11">
+          <select
+            id="mem-role"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="bg-sunk border-field h-12 rounded-row border px-2 md:h-11"
+          >
             {roles.map((r) => (
               <option key={r} value={r}>
                 {t(`users.role.${r}`)}
@@ -252,11 +292,104 @@ function AddMember({ workspace, roles, onAdded }: { workspace: Workspace; roles:
           </p>
         )}
         {done && <p role="status">{done}</p>}
-        <button type="submit" disabled={busy} className="bg-accent text-accent-ink flex h-12 items-center justify-center gap-2 rounded-row font-bold hover:brightness-110 disabled:opacity-60 md:h-11">
+        <button
+          type="submit"
+          disabled={busy}
+          className="bg-accent text-accent-ink flex h-12 items-center justify-center gap-2 rounded-row font-bold hover:brightness-110 disabled:opacity-60 md:h-11"
+        >
           {busy && <span className="spinner" aria-hidden />}
           {t('users.addButton')}
         </button>
       </form>
+    </section>
+  );
+}
+
+function Invitations({ workspace, roles }: { workspace: Workspace; roles: readonly string[] }) {
+  const { t, i18n } = useTranslation();
+  const load = useCallback((signal: AbortSignal) => management.invitations(workspace.id, signal), [workspace.id]);
+  const remote = useRemote(load);
+  const action = useAction(remote.refresh);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('viewer');
+  const [link, setLink] = useState('');
+  const [mailError, setMailError] = useState('');
+  const invite = async (event: FormEvent) => {
+    event.preventDefault();
+    await action.run(async () => {
+      const result = await management.invite(workspace.id, email.trim(), role);
+      setLink(result.url ?? '');
+      setMailError(result.mail_error ?? '');
+      setEmail('');
+    });
+  };
+  return (
+    <section className="grid gap-4" aria-labelledby="invitations-title">
+      <h2 id="invitations-title" className="text-[17px] font-bold">
+        {t('flows.invites.title')}
+      </h2>
+      <p className="text-ink2">{t('flows.invites.hint')}</p>
+      <form onSubmit={(event) => void invite(event)} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <Field label={t('users.email')}>
+          <input
+            required
+            type="email"
+            className="manage-input"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </Field>
+        <Field label={t('users.roleLabel')}>
+          <select className="manage-input" value={role} onChange={(event) => setRole(event.target.value)}>
+            {roles.map((value) => (
+              <option key={value} value={value}>
+                {t(`users.role.${value}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <button className="manage-button manage-primary self-end" disabled={action.busy} type="submit">
+          {t('flows.invites.send')}
+        </button>
+      </form>
+      {action.message}
+      {mailError && (
+        <p role="alert" className="text-warn">
+          {mailError}
+        </p>
+      )}
+      {link && (
+        <div role="status" className="border-line flex min-w-0 items-center gap-3 rounded-row border p-3">
+          <span className="min-w-0 flex-1 break-all font-mono text-xs">{link}</span>
+          <CopyButton text={link} />
+        </div>
+      )}
+      <State loading={remote.loading} error={remote.error} retry={remote.refresh} />
+      {remote.data?.length === 0 && <p className="text-ink3">{t('flows.invites.none')}</p>}
+      <ul className="divide-line divide-y">
+        {remote.data?.map((invitation) => (
+          <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3">
+            <div className="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-auto">
+              <p className="break-all font-semibold">{invitation.email}</p>
+              <p className="text-ink3 text-xs">
+                {t(`users.role.${invitation.role}`)} ·{' '}
+                {t('tokens.expires', { date: new Date(invitation.expires_at).toLocaleString(i18n.language) })}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="manage-button text-err"
+              disabled={action.busy}
+              onClick={() => {
+                if (window.confirm(t('flows.invites.cancelConfirm', { email: invitation.email })))
+                  void action.run(() => management.cancelInvitation(workspace.id, invitation.id));
+              }}
+            >
+              {t('flows.invites.cancel')}
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

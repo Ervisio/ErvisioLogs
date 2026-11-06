@@ -135,3 +135,27 @@ func TestValidatorZeroLimits(t *testing.T) {
 		t.Fatal("future event accepted with zero skew")
 	}
 }
+
+func TestTagsAndLegacyWAL(t *testing.T) {
+	for _, tags := range [][]string{{"UPPER"}, {""}, {strings.Repeat("x", 41)}, make([]string, 21)} {
+		if _, err := val.Normalize(InEvent{Tags: tags}, "", "", res, ws, p); err == nil {
+			t.Fatalf("accepted invalid tags %#v", tags)
+		}
+	}
+	e, err := val.Normalize(InEvent{Tags: []string{"economy", "player:trade"}}, "", "", res, ws, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := EncodeRecord([]Event{e})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeRecord(record)
+	if err != nil || len(got[0].Tags) != 2 {
+		t.Fatalf("tags lost in WAL: %s %v", record, err)
+	}
+	legacy, err := DecodeRecord([]byte(`[{"event_id":"old","schema_version":1,"ts":0,"ingested":0}]`))
+	if err != nil || legacy[0].Tags == nil {
+		t.Fatalf("legacy WAL: %+v %v", legacy, err)
+	}
+}

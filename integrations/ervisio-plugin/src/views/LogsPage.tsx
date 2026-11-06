@@ -2,10 +2,12 @@
  * The Ervisio Logs page: a header with the state of the app, an inner menu like plugin-docker's, and one section at a
  * time (overview, address and Caddy, settings, console). With no mode chosen yet, the setup steps (Setup.tsx).
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getSdk } from '../sdk';
 import * as logs from '../api/logs';
-import { Badge, Button, EmptyState, Icon, Skeleton, type HueId } from '../kit';
+import { Badge, Button, EmptyState, Icon, Skeleton, type HueId, Select } from '../kit';
+import { adminClient, type Connection } from '../api/admin';
+import { AuditPanel, ConnectionPanel, HealthPanel, ProjectsPanel, RuntimeSettings, StoragePanel, UsersPanel, WorkspacesPanel } from './Admin';
 import { Address } from './Address';
 import { Console } from './Console';
 import { Overview } from './Overview';
@@ -13,12 +15,17 @@ import { Settings } from './Settings';
 import { Setup } from './Setup';
 import { errText, hostOf, t, useLoad, useRunner, type Runner } from './util';
 
-export type SectionId = 'overview' | 'address' | 'settings' | 'console';
+export type SectionId = 'overview' | 'instance' | 'workspaces' | 'projects' | 'users' | 'storage' | 'address' | 'settings' | 'console';
 
 const SECTIONS: { id: SectionId; hue: HueId; icon: string }[] = [
   { id: 'overview', hue: 'ov', icon: 'overview' },
-  { id: 'address', hue: 'svc', icon: 'globe' },
+  { id: 'instance', hue: 'sw', icon: 'cog' },
+  { id: 'workspaces', hue: 'file', icon: 'layers' },
+  { id: 'projects', hue: 'log', icon: 'logs' },
+  { id: 'users', hue: 'usr', icon: 'users' },
+  { id: 'storage', hue: 'file', icon: 'database' },
   { id: 'settings', hue: 'sw', icon: 'cog' },
+  { id: 'address', hue: 'svc', icon: 'globe' },
   { id: 'console', hue: 'term', icon: 'terminal' },
 ];
 
@@ -69,6 +76,8 @@ function Loading() {
 function Installed({ mode, onModeReset }: { mode: logs.Mode; onModeReset(): void }) {
   const st = useLoad(() => logs.status(mode), [mode]);
   const runner = useRunner(st.reload);
+  const [connection, setConnection] = useState<Connection>({ kind: 'local' });
+  const client = useMemo(() => adminClient(mode, connection), [mode, connection]);
   const [section, setSection] = useState<SectionId>('overview');
   const [settingsEdits, setSettingsEdits] = useState<Record<string, string>>({});
 
@@ -110,6 +119,7 @@ function Installed({ mode, onModeReset }: { mode: logs.Mode; onModeReset(): void
         )}
       </header>
 
+      <div className="el-mobile-nav"><Select label={t('nav.label')} value={section} options={SECTIONS.map((it) => ({ value: it.id, label: t(`nav.${it.id}`) }))} onChange={(v) => { const found = SECTIONS.find((it) => it.id === v); if (found) setSection(found.id); }} /></div>
       <div className="el-inner">
         <nav className="el-nav" aria-label={t('nav.label')}>
           <div className="el-nav-lab">{t('nav.label')}</div>
@@ -122,7 +132,12 @@ function Installed({ mode, onModeReset }: { mode: logs.Mode; onModeReset(): void
           ))}
         </nav>
         <div className="el-main">
-          {section === 'overview' && <Overview ctx={ctx} />}
+          {section === 'overview' && <><Overview ctx={ctx} />{s.installed && <HealthPanel client={client} />}</>}
+          {section === 'instance' && <><ConnectionPanel mode={mode} connection={connection} setConnection={setConnection} /><RuntimeSettings client={client} /><AuditPanel client={client} /></>}
+          {section === 'workspaces' && <WorkspacesPanel client={client} />}
+          {section === 'projects' && <ProjectsPanel client={client} />}
+          {section === 'users' && <UsersPanel client={client} />}
+          {section === 'storage' && <StoragePanel client={client} />}
           {section === 'address' && <Address ctx={ctx} />}
           {section === 'settings' && <Settings ctx={ctx} />}
           {section === 'console' && <Console ctx={ctx} />}

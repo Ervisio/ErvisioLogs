@@ -1,41 +1,28 @@
 # web
-Purpose: React SPA for Ervisio Logs (sign-in, workspaces/projects, log explorer + live tail, alerts, channels, storage admin, tokens, members, bundled docs), served by the Go backend from embedded `web/dist`.
-
-Stack: Vite 8, React 19, react-router-dom 7 (BrowserRouter), TypeScript 6, Tailwind 4 (`@tailwindcss/vite`, tokens in `src/index.css`), i18next (en/it), lucide-react, Vitest+jsdom+RTL, Playwright. No data/query lib: plain `useEffect` + `AbortController`.
-
-Commands (cd web): `npm run dev` (proxies /api,/healthz,/readyz to `VITE_BACKEND` or 127.0.0.1:8080) | `build` (tsc -b && vite build) | `typecheck` | `lint` | `test` (vitest run) | `e2e` (needs E2E_BASE_URL + E2E_SETUP_CODE, run via `scripts/e2e.sh`).
-
-Entry points: `src/main.tsx` (initTheme, i18n, fonts) → `src/App.tsx:App` (routes) | `src/lib/api.ts:api,request,ApiError,setCsrfToken,tailUrl` | `lib/auth.tsx:AuthProvider,RequireAuth,safeNext` | `lib/tenancy.tsx:TenancyProvider,useTenancy` | `lib/sections.ts:SECTIONS` | `components/Shell.tsx` (rail/nav/topbar via outlet ctx `ShellContext.topbar`) | `lib/query.ts` (search-box parser) | `lib/useReadiness.ts`.
-
-Flow:
-- `/login` → pages/Login (local + OAuth providers, first-admin setup w/ setup_code) → api.providers/login/register → /api/v1/auth/*
-- RequireAuth (api.me → /auth/me) → TenancyProvider (api.projects?workspace_id=) → Shell
-- `/` Home (last project from localStorage `project`) | `/projects` | `/projects/:projectId[/streams/:streamId]` Explorer → pages/Logs → POST /logs/search (cursor paging, include_total)
-- `/projects/:id/:section` SectionPage (pages/Workspace.tsx) dispatches: live→Logs live (EventSource GET /logs/tail), alerts→Alerts (/alerts, /queries), integrations→Channels (/notification-channels), storage→Storage (/admin/storage, /admin/retention), tokens→Tokens (/tokens), users→Users (/workspaces/:id/members). Other SECTIONS (dashboards, usage, audit, settings) render a "coming soon" Notice.
-- `/status` Overview (useReadiness polls /readyz every 10s) | `/docs[/:topic]` Documentation | `*` NotFound
-- Export: api.exportLogs → POST /logs/export (blob; ndjson|csv)
-
+Purpose: React19/Vite8/TS6 SPA served by Go embed; scoped log explorer + management, account, dashboards, docs en/it.
+Commands in web: npm run dev | typecheck | lint | test | build | e2e (real disposable stack via scripts/e2e.sh).
+Entry main.tsx (fonts/theme/i18n) → App.tsx (routes/auth/tenancy) → components/Shell.tsx (rail/project sidebar + outlet ShellContext).
+Routes: /w/:workspaceId/p/:projectId[/streams/:id|alerts|dashboards|usage|settings/:tab], /w/:workspaceId/settings/:tab, /admin[/:section], /account; legacy /projects/:id links remain.
+Auth public: /login, /forgot-password, /reset-password#token=, /verify-email#token=, /invite#token=.
+lib/auth.tsx: only401 me=anonymous; network/5xx unreachable; CSRF module state via establish, safeNext guards redirects.
+lib/tenancy.tsx: scoped URL workspace authoritative, localStorage fallback on unscoped routes; projects keyed workspace+attempt, stale responses abort.
+API: lib/api.ts existing tenant/search/alerts/storage types + exported request; lib/manage-api.ts F2/F4 functions and injected shared admin-client; lib/notifications-api.ts F6 operations.
+components/Management.tsx: scoped Page tabs/mobile selector, useRemote abort+identity guard, useAction ref prevents duplicate saves + stale completion; ActionForm disables pending fields.
+pages/Settings.tsx: project/workspace rename/delete, metadata, settings source/env lock/inherit, scoped retention/purge; pages/catalog.tsx event catalog + field rules.
+pages/Administration.tsx: health/users inline profile/session reset/admin tokens/audit/storage; instanceAdmin doesn't imply tenant membership; admin Workspaces metadata only.
+pages/Account.tsx + lib/passkeys.ts: password/sessions/preferences, TOTP enrollment/recovery and browser WebAuthn JSON APIs; external-only accounts require fresh provider sign-in for security proof.
+pages/AccountLink.tsx: email token fragments captured and scrubbed; invitation preview waits auth to avoid CSRF race. Login redirect uses #invite fragment, never token in query; external OAuth requires reopening original invite.
+pages/Insights.tsx: dashboard count/series/top from saved query + /usage actual top-level events/bytes response; SystemAlerts requires admin+managed workspace.
+Logs.tsx: pinned range anchor, abort guards after awaits, paged search + Live SSE, virtual table (42 desktop/54 mobile), level chips in Filters, catalog phrases/tags/actor chips.
+LogEvent.tsx: safe template text, rule-hidden fields recursively pruned, raw JSON disclosure; Who/What filter paths explicitly attributes.*, builtins only supported fields clickable.
+LogFilters.tsx: filter builder preserves quoted values, histogram /logs/histogram full aggregation + zero buckets/partial/brush; mobile filters scroll max40dvh.
+query.ts: attr operators/exists plus tag:x; formatQuery optional tags; escaped quote/backslash values roundtrip.
+Alerts/Channels/Users/Tokens/LogViews retain existing flows, now wizard/templates,email/Telegram/delivery log,invitations,expiry/rotation,update selected view. Embedded settings modes preserve parent tabs.
+Theme: local Figtree + JetBrains Mono; data-theme dark|light|amoled persisted; --hue=text accent, --accent=fill. docs/DESIGN.md authoritative. Six blurred circles transform only, reduced motion/transparency respected.
 Invariants:
-- Backend contract: `/api/v1`, cookie session (`credentials: same-origin`), `X-CSRF-Token` on every non-GET (token from Session.csrf_token, held in module var, cleared on logout/401), errors are RFC 7807 (`detail`) → ApiError(status, retryAfter).
-- Auth: only 401 from /auth/me means anonymous; 5xx/network → "unreachable" screen with retry (never bounce to login). Any 401 in tenancy calls auth.retry(). `?next=` goes through `safeNext` (same-app paths only; rejects `//`, `/\`).
-- Workspace scoping: current workspace = localStorage `workspace` (fallback first of session.workspaces). Project lists are keyed `${workspaceId}:${attempt}` so a stale response never shows after switching. Pages take `key={project.id}`/`key={workspace.id}` to reset state on switch. Every list call carries workspace_id/project_id; alerts/channels/members are workspace-role gated (Users: MANAGERS set; owner-only actions).
-- Storage page is instance-admin only (`user.is_instance_admin`); non-admin gets forbidden notice. Provider secrets are typed in-UI (`putSecret`), only referenced by `secret_file` name; never echoed back.
-- In-app docs: all text lives in i18n `docs.articles[]` ({id,title,summary,sections[{title,paragraphs,code,language,steps}]}) in BOTH en.json and it.json (line ~680); search is client-side over that text. Must work with no project/admin/external service. Topic ids tested in App.test.tsx (`ingest-api`, `fivem`, unknown → not-found).
-- Theming: `data-theme` on <html> (dark OLED default, light), CSS vars --bg/--surface/--ink*/--hue/--accent; use Tailwind color names (bg-surface, text-ink2, text-hue, border-line). Text tokens keep >=4.5:1 contrast. Breakpoint md = 721px (drawer below).
-- i18n: every user-visible string in en.json + it.json (keep keys in sync); lang in localStorage `lang`.
-- Touch targets `min-h-11`; status via role="status"/"alert" (tests and e2e query by role/label).
-- localStorage keys: workspace, project, rail, theme, lang.
-
-Gotchas:
-- Live tail uses EventSource (GET only, cookie auth) and is disabled while attribute filters (`key=value`) are set, since the tail endpoint can't filter attributes; resumes from last cursor.
-- vite `assetsInlineLimit` never inlines .woff/.woff2: server CSP has no font-src (falls back to 'self'); data: fonts would be blocked. Don't add external fonts/CDNs/inline scripts for the same CSP reason.
-- Backend embeds `web/dist` (`backend/internal/webui/webui.go`, `go:embed all:dist`): run `npm run build` before building the Go binary or the UI is stale/missing. SPA fallback is handled server-side; only GET/HEAD allowed.
-- Export can't detect truncation (HTTP trailers invisible to fetch).
-- `searchLogs`/list helpers return `items: null` for empty; `list()` normalizes to []. Raw `request` callers must handle null.
-- e2e is serial, single worker, creates the first admin; needs a real stack (no mocks), fails if env vars missing by design. Unit tests mock fetch (App.test.tsx, ~730 lines).
-- package.json version (0.1.0) is not the release version (0.1.5 per git log); don't read it as such.
-- Workarounds for backend gaps (remove when fixed server-side): client sends its own ASCII slug (lib/slug.ts) since server derives '' for non-Latin names; level chips use a second search without the level filter; Tier badge only on live rows (no per-row tier in search).
-- Web types in lib/api.ts are hand-written: F2a-F2f backend fields/routes (settings, admin users, email, metadata, admin tokens, health, purge) not yet typed.
-- OAuth sign-in is a browser navigation (not fetch) that returns via redirect.
-
-Related: map/backend.md (API handlers, CSP, webui embed, auth/CSRF), map/sdk.md (ingest clients; docs articles describe them)
+- Every unsafe cookie request X-CSRF-Token + same-origin. Secrets never echoed after one-time creation; no browser token persistence.
+- Scope all lists/permissions. Instance admin cannot read tenant logs. Menus hide inaccessible functions; no coming soon.
+- All UI strings en.json+it.json synchronized; lang localStorage and html lang. Font files never inline (CSP self).
+- Whole backend embeds built web/dist; build before backend binary. Docker/release source copies include packages/admin-client.
+Verification: Vitest App, SecurityUI, Management, ManagementFlows, Flows, LogV2, query,slug; e2e/{fixture,first-run,redesign}.ts real stack. QA screenshots are /tmp artifacts, not production proof.
+Related map/backend.md, map/sdk.md, map/integrations.md, docs/redesign/SECURITY-API.md.

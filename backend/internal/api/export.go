@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -29,7 +30,7 @@ type exportReq struct {
 }
 
 var csvHeader = []string{"timestamp", "level", "severity_number", "event", "message", "stream", "environment",
-	"service", "host", "resource", "trace_id", "span_id", "attributes", "id", "ingested_at"}
+	"service", "host", "resource", "trace_id", "span_id", "attributes", "id", "ingested_at", "tags"}
 
 // exportLogs streams the events matching a search as NDJSON or CSV, newest first (ADR 0010).
 // When the instance cap cuts the export short, the X-Export-Truncated trailer says so.
@@ -77,7 +78,7 @@ func (a *API) exportLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sql := "SELECT " + searchCols + " FROM " + source + " WHERE " + q.sql() +
-		" ORDER BY timestamp DESC, event_id DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(maxRows+1)
+		" ORDER BY timestamp DESC, event_id DESC, tier DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(maxRows+1)
 	rs, err := a.Logs.CH.Query(ctx, sql, q.args...)
 	if err != nil {
 		a.searchFailed(w, r, err)
@@ -119,7 +120,7 @@ func (a *API) exportLogs(w http.ResponseWriter, r *http.Request) {
 		var sid, eid uuid.UUID
 		var attrs string
 		if err := rs.Scan(&it.ID, &it.Timestamp, &it.IngestedAt, &it.Level, &it.SeverityNumber, &it.Event, &it.Message,
-			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs); err != nil {
+			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs, &it.Tags, &it.Tier); err != nil {
 			streamErr = err
 			break
 		}
@@ -180,7 +181,7 @@ func joinTiers(t []string) string {
 func csvRow(it logItem) []string {
 	row := []string{it.Timestamp.Format(time.RFC3339Nano), it.Level, strconv.Itoa(int(it.SeverityNumber)), it.Event,
 		it.Message, it.Stream, it.Environment, it.Service, it.Host, it.Resource, it.TraceID, it.SpanID,
-		string(it.Attributes), it.ID, it.IngestedAt.Format(time.RFC3339Nano)}
+		string(it.Attributes), it.ID, it.IngestedAt.Format(time.RFC3339Nano), strings.Join(it.Tags, ",")}
 	for i, c := range row {
 		row[i] = csvSafe(c)
 	}

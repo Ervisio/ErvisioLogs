@@ -39,6 +39,7 @@ func (a *API) RunAlerts(ctx context.Context) {
 		retention := a.Settings.Duration(settings.AlertsHistory)
 		ran, err := a.Store.WithAlertLock(ctx, func(ctx context.Context) error {
 			a.evaluateDue(ctx)
+			a.evaluateSystemAlerts(ctx)
 			if retention > 0 && time.Since(lastPrune) > time.Hour {
 				lastPrune = time.Now()
 				n, err := a.Store.PruneAlertEvents(ctx, a.now().Add(-retention))
@@ -199,7 +200,7 @@ func (a *API) deliver(ctx context.Context, rule store.AlertRule, p notify.Payloa
 				continue
 			}
 			sctx, cancel := context.WithTimeout(ctx, alertSendTimeout)
-			sendErr := a.Integrations.Notify.Send(sctx, a.delivery(c, p))
+			sendErr := a.sendChannel(sctx, c, p)
 			cancel()
 			if err := a.Store.RecordDelivery(context.WithoutCancel(ctx), c.ID, sendErr); err != nil {
 				a.Log.Warn("recording a delivery failed", "channel_id", c.ID, "error", err)

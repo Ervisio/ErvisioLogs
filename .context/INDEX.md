@@ -6,3 +6,4 @@
 - map/sdk.md: TypeScript SDK: batching, retry, build. Read before touching sdk/.
 - map/integrations.md: FiveM resource + Ervisio plugin. Read before touching integrations/.
 - map/deploy.md: Docker, Makefile, release flow, version bump. Read before releasing or touching deploy/, scripts/.
+- ../docs/DESIGN.md: shell/explorer B014 approvati e token; leggere prima di qualsiasi UI 0.2. Revisioni F0 in ../docs/redesign/F0-DESIGN.md.

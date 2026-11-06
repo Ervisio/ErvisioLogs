@@ -4,6 +4,10 @@ import Shell from './components/Shell';
 import { AuthProvider, RequireAuth, useAuth } from './lib/auth';
 import { TenancyProvider } from './lib/tenancy';
 import Login from './pages/Login';
+import Administration from './pages/Administration';
+import Account from './pages/Account';
+import AccountLink from './pages/AccountLink';
+import { WorkspaceSettings } from './pages/Settings';
 import Overview from './pages/Overview';
 import Documentation from './pages/Documentation';
 import { Explorer, Home, NotFound, Projects, SectionPage } from './pages/Workspace';
@@ -26,7 +30,11 @@ function FullPageUnreachable() {
       <div role="alert" className="max-w-[360px] text-center">
         <h1 className="mb-1 text-[17px] font-bold">{t('login.unreachableTitle')}</h1>
         <p className="text-ink2">{t('login.unreachableText')}</p>
-        <button type="button" onClick={retry} className="text-hue mt-2 min-h-11 font-semibold underline underline-offset-2">
+        <button
+          type="button"
+          onClick={retry}
+          className="text-hue mt-2 min-h-11 font-semibold underline underline-offset-2"
+        >
           {t('common.retry')}
         </button>
       </div>
@@ -47,6 +55,9 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="login" element={<Login />} />
+        {['forgot-password', 'reset-password', 'verify-email', 'invite'].map((path) => (
+          <Route key={path} path={path} element={<AccountLink key={path} />} />
+        ))}
         <Route element={<RequireAuth loading={<FullPageLoading />} unreachable={<FullPageUnreachable />} />}>
           <Route element={<Workspace />}>
             <Route element={<Shell />}>
@@ -54,6 +65,15 @@ export default function App() {
               <Route path="status" element={<Overview />} />
               <Route path="docs" element={<Documentation />} />
               <Route path="docs/:topic" element={<Documentation />} />
+              <Route path="account" element={<Account />} />
+              <Route path="admin" element={<Administration />} />
+              <Route path="admin/:section" element={<Administration />} />
+              <Route path="w/:workspaceId/settings" element={<WorkspaceSettings />} />
+              <Route path="w/:workspaceId/settings/:tab" element={<WorkspaceSettings />} />
+              <Route path="w/:workspaceId/p/:projectId" element={<Explorer />} />
+              <Route path="w/:workspaceId/p/:projectId/streams/:streamId" element={<Explorer />} />
+              <Route path="w/:workspaceId/p/:projectId/settings/:tab" element={<SectionPage settings />} />
+              <Route path="w/:workspaceId/p/:projectId/:section" element={<SectionPage />} />
               <Route path="projects" element={<Projects />} />
               <Route path="projects/:projectId" element={<Explorer />} />
               <Route path="projects/:projectId/streams/:streamId" element={<Explorer />} />

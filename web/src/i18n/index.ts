@@ -13,6 +13,8 @@ const initial: Language = languages.includes(stored as Language)
     ? 'it'
     : 'en'; // English is the default
 
+document.documentElement.lang = initial;
+
 void i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, it: { translation: it } },
   lng: initial,

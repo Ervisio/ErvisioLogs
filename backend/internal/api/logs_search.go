@@ -94,6 +94,7 @@ type searchReq struct {
 	Streams      []string     `json:"streams"`
 	Environments []string     `json:"environments"`
 	Events       []string     `json:"events"`
+	Tags         []string     `json:"tags"`
 	Services     []string     `json:"services"`
 	TraceID      string       `json:"trace_id"`
 	Filters      []AttrFilter `json:"filters"`
@@ -103,6 +104,8 @@ type searchReq struct {
 }
 
 type logItem struct {
+	Tags           []string        `json:"tags"`
+	Tier           string          `json:"tier"`
 	ID             string          `json:"id"`
 	Timestamp      time.Time       `json:"timestamp"`
 	IngestedAt     time.Time       `json:"ingested_at"`
@@ -246,6 +249,12 @@ func buildSearch(req *searchReq, proj store.Project, cat *catalogEntry, now time
 	if err := listFilter(q, "source_service", req.Services); err != nil {
 		return nil, err
 	}
+	if err := ingest.ValidateTags(req.Tags); err != nil {
+		return nil, err
+	}
+	for _, tag := range req.Tags {
+		q.add("has(tags, ?)", tag)
+	}
 	if req.TraceID != "" {
 		q.add("trace_id = ?", strings.ToLower(req.TraceID))
 	}
@@ -309,12 +318,12 @@ func listFilter(q *query, col string, vals []string) error {
 
 const searchCols = `event_id, timestamp, ingested_at, severity_text, severity_number, event_name, message,
 	stream_id, environment_id, source_service, source_host, source_resource, trace_id, span_id,
-	toJSONString(attributes)`
+	toJSONString(attributes), tags, tier`
 
 // hotUnionCols are the events columns in the order archive.ReadSource.RemoteSelect returns them.
 const hotUnionCols = `workspace_id, project_id, environment_id, stream_id, event_id, timestamp, ingested_at,
 	severity_number, severity_text, event_name, message, source_service, source_host, source_resource,
-	trace_id, span_id, attributes`
+	trace_id, span_id, attributes, tags`
 
 func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 	var req searchReq
@@ -396,7 +405,7 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 		q.add("(timestamp < fromUnixTimestamp64Milli(?, 'UTC') OR (timestamp = fromUnixTimestamp64Milli(?, 'UTC') AND event_id < ?))", c.T, c.T, c.ID)
 	}
 	sql := "SELECT " + searchCols + " FROM " + source + " WHERE " + q.sql() +
-		" ORDER BY timestamp DESC, event_id DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(limit+1)
+		" ORDER BY timestamp DESC, event_id DESC, tier DESC LIMIT 1 BY event_id LIMIT " + strconv.Itoa(limit+1)
 	rs, err := a.Logs.CH.Query(ctx, sql, q.args...)
 	if err != nil {
 		a.searchFailed(w, r, err)
@@ -408,7 +417,7 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 		var sid, eid uuid.UUID
 		var attrs string
 		if err := rs.Scan(&it.ID, &it.Timestamp, &it.IngestedAt, &it.Level, &it.SeverityNumber, &it.Event, &it.Message,
-			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs); err != nil {
+			&sid, &eid, &it.Service, &it.Host, &it.Resource, &it.TraceID, &it.SpanID, &attrs, &it.Tags, &it.Tier); err != nil {
 			a.searchFailed(w, r, err)
 			return
 		}
@@ -434,7 +443,7 @@ func (a *API) searchLogs(w http.ResponseWriter, r *http.Request) {
 // searchSource returns the FROM expression for a search: the hot table alone, or the hot table
 // plus the cached archive segments of the range. partial reports segments that could not be read.
 func (a *API) searchSource(ctx context.Context, proj store.Project, q *query) (source string, tiers []string, partial bool, err error) {
-	source, tiers = "events", []string{"hot"}
+	source, tiers = "(SELECT *, 'hot' AS tier FROM events)", []string{"hot"}
 	if a.Logs.Archive == nil {
 		return source, tiers, false, nil
 	}
@@ -450,7 +459,7 @@ func (a *API) searchSource(ctx context.Context, proj store.Project, q *query) (s
 		// between marking and deleting leaves copies in both, and LIMIT 1 BY event_id and
 		// uniqExact(event_id) count each event once.
 		parts := make([]string, 0, len(srcs)+1)
-		parts = append(parts, "SELECT "+hotUnionCols+" FROM events")
+		parts = append(parts, "SELECT "+hotUnionCols+", 'hot' AS tier FROM events")
 		for _, s := range srcs {
 			parts = append(parts, s.RemoteSelect())
 		}

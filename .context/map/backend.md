@@ -42,4 +42,6 @@ Gotchas:
 - Registration limited (OPEN_REGISTRATION, register IP limiter 10/h); password hashing bounded by auth.Hasher queue (Argon2 concurrency), Burn() equalises timing.
 - webui/dist is embedded; backend builds without frontend only with the .gitkeep placeholder.
 - ADRs in docs/adr/0001-0020 explain WAL (0003), cache budget (0004), archive catalog (0008), OTLP/alerts/export (0010), secrets (0015,0017), settings (0018), operators (0019), limits/purge (0020).
+Log v2 (F4): event tags max20 x40 lowercase in WAL/event schema2 + CH0004; tags[] AND filters search/export, comma tags + JSON AttrFilter[] on tail. Archive schema2 stores tags; schema1 segments project typed empty arrays.
+Catalog PG0011: store/event_types.go + api/event_types.go; event-types CRUD, idempotent fivem preset preserving customized entries, field-rules GET/PUT. Ingest auto-discovers names. Rules redact attribute paths before WAL (including OTLP), fail closed if rules DB unavailable; hidden/format are presentation only.
 Related: map/web.md, map/sdk.md, map/integrations.md, map/deploy.md

@@ -3,10 +3,16 @@ import { useOutletContext } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Webhook } from 'lucide-react';
 import type { ShellContext } from '../components/Shell';
-import { api, ApiError, type ChannelFormat, type NotificationChannel, type Workspace } from '../lib/api';
+import { api, ApiError, type ChannelFormat, type Workspace } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/cn';
 import { CopyButton } from './Tokens';
+import {
+  notifications,
+  type Channel as NotificationChannel,
+  type ChannelType,
+  type ChannelDelivery,
+} from '../lib/notifications-api';
 
 const FORMATS: ChannelFormat[] = ['ervisio', 'slack', 'discord'];
 /** Roles holding alerts:manage. */
@@ -17,7 +23,7 @@ type Loaded = { status: 'ready'; channels: NotificationChannel[] } | { status: '
 const INPUT = 'bg-sunk border-field placeholder:text-ink3 h-12 rounded-row border px-3 text-base md:h-11 md:text-sm';
 const ROW_BTN = 'hover:bg-sunk h-11 rounded-row px-3 font-semibold disabled:opacity-60 md:h-9';
 
-export default function Channels({ workspace }: { workspace: Workspace }) {
+export default function Channels({ workspace, embedded = false }: { embedded?: boolean; workspace: Workspace }) {
   const { t, i18n } = useTranslation();
   const { retry } = useAuth();
   const { topbar } = useOutletContext<ShellContext>();
@@ -31,7 +37,7 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    api
+    notifications
       .channels(workspace.id, ctrl.signal)
       .then((channels) => setLoaded({ key, result: { status: 'ready', channels } }))
       .catch((err: unknown) => {
@@ -45,7 +51,8 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
   const result = loaded?.key === key ? loaded.result : null;
   const channels = result?.status === 'ready' ? result.channels : [];
-  const when = (iso: string) => new Date(iso).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' });
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' });
 
   const act = async (ch: NotificationChannel, run: () => Promise<void>, failed: string) => {
     setBusy(ch.id);
@@ -64,7 +71,11 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
       ch,
       async () => {
         const res = await api.testChannel(ch.id);
-        setNotice(res.ok ? { ok: true, text: t('channels.testSent', { name: ch.name }) } : { ok: false, text: t('channels.testFailed', { name: ch.name, error: res.error ?? '' }) });
+        setNotice(
+          res.ok
+            ? { ok: true, text: t('channels.testSent', { name: ch.name }) }
+            : { ok: false, text: t('channels.testFailed', { name: ch.name, error: res.error ?? '' }) },
+        );
       },
       'channels.testError',
     );
@@ -79,17 +90,19 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
       'channels.saveFailed',
     );
   };
-  const toggle = (ch: NotificationChannel) => act(ch, () => api.updateChannel(ch.id, { enabled: !ch.enabled }).then(() => undefined), 'channels.saveFailed');
+  const toggle = (ch: NotificationChannel) =>
+    act(ch, () => api.updateChannel(ch.id, { enabled: !ch.enabled }).then(() => undefined), 'channels.saveFailed');
   const remove = (ch: NotificationChannel) => {
-    if (window.confirm(t('channels.deleteConfirm', { name: ch.name }))) void act(ch, () => api.deleteChannel(ch.id), 'channels.deleteFailed');
+    if (window.confirm(t('channels.deleteConfirm', { name: ch.name })))
+      void act(ch, () => api.deleteChannel(ch.id), 'channels.deleteFailed');
   };
 
   return (
     <>
-      {topbar(<h1 className="truncate text-base font-bold">{t('nav.integrations')}</h1>)}
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      {!embedded && topbar(<h1 className="truncate text-base font-bold">{t('nav.integrations')}</h1>)}
+      <div className={embedded ? 'min-w-0' : 'flex-1 overflow-auto p-4 md:p-6'}>
         <div className="mx-auto grid max-w-[760px] grid-cols-[minmax(0,1fr)] gap-8">
-          <p className="text-ink2 max-w-[60ch]">{t('channels.intro')}</p>
+          <p className="text-ink2 max-w-[60ch]">{t('flows.channels.intro')}</p>
 
           {secret && (
             <div role="status" className="border-accent grid gap-2 rounded-row border p-4">
@@ -99,7 +112,11 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
                 <code className="min-w-0 flex-1 truncate font-mono text-[13px]">{secret.value}</code>
                 <CopyButton text={secret.value} />
               </div>
-              <button type="button" onClick={() => setSecret(null)} className="text-hue h-11 w-fit font-semibold underline underline-offset-2">
+              <button
+                type="button"
+                onClick={() => setSecret(null)}
+                className="text-hue h-11 w-fit font-semibold underline underline-offset-2"
+              >
                 {t('tokens.done')}
               </button>
             </div>
@@ -117,9 +134,15 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
             )}
             {result?.status === 'failed' && (
               <div role="alert">
-                <p className="text-ink2 mb-2">{result.forbidden ? t('channels.forbidden') : t('channels.loadFailed')}</p>
+                <p className="text-ink2 mb-2">
+                  {result.forbidden ? t('channels.forbidden') : t('channels.loadFailed')}
+                </p>
                 {!result.forbidden && (
-                  <button type="button" onClick={reload} className="text-hue min-h-11 font-semibold underline underline-offset-2">
+                  <button
+                    type="button"
+                    onClick={reload}
+                    className="text-hue min-h-11 font-semibold underline underline-offset-2"
+                  >
                     {t('common.retry')}
                   </button>
                 )}
@@ -131,10 +154,14 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
                 {channels.map((ch) => (
                   <li key={ch.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
                     <Webhook className="text-ink3 size-4 flex-none" aria-hidden />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-auto">
                       <p className="flex flex-wrap items-center gap-2">
                         <span className="truncate font-semibold">{ch.name}</span>
-                        <span className="bg-raised rounded px-1.5 py-0.5 text-[12px] font-semibold">{t(`channels.format.${ch.format}`)}</span>
+                        <span className="bg-raised rounded px-1.5 py-0.5 text-[12px] font-semibold">
+                          {ch.type === 'email' || ch.type === 'telegram'
+                            ? t(`flows.channels.${ch.type}`)
+                            : t(`channels.format.${ch.format}`)}
+                        </span>
                         {!ch.enabled && <span className="text-ink3 text-[12px]">{t('channels.disabled')}</span>}
                       </p>
                       <p className="text-ink2 truncate font-mono text-[13px]">{ch.url_hint}</p>
@@ -148,22 +175,44 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
                     </div>
                     {canManage && (
                       <div className="flex flex-none flex-wrap items-center gap-1">
-                        <button type="button" onClick={() => void test(ch)} disabled={busy === ch.id} className={ROW_BTN}>
+                        <button
+                          type="button"
+                          onClick={() => void test(ch)}
+                          disabled={busy === ch.id}
+                          className={ROW_BTN}
+                        >
                           {t('channels.test')}
                         </button>
-                        {ch.format === 'ervisio' && (
-                          <button type="button" onClick={() => rotate(ch)} disabled={busy === ch.id} className={ROW_BTN}>
+                        {ch.type === 'webhook' && ch.format === 'ervisio' && (
+                          <button
+                            type="button"
+                            onClick={() => rotate(ch)}
+                            disabled={busy === ch.id}
+                            className={ROW_BTN}
+                          >
                             {t('channels.rotate')}
                           </button>
                         )}
-                        <button type="button" onClick={() => void toggle(ch)} disabled={busy === ch.id} className={ROW_BTN}>
+                        <button
+                          type="button"
+                          onClick={() => void toggle(ch)}
+                          disabled={busy === ch.id}
+                          className={ROW_BTN}
+                        >
                           {ch.enabled ? t('channels.disable') : t('channels.enable')}
                         </button>
-                        <button type="button" onClick={() => remove(ch)} disabled={busy === ch.id} aria-label={`${t('channels.delete')} ${ch.name}`} className={cn(ROW_BTN, 'text-err')}>
+                        <button
+                          type="button"
+                          onClick={() => remove(ch)}
+                          disabled={busy === ch.id}
+                          aria-label={`${t('channels.delete')} ${ch.name}`}
+                          className={cn(ROW_BTN, 'text-err')}
+                        >
                           {t('channels.delete')}
                         </button>
                       </div>
                     )}
+                    {canManage && <ChannelHistory channel={ch} />}
                   </li>
                 ))}
               </ul>
@@ -190,10 +239,20 @@ export default function Channels({ workspace }: { workspace: Workspace }) {
   );
 }
 
-function CreateChannel({ workspace, onCreated }: { workspace: Workspace; onCreated: (ch: NotificationChannel) => void }) {
+function CreateChannel({
+  workspace,
+  onCreated,
+}: {
+  workspace: Workspace;
+  onCreated: (ch: NotificationChannel) => void;
+}) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [format, setFormat] = useState<ChannelFormat>('ervisio');
+  const [type, setType] = useState<ChannelType>('webhook');
+  const [recipient, setRecipient] = useState('');
+  const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState('');
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -203,13 +262,29 @@ function CreateChannel({ workspace, onCreated }: { workspace: Workspace; onCreat
     const value = name.trim();
     const target = url.trim();
     if (!value) return setError(t('channels.nameRequired'));
-    if (!target) return setError(t('channels.urlRequired'));
+    if (type === 'webhook' && !target) return setError(t('channels.urlRequired'));
+    if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.trim()))
+      return setError(t('flows.channels.recipientRequired'));
+    if (type === 'telegram' && (!botToken.trim() || !chatId.trim()))
+      return setError(t('flows.channels.telegramRequired'));
     setBusy(true);
     setError(null);
     try {
-      const ch = await api.createChannel({ workspace_id: workspace.id, name: value, format, url: target });
+      const ch = await notifications.createChannel({
+        workspace_id: workspace.id,
+        name: value,
+        type,
+        ...(type === 'webhook'
+          ? { format, url: target }
+          : type === 'email'
+            ? { recipient: recipient.trim() }
+            : { bot_token: botToken.trim(), chat_id: chatId.trim() }),
+      });
       setName('');
       setUrl('');
+      setRecipient('');
+      setBotToken('');
+      setChatId('');
       onCreated(ch);
     } catch (err) {
       setError(err instanceof ApiError && err.status < 500 ? err.message : t('channels.createFailed'));
@@ -228,39 +303,168 @@ function CreateChannel({ workspace, onCreated }: { workspace: Workspace; onCreat
           <label htmlFor="ch-name" className="font-semibold">
             {t('channels.name')}
           </label>
-          <input id="ch-name" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} placeholder={t('channels.namePlaceholder')} className={INPUT} />
+          <input
+            id="ch-name"
+            value={name}
+            maxLength={100}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('channels.namePlaceholder')}
+            className={INPUT}
+          />
         </div>
-        <fieldset className="grid gap-1">
-          <legend className="mb-1.5 font-semibold">{t('channels.formatLabel')}</legend>
-          {FORMATS.map((f) => (
-            <label key={f} className="flex min-h-11 items-start gap-3 py-1 md:min-h-9">
-              <input type="radio" name="ch-format" checked={format === f} onChange={() => setFormat(f)} className="accent-accent mt-1 size-4" />
-              <span>
-                <span className="font-semibold">{t(`channels.format.${f}`)}</span>
-                <span className="text-ink2 block text-[13px]">{t(`channels.formatHint.${f}`)}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-        <div className="grid gap-1.5">
-          <label htmlFor="ch-url" className="font-semibold">
-            {t('channels.url')}
+        <label className="grid gap-1.5">
+          <span className="font-semibold">{t('flows.channels.type')}</span>
+          <select className={INPUT} value={type} onChange={(event) => setType(event.target.value as ChannelType)}>
+            {(['webhook', 'email', 'telegram'] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(`flows.channels.${value}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {type === 'webhook' && (
+          <>
+            <fieldset className="grid gap-1">
+              <legend className="mb-1.5 font-semibold">{t('channels.formatLabel')}</legend>
+              {FORMATS.map((f) => (
+                <label key={f} className="flex min-h-11 items-start gap-3 py-1 md:min-h-9">
+                  <input
+                    type="radio"
+                    name="ch-format"
+                    checked={format === f}
+                    onChange={() => setFormat(f)}
+                    className="accent-accent mt-1 size-4"
+                  />
+                  <span>
+                    <span className="font-semibold">{t(`channels.format.${f}`)}</span>
+                    <span className="text-ink2 block text-[13px]">{t(`channels.formatHint.${f}`)}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <div className="grid gap-1.5">
+              <label htmlFor="ch-url" className="font-semibold">
+                {t('channels.url')}
+              </label>
+              <input
+                id="ch-url"
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://"
+                aria-describedby="ch-url-hint"
+                className={cn(INPUT, 'font-mono')}
+              />
+              <p id="ch-url-hint" className="text-ink3 text-[12px]">
+                {t('channels.urlHint')}
+              </p>
+            </div>
+          </>
+        )}
+        {type === 'email' && (
+          <label className="grid gap-1.5">
+            <span className="font-semibold">{t('flows.channels.recipient')}</span>
+            <input
+              type="email"
+              value={recipient}
+              onChange={(event) => setRecipient(event.target.value)}
+              className={INPUT}
+              autoComplete="off"
+            />
           </label>
-          <input id="ch-url" type="url" inputMode="url" autoComplete="off" spellCheck={false} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" aria-describedby="ch-url-hint" className={cn(INPUT, 'font-mono')} />
-          <p id="ch-url-hint" className="text-ink3 text-[12px]">
-            {t('channels.urlHint')}
-          </p>
-        </div>
+        )}
+        {type === 'telegram' && (
+          <div className="grid gap-4">
+            <label className="grid gap-1.5">
+              <span className="font-semibold">{t('flows.channels.botToken')}</span>
+              <input
+                type="password"
+                value={botToken}
+                onChange={(event) => setBotToken(event.target.value)}
+                autoComplete="new-password"
+                className={INPUT}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="font-semibold">{t('flows.channels.chatId')}</span>
+              <input
+                value={chatId}
+                onChange={(event) => setChatId(event.target.value)}
+                className={INPUT}
+                autoComplete="off"
+              />
+            </label>
+            <p className="text-ink3 text-xs">{t('flows.channels.credentialsHint')}</p>
+          </div>
+        )}
         {error && (
           <p role="alert" className="text-err">
             {error}
           </p>
         )}
-        <button type="submit" disabled={busy} className="bg-accent text-accent-ink flex h-12 w-fit items-center justify-center gap-2 rounded-row px-5 font-bold hover:brightness-110 disabled:opacity-60 md:h-11">
+        <button
+          type="submit"
+          disabled={busy}
+          className="bg-accent text-accent-ink flex h-12 w-fit items-center justify-center gap-2 rounded-row px-5 font-bold hover:brightness-110 disabled:opacity-60 md:h-11"
+        >
           {busy && <span className="spinner" aria-hidden />}
           {t('channels.create')}
         </button>
       </form>
     </section>
+  );
+}
+
+function ChannelHistory({ channel }: { channel: NotificationChannel }) {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState<{ key: string; items?: ChannelDelivery[]; error?: string } | null>(null);
+  const key = `${channel.id}:${channel.updated_at}`;
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    notifications
+      .deliveries(channel.id, controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) setHistory({ key, items });
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted)
+          setHistory({ key, error: error instanceof Error ? error.message : t('channels.loadFailed') });
+      });
+    return () => controller.abort();
+  }, [open, channel.id, key, t]);
+  const current = history?.key === key ? history : null;
+  return (
+    <details className="basis-full text-sm" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="text-ink2 min-h-11 cursor-pointer content-center">{t('flows.channels.history')}</summary>
+      {open && !current && (
+        <p role="status" className="text-ink3">
+          {t('channels.loading')}
+        </p>
+      )}
+      {current?.error && (
+        <p role="alert" className="text-err">
+          {current.error}
+        </p>
+      )}
+      {current?.items?.length === 0 && <p className="text-ink3">{t('flows.channels.noHistory')}</p>}
+      <ol className="divide-line divide-y">
+        {current?.items?.map((delivery) => (
+          <li key={delivery.id} className="flex flex-wrap gap-x-3 gap-y-1 py-2">
+            <span className={delivery.status === 'error' ? 'text-err' : 'text-ok'}>
+              {t(`flows.channels.${delivery.status === 'error' ? 'failed' : 'delivered'}`)}
+            </span>
+            <time className="text-ink3" dateTime={delivery.created_at}>
+              {new Date(delivery.created_at).toLocaleString(i18n.language)}
+            </time>
+            {delivery.error && <p className="text-err basis-full break-words">{delivery.error}</p>}
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }

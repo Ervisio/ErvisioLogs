@@ -3,9 +3,11 @@
 # checks the health endpoints and the migrations, then tears everything down (volumes included).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+REPO_ROOT="$PWD"
 
 export COMPOSE_PROJECT_NAME="ervlogs-smoke-$$"
 ENVFILE="$(mktemp)"
+OVERRIDE="$(mktemp)"
 PORT="${SMOKE_PORT:-18080}"
 # head ends on its own, so no pipeline stage dies of SIGPIPE under pipefail.
 rand() { head -c 1024 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c "1-$1"; }
@@ -19,8 +21,16 @@ SETUP_CODE="$(rand 24)"
   echo "ERVISIO_LOGS_PORT=$PORT"
   echo "ERVISIO_LOGS_SETUP_CODE=$SETUP_CODE"
 } > "$ENVFILE"
-dc() { docker compose --env-file "$ENVFILE" -f deploy/compose.yaml "$@"; }
-cleanup() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -f "$ENVFILE"; }
+cat > "$OVERRIDE" <<EOF
+networks:
+  edge:
+    name: ${COMPOSE_PROJECT_NAME}_edge
+volumes:
+  admin-socket:
+    name: ${COMPOSE_PROJECT_NAME}_admin
+EOF
+dc() { docker compose --env-file "$ENVFILE" -f "$REPO_ROOT/deploy/compose.yaml" -f "$OVERRIDE" "$@"; }
+cleanup() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -f "$ENVFILE" "$OVERRIDE"; }
 trap cleanup EXIT
 
 fail() { echo "SMOKE FAIL: $*" >&2; dc logs --tail=40 >&2 || true; exit 1; }

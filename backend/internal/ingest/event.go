@@ -19,6 +19,8 @@ import (
 // Limits on one event. They protect ClickHouse from unbounded JSON paths and memory.
 const (
 	MaxBatchEvents    = 1000
+	MaxTags           = 20
+	MaxTagLen         = 40
 	MaxIDLen          = 128
 	MaxNameLen        = 128
 	MaxMessageBytes   = 32 << 10
@@ -28,10 +30,11 @@ const (
 	MaxAttrKeyLen     = 128
 	MaxSourceFieldLen = 256
 	// SchemaVersion of the normalised event stored in the WAL and in ClickHouse.
-	SchemaVersion = 1
+	SchemaVersion = 2
 )
 
 var (
+	tagPattern    = regexp.MustCompile(`^[a-z0-9][a-z0-9._:/-]*$`)
 	idPattern     = regexp.MustCompile(`^[A-Za-z0-9._:-]+$`)
 	namePattern   = regexp.MustCompile(`^[A-Za-z0-9._:/-]+$`)
 	hexPattern    = regexp.MustCompile(`^[0-9a-fA-F]*$`)
@@ -61,6 +64,7 @@ func SeverityNumber(level string) (uint8, string, bool) {
 
 // InEvent is one event as clients send it.
 type InEvent struct {
+	Tags        []string        `json:"tags"`
 	ID          string          `json:"id"`
 	Stream      string          `json:"stream"`
 	Environment string          `json:"environment"`
@@ -91,6 +95,7 @@ type Event struct {
 	StreamID       uuid.UUID       `json:"stream_id"`
 	Stream         string          `json:"-"`
 	Environment    string          `json:"-"`
+	Tags           []string        `json:"tags"`
 	EventID        string          `json:"event_id"`
 	Timestamp      time.Time       `json:"-"`
 	IngestedAt     time.Time       `json:"-"`
@@ -212,6 +217,10 @@ func (v Validator) Normalize(in InEvent, defStream, defEnv string, res Resolver,
 	if len(in.Event) > MaxNameLen || (in.Event != "" && !namePattern.MatchString(in.Event)) {
 		return e, fmt.Errorf("event must be at most %d characters from A-Z a-z 0-9 . _ : / -", MaxNameLen)
 	}
+	if err := ValidateTags(in.Tags); err != nil {
+		return e, err
+	}
+	e.Tags = append([]string{}, in.Tags...)
 	e.EventName = in.Event
 	if len(in.Message) > MaxMessageBytes {
 		return e, fmt.Errorf("message is larger than %d bytes", MaxMessageBytes)
@@ -343,9 +352,25 @@ func DecodeRecord(b []byte) ([]Event, error) {
 	out := make([]Event, len(in))
 	for i, w := range in {
 		e := w.Event
+		if e.Tags == nil {
+			e.Tags = []string{}
+		}
 		e.Stream, e.Environment = w.Stream, w.Environment
 		e.Timestamp, e.IngestedAt = time.UnixMilli(w.TS).UTC(), time.UnixMilli(w.Ingested).UTC()
 		out[i] = e
 	}
 	return out, nil
+}
+
+// ValidateTags checks the shared tag alphabet and limits.
+func ValidateTags(tags []string) error {
+	if len(tags) > MaxTags {
+		return fmt.Errorf("tags must contain at most %d values", MaxTags)
+	}
+	for _, tag := range tags {
+		if len(tag) == 0 || len(tag) > MaxTagLen || !tagPattern.MatchString(tag) {
+			return fmt.Errorf("tags must be lowercase letters, digits, dot, underscore, colon, slash or dash, 1 to %d characters", MaxTagLen)
+		}
+	}
+	return nil
 }

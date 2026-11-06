@@ -2,9 +2,10 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff } from 'lucide-react';
-import { api, ApiError, oauthStartUrl, type Providers } from '../lib/api';
+import { api, ApiError, request, oauthStartUrl, type Providers, type Session } from '../lib/api';
 import { safeNext, useAuth } from '../lib/auth';
 import { cn } from '../lib/cn';
+import { loginWithPasskey, supportsPasskeys } from '../lib/passkeys';
 
 type Mode = 'login' | 'register' | 'setup';
 type FieldName = 'login' | 'email' | 'username' | 'password' | 'setup_code';
@@ -77,7 +78,10 @@ function Brand() {
   const { t } = useTranslation();
   return (
     <p className="flex items-center gap-2 text-sm font-bold whitespace-nowrap">
-      <span aria-hidden className="bg-accent text-accent-ink grid size-6 place-items-center rounded-[7px] text-[13px] font-extrabold">
+      <span
+        aria-hidden
+        className="bg-accent text-accent-ink grid size-6 place-items-center rounded-[7px] text-[13px] font-extrabold"
+      >
         E
       </span>
       {t('app.name')}
@@ -99,7 +103,11 @@ function Field(props: {
   const [shown, setShown] = useState(false);
   const isPassword = name === 'password';
   const hasHint = mode !== 'login' && (name === 'username' || name === 'password');
-  const message = error ? t(`login.invalid.${error.key}`, { count: error.count }) : hasHint ? t(`login.hint.${name}`) : '';
+  const message = error
+    ? t(`login.invalid.${error.key}`, { count: error.count })
+    : hasHint
+      ? t(`login.hint.${name}`)
+      : '';
   const autoComplete = {
     login: 'username',
     email: 'email',
@@ -164,6 +172,12 @@ function CredentialsForm({ mode }: { mode: Mode }) {
   const [problem, setProblem] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const names = FIELDS[mode];
+  const [mfa, setMfa] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('mfa') ?? '');
+  const [code, setCode] = useState('');
+  useEffect(() => {
+    if (window.location.hash.startsWith('#mfa='))
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+  }, []);
 
   const waitLabel = (seconds: number | null) => {
     if (seconds === null) return t('login.wait.later');
@@ -193,7 +207,10 @@ function CredentialsForm({ mode }: { mode: Mode }) {
               password: values.password ?? '',
               ...(mode === 'setup' ? { setup_code: (values.setup_code ?? '').trim() } : {}),
             });
-      establish(session);
+      if ('mfa_required' in session) {
+        setMfa(session.challenge);
+        setBusy(false);
+      } else establish(session);
     } catch (err) {
       if (err instanceof ApiError) {
         const key = `login.problem.${mode}.${err.status}`;
@@ -205,6 +222,54 @@ function CredentialsForm({ mode }: { mode: Mode }) {
     }
   };
 
+  if (mfa)
+    return (
+      <form
+        className="grid gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setBusy(true);
+          setProblem(null);
+          void request<Session>('POST', '/auth/mfa/verify', { challenge: mfa, code })
+            .then(establish)
+            .catch((err: unknown) => {
+              setProblem(err instanceof Error ? err.message : t('login.unreachableText'));
+              setBusy(false);
+            });
+        }}
+      >
+        <label className="grid gap-2 font-semibold">
+          {t('manage.authenticatorCode')}
+          <input
+            required
+            autoFocus
+            autoComplete="one-time-code"
+            className="manage-input"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </label>
+        <p className="text-ink2 text-sm">{t('manage.mfaRecoveryHint')}</p>
+        {problem && (
+          <p role="alert" className="text-err">
+            {problem}
+          </p>
+        )}
+        <button type="submit" className="manage-button manage-primary" disabled={busy}>
+          {t('manage.confirm')}
+        </button>
+        <button
+          type="button"
+          className="manage-button"
+          onClick={() => {
+            setMfa('');
+            setBusy(false);
+          }}
+        >
+          {t('manage.back')}
+        </button>
+      </form>
+    );
   return (
     <form ref={formRef} noValidate onSubmit={(e) => void submit(e)} className="grid gap-4">
       {names.map((name) => (
@@ -218,6 +283,32 @@ function CredentialsForm({ mode }: { mode: Mode }) {
           onBlur={() => setTouched((cur) => ({ ...cur, [name]: true }))}
         />
       ))}
+      {mode === 'login' && (
+        <>
+          <Link to="/forgot-password" className="text-hue min-h-11 content-center underline">
+            {t('manage.forgotPassword')}
+          </Link>
+          {supportsPasskeys() && (
+            <button
+              type="button"
+              className="manage-button"
+              disabled={busy || !values.login?.trim()}
+              onClick={() => {
+                setBusy(true);
+                setProblem(null);
+                void loginWithPasskey(norm(values.login))
+                  .then(establish)
+                  .catch((err: unknown) => {
+                    setProblem(err instanceof Error ? err.message : t('login.unreachableText'));
+                    setBusy(false);
+                  });
+              }}
+            >
+              {t('manage.usePasskey')}
+            </button>
+          )}
+        </>
+      )}
       {problem && (
         <p role="alert" className="err-tint border-err rounded-row border px-3 py-2 text-[13px]">
           {problem}
@@ -239,10 +330,22 @@ function ProviderMark({ provider }: { provider: string }) {
   if (provider === 'google') {
     return (
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden className="flex-none">
-        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+        <path
+          fill="#EA4335"
+          d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+        />
+        <path
+          fill="#4285F4"
+          d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+        />
+        <path
+          fill="#34A853"
+          d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+        />
       </svg>
     );
   }
@@ -299,7 +402,10 @@ function OAuthError({ code, onSetup }: { code: string; onSetup: string }) {
       <p>{t(`${base}.text`)}</p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         {action && (
-          <Link to={action === 'setup' ? onSetup : '/login'} className="text-hue px-0.5 py-3.5 font-semibold underline underline-offset-2">
+          <Link
+            to={action === 'setup' ? onSetup : '/login'}
+            className="text-hue px-0.5 py-3.5 font-semibold underline underline-offset-2"
+          >
             {t(`login.action.${action}`)}
           </Link>
         )}
@@ -315,9 +421,12 @@ function SetupHelp() {
     <div className="bg-surface border-line text-ink2 grid gap-2 rounded-row border p-3 text-[13px]">
       <p className="text-ink font-semibold">{t('login.setup.where')}</p>
       <p>{t('login.setup.find')}</p>
-      <pre className="bg-sunk overflow-x-auto rounded-row p-2 font-mono text-xs">{'{"level":"WARN",…,"setup_code":"…"}'}</pre>
+      <pre className="bg-sunk overflow-x-auto rounded-row p-2 font-mono text-xs">
+        {'{"level":"WARN",…,"setup_code":"…"}'}
+      </pre>
       <p>
-        {t('login.setup.compose')} <code className="text-ink font-mono text-xs break-all">docker compose logs app | grep setup_code</code>
+        {t('login.setup.compose')}{' '}
+        <code className="text-ink font-mono text-xs break-all">docker compose logs app | grep setup_code</code>
       </p>
     </div>
   );
@@ -347,6 +456,11 @@ export default function Login() {
     return () => ctrl.abort();
   }, [attempt]);
 
+  const [invitationToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('invite') ?? '');
+  useEffect(() => {
+    if (window.location.hash.startsWith('#invite='))
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+  }, []);
   const next = params.get('next');
   const view = params.get('view');
   const code = params.get('error');
@@ -373,7 +487,17 @@ export default function Login() {
     titleRef.current?.focus();
   }, [mode]);
 
-  if (state.status === 'authenticated') return <Navigate to={safeNext(next)} replace />;
+  if (state.status === 'authenticated')
+    return (
+      <Navigate
+        to={
+          invitationToken && safeNext(next) === '/invite'
+            ? `/invite#token=${encodeURIComponent(invitationToken)}`
+            : safeNext(next)
+        }
+        replace
+      />
+    );
 
   return (
     <main className="flex min-h-dvh justify-center px-4 py-10 md:items-center">
@@ -389,7 +513,11 @@ export default function Login() {
           <div role="alert" className="err-tint border-err rounded-row border p-3 text-[13px]">
             <strong className="mb-0.5 block text-sm font-semibold">{t('login.unreachableTitle')}</strong>
             <p>{t('login.unreachableText')}</p>
-            <button type="button" onClick={() => load()} className="text-hue mt-2 font-semibold underline underline-offset-2">
+            <button
+              type="button"
+              onClick={() => load()}
+              className="text-hue mt-2 font-semibold underline underline-offset-2"
+            >
               {t('common.retry')}
             </button>
           </div>
@@ -424,7 +552,10 @@ export default function Login() {
             {mode === 'login' && canRegister && (
               <p className="text-ink2">
                 {t('login.noAccount')}{' '}
-                <Link to={toRegister} className="text-hue px-0.5 py-3.5 font-semibold whitespace-nowrap underline underline-offset-2">
+                <Link
+                  to={toRegister}
+                  className="text-hue px-0.5 py-3.5 font-semibold whitespace-nowrap underline underline-offset-2"
+                >
                   {t('login.createAccount')}
                 </Link>
               </p>
@@ -432,7 +563,10 @@ export default function Login() {
             {mode === 'register' && (
               <p className="text-ink2">
                 {t('login.haveAccount')}{' '}
-                <Link to={toLogin} className="text-hue px-0.5 py-3.5 font-semibold whitespace-nowrap underline underline-offset-2">
+                <Link
+                  to={toLogin}
+                  className="text-hue px-0.5 py-3.5 font-semibold whitespace-nowrap underline underline-offset-2"
+                >
                   {t('login.signIn')}
                 </Link>
               </p>

@@ -316,6 +316,21 @@ function Queue:_build(spec)
         message = self.redact.scrub_text(trunc(message, cfg.max_message_bytes))
     end
 
+    local tags = {}
+    local seen_tags = {}
+    for _, tag in ipairs(type(spec.tags) == 'table' and spec.tags or {}) do
+        if type(tag) == 'string' then
+            tag = tag:lower()
+            if #tags < 20 and #tag <= 40 and tag:match('^[a-z0-9][a-z0-9._:/%-]*$') and not seen_tags[tag] then
+                tags[#tags + 1] = tag
+                seen_tags[tag] = true
+            else
+                self:_warn('tags', 'invalid tags were dropped; use up to 20 lowercase tags of 1 to 40 characters')
+            end
+        else
+            self:_warn('tags', 'invalid non-string tag was dropped')
+        end
+    end
     local attrs = self:_attributes(spec.attributes)
     local ids = self:_identifiers(spec.attributes)
     if ids then
@@ -339,6 +354,7 @@ function Queue:_build(spec)
         host = cfg.host,
         resource = type(spec.resource) == 'string' and trunc(spec.resource, 256) or nil,
         attributes = attrs,
+        tags = #tags > 0 and tags or nil,
     }
 
     local encoded = self.json_encode(ev)
@@ -402,7 +418,7 @@ function Queue:log_batch(events, resource)
         if type(e) == 'table' then
             if self:log({
                 stream = e.stream, level = e.level, event = e.event, message = e.message,
-                attributes = e.attributes, resource = resource,
+                attributes = e.attributes, tags = e.tags, resource = resource,
             }) then
                 accepted = accepted + 1
             end

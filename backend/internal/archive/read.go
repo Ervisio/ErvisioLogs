@@ -20,13 +20,13 @@ import (
 
 // ReadSource is a cached segment that ClickHouse can read with file().
 type ReadSource struct {
-	SegmentID uuid.UUID
-	// FileExpr is a file(...) table function over the cached copy. It is built from the
-	// configured ClickHouse path and the segment id only, never from request input.
+	SegmentID     uuid.UUID
+	SchemaVersion int32
+	// FileExpr uses the configured ClickHouse path and segment id, never request input.
 	FileExpr string
 }
 
-// remoteSchema is the Parquet layout of SchemaVersion 1 (see exportSQL), given explicitly so
+// remoteSchema is the legacy Parquet layout, given explicitly so
 // ClickHouse does not infer types from each file.
 const remoteSchema = `workspace_id String, project_id String, environment_id String, stream_id String,
 	event_id String, timestamp DateTime64(3, 'UTC'), ingested_at DateTime64(3, 'UTC'), inserted_at DateTime64(3, 'UTC'),
@@ -36,10 +36,14 @@ const remoteSchema = `workspace_id String, project_id String, environment_id Str
 // RemoteSelect turns one cached segment into rows with the hot table's column types, so the
 // search WHERE clause applies unchanged to both tiers.
 func (s ReadSource) RemoteSelect() string {
+	tags := "CAST([], 'Array(String)')"
+	if s.SchemaVersion >= 2 {
+		tags = "tags"
+	}
 	return `SELECT toUUID(workspace_id) AS workspace_id, toUUID(project_id) AS project_id,
 		toUUID(environment_id) AS environment_id, toUUID(stream_id) AS stream_id, event_id, timestamp, ingested_at,
 		severity_number, severity_text, event_name, message, source_service, source_host, source_resource,
-		trace_id, span_id, CAST(attributes, 'JSON') AS attributes FROM ` + s.FileExpr
+		trace_id, span_id, CAST(attributes, 'JSON') AS attributes, ` + tags + ` AS tags, 'archive' AS tier FROM ` + s.FileExpr
 }
 
 // ReadSources returns the evicted segments of a search and makes sure each has a local copy,
@@ -62,10 +66,15 @@ func (a *Archiver) ReadSources(ctx context.Context, ws, proj uuid.UUID, streams 
 			missing++
 			continue
 		}
+		schema := remoteSchema
+		if seg.SchemaVersion >= 2 {
+			schema += ", tags Array(String)"
+		}
 		srcs = append(srcs, ReadSource{
-			SegmentID: seg.ID,
+			SchemaVersion: seg.SchemaVersion,
+			SegmentID:     seg.ID,
 			FileExpr: fmt.Sprintf("file('%s/segments/%s.parquet', 'Parquet', '%s')",
-				a.Cfg.ClickHousePath, seg.ID, strings.ReplaceAll(remoteSchema, "'", "''")),
+				a.Cfg.ClickHousePath, seg.ID, strings.ReplaceAll(schema, "'", "''")),
 		})
 	}
 	return srcs, missing, nil

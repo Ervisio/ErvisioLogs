@@ -46,6 +46,13 @@ const signedIn: Routes = {
   'GET /projects/p1/environments': { body: { items: [{ id: 'e1', project_id: 'p1', name: 'production', created_at: '' }] } },
   'GET /projects/p1/streams': { body: { items: [{ id: 's1', project_id: 'p1', name: 'default', type: 'log', created_at: '' }] } },
   'POST /logs/search': { body: { items: [], next_cursor: null, total: 0, level_counts: {}, searched_tiers: ['hot'], partial: false } },
+  'GET /queries?project_id=p1': { body: { items: [] } },
+  'GET /alerts?project_id=p1': { body: { items: [] } },
+  'GET /notification-channels?workspace_id=w1': { body: { items: [] } },
+  'GET /projects/p1/event-types': { body: { items: [] } },
+  'GET /projects/p1/field-rules': { body: { items: [] } },
+  'GET /workspaces/w1/invitations': { body: { items: [] } },
+  'POST /logs/histogram': { body: { items: [], partial: false, searched_tiers: ['hot'] } },
 };
 const anonymous: Routes = { 'GET /auth/me': { status: 401 }, 'GET /auth/providers': { body: providers } };
 
@@ -195,16 +202,19 @@ describe('navigation', () => {
     stubApi(signedIn);
     renderApp();
     expect(await screen.findByRole('link', { name: 'default' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Shop' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('link', { name: 'Shop' })).toHaveAttribute('aria-current', 'page');
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
     expect(screen.getByRole('option', { name: 'production' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Send the first event to Shop' })).toBeInTheDocument();
   });
 
-  test('a section without a backend says so', async () => {
-    stubApi(signedIn);
+  test('dashboard panels load from the project API instead of a placeholder', async () => {
+    const calls = stubApi({ ...signedIn, 'GET /dashboard-panels?project_id=p1': { body: { items: [] } } });
     renderApp('/projects/p1/dashboards');
     expect(await screen.findByRole('heading', { name: 'Dashboards' })).toBeInTheDocument();
-    expect(screen.getByText('Not available yet')).toBeInTheDocument();
+    expect(await screen.findByText('Save a view in the explorer, then use it to add a panel.')).toBeInTheDocument();
+    expect(calls.some((call) => call.key === 'GET /dashboard-panels?project_id=p1')).toBe(true);
+    expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
   });
 
   test('a project outside the workspace is not found', async () => {
@@ -221,29 +231,34 @@ describe('navigation', () => {
       'GET /projects?workspace_id=w2': { body: { items: [{ ...project, id: 'p2', workspace_id: 'w2', name: 'Other' }] } },
       'GET /projects/p2/environments': { body: { items: [] } },
       'GET /projects/p2/streams': { body: { items: [] } },
+      'GET /projects/p2/event-types': { body: { items: [] } },
+      'GET /projects/p2/field-rules': { body: { items: [] } },
+      'GET /queries?project_id=p2': { body: { items: [] } },
     });
     renderApp('/projects/p2');
     expect(await screen.findByRole('heading', { name: 'Send the first event to Other' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Page not found' })).not.toBeInTheDocument();
   });
 
-  test('rail expands and collapses', async () => {
+  test('the compact rail exposes a workspace switcher and scoped project links', async () => {
     stubApi(signedIn);
     renderApp();
-    const btn = await screen.findByRole('button', { name: 'Expand' });
-    expect(btn).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(btn);
-    expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true');
-    expect(localStorage.getItem('rail')).toBe('wide');
+    const projectLink = await screen.findByRole('link', { name: 'Shop' });
+    expect(projectLink).toHaveAttribute('href', '/w/w1/p/p1');
+    expect(await screen.findByRole('link', { name: 'Switch workspace' })).toHaveAttribute('href', '/projects');
+    expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
   });
 
   test('the account menu switches language and theme', async () => {
     stubApi(signedIn);
     renderApp();
     await userEvent.click(await screen.findByRole('button', { name: 'Account' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Switch theme' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'light');
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem('theme')).toBe('light');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Theme' }), 'amoled');
+    expect(document.documentElement.dataset.theme).toBe('amoled');
+    expect(localStorage.getItem('theme')).toBe('amoled');
     await userEvent.selectOptions(screen.getByLabelText('Language'), 'it');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Esci' })).toBeInTheDocument());
     expect(localStorage.getItem('lang')).toBe('it');
@@ -275,6 +290,7 @@ describe('navigation', () => {
 describe('first project', () => {
   test('a user with no workspace creates one, then a project', async () => {
     const calls = stubApi({
+      ...signedIn,
       'GET /auth/me': { body: { ...session, workspaces: [] } },
       'POST /workspaces': { status: 201, body: workspace },
       'GET /projects?workspace_id=w1': { body: { items: [] } },
@@ -451,7 +467,8 @@ describe('log explorer', () => {
     expect(await screen.findByText('payment declined')).toBeInTheDocument();
     expect(screen.getByText('order created')).toBeInTheDocument();
     expect(screen.getByText('Showing 2 of 3')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /error\s*1/ })).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByRole('button', { name: /Error\s*1/ })).toHaveAttribute('aria-pressed', 'false');
 
     await userEvent.type(screen.getByLabelText('Search'), 'user=ada "card declined"{Enter}');
     await waitFor(() => expect(searches(calls).at(-1)?.query).toBe('card declined'));
@@ -471,7 +488,8 @@ describe('log explorer', () => {
     expect(screen.getByText('payment declined')).toBeInTheDocument();
     expect(searches(calls).at(-1)?.cursor).toBe('c1');
 
-    await userEvent.click(screen.getByRole('button', { name: /error\s*1/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await userEvent.click(screen.getByRole('button', { name: /Error\s*1/ }));
     await waitFor(() => expect(searches(calls).filter((c) => c.levels).at(-1)?.levels).toEqual(['ERROR']));
   });
 
@@ -515,9 +533,10 @@ describe('log explorer', () => {
           : { body: found },
     });
     renderApp('/projects/p1');
-    await userEvent.click(await screen.findByRole('button', { name: /error\s*1/ }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /error\s*1/ })).toHaveAttribute('aria-pressed', 'true'));
-    expect(screen.getByRole('button', { name: /info\s*2/ })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Error\s*1/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Error\s*1/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.getByRole('button', { name: /Info\s*2/ })).toBeInTheDocument();
   });
 
   test.each([
@@ -659,7 +678,7 @@ describe('workspace members', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove cy' }));
     await waitFor(() => expect(screen.queryByText('cy@example.com')).not.toBeInTheDocument());
 
-    await userEvent.type(screen.getByLabelText('Email'), 'dee@example.com');
+    await userEvent.type(screen.getByLabelText('Email', { selector: '#mem-email' }), 'dee@example.com');
     await userEvent.click(screen.getByRole('button', { name: 'Add member' }));
     expect(await screen.findByText('dee joined as Viewer.')).toBeInTheDocument();
     expect(calls.find((c) => c.key === 'POST /workspaces/w1/members')?.body).toEqual({ email: 'dee@example.com', role: 'viewer' });
@@ -676,7 +695,7 @@ describe('workspace members', () => {
     expect(await screen.findByText('bob@example.com')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Add member' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid email address.');
-    await userEvent.type(screen.getByLabelText('Email'), 'nobody@example.com');
+    await userEvent.type(screen.getByLabelText('Email', { selector: '#mem-email' }), 'nobody@example.com');
     await userEvent.click(screen.getByRole('button', { name: 'Add member' }));
     expect(await screen.findByText(/No account uses this email/)).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Role of bob' }), 'admin');
@@ -726,11 +745,11 @@ describe('storage', () => {
     stubApi(signedIn);
     const { unmount } = renderApp('/projects/p1');
     await screen.findByRole('link', { name: 'default' });
-    expect(screen.queryByRole('link', { name: 'Storage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument();
     unmount();
     stubApi(storageRoutes);
     renderApp('/projects/p1');
-    expect(await screen.findByRole('link', { name: 'Storage' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/admin');
   });
 
   test('a member who is not the instance administrator gets an explanation', async () => {

@@ -34,6 +34,26 @@ fi
 find backend/internal/webui/dist -mindepth 1 ! -name .gitkeep -exec rm -rf {} +
 cp -R web/dist/. backend/internal/webui/dist/
 
+# Keep the licenses of the installed web dependencies beside the embedded UI.
+notices="$work/licenses"
+node - "$root/web" "$notices" <<'JS'
+const fs = require('node:fs');
+const path = require('node:path');
+const [web, out] = process.argv.slice(2);
+fs.mkdirSync(out, { recursive: true });
+const packages = JSON.parse(fs.readFileSync(path.join(web, 'package-lock.json'), 'utf8')).packages;
+for (const [name, metadata] of Object.entries(packages)) {
+  if (!name || metadata.dev) continue;
+  const directory = path.join(web, name);
+  if (metadata.optional && !fs.existsSync(directory)) continue;
+  const files = fs.readdirSync(directory).filter((file) => /^(licen[cs]e|copying|notice)(\.|$)/i.test(file));
+  if (!files.length) throw new Error(`release: no license notice for ${name}`);
+  const target = path.join(out, name.replace(/^node_modules\//, '').replaceAll('/', '__'));
+  fs.mkdirSync(target, { recursive: true });
+  for (const file of files) fs.copyFileSync(path.join(directory, file), path.join(target, file));
+}
+JS
+
 ldflags="-s -w -X github.com/Ervisio/ErvisioLogs/backend/internal/version.Version=$version -X github.com/Ervisio/ErvisioLogs/backend/internal/version.Commit=$commit"
 for arch in amd64 arm64; do
   name="ervisio-logs-$version-linux-$arch"
@@ -44,6 +64,7 @@ for arch in amd64 arm64; do
   install -m 0755 deploy/standalone/install.sh "$dir/install.sh"
   install -m 0755 deploy/standalone/uninstall.sh "$dir/uninstall.sh"
   cp docs/deploy/standalone.md "$dir/README.md"
+  cp -R "$notices" "$dir/licenses"
   tar -C "$work" --owner=0 --group=0 -czf "$out/$name.tar.gz" "$name"
   echo "built $name.tar.gz"
 done
@@ -60,6 +81,7 @@ grep -q '^    build: ' "$dir/compose.yaml" && { echo "release: build: left in th
 cp .env.example "$dir/.env.example"
 install -m 0755 scripts/gen-env.sh "$dir/scripts/gen-env.sh"
 cp docs/deploy/docker.md "$dir/README.md"
+cp -R "$notices" "$dir/licenses"
 tar -C "$work" --owner=0 --group=0 -czf "$out/$name.tar.gz" "$name"
 echo "built $name.tar.gz"
 
@@ -69,9 +91,12 @@ echo "built $name.tar.gz"
 # ervisio-plugin-pack). The archive's top-level folder is ervisio-logs, the plugin id.
 if [[ -d integrations/ervisio-plugin ]]; then
   name="ervisio-logs-$version-ervisio-plugin"
-  src="$work/plugin-src"
+  src="$work/repository/integrations/ervisio-plugin"
   dir="$work/plugin/ervisio-logs"
   mkdir -p "$work/plugin"
+  mkdir -p "$work/repository/packages"
+  (cd packages/admin-client && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) \
+    | { mkdir -p "$work/repository/packages/admin-client" && tar -C "$work/repository/packages/admin-client" -xf -; }
   # A clean copy without node_modules or dist from a development checkout.
   (cd integrations/ervisio-plugin && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) \
     | { mkdir -p "$src" && tar -C "$src" -xf -; }
@@ -79,8 +104,12 @@ if [[ -d integrations/ervisio-plugin ]]; then
 const fs = require('fs');
 const [plugin, version, bundle] = process.argv.slice(2);
 const want = version.split('+')[0];
-for (const p of ['package.json', 'plugin/manifest.json']) {
-  const v = JSON.parse(fs.readFileSync(`${plugin}/${p}`, 'utf8')).version;
+for (const p of ['package.json', 'plugin/manifest.json', 'package-lock.json']) {
+  const metadata = JSON.parse(fs.readFileSync(`${plugin}/${p}`, 'utf8'));
+  const v = metadata.version;
+  if (p === 'package-lock.json' && metadata.packages?.['']?.version !== want) {
+    console.error(`release: the plugin lockfile root package must be version ${want}`); process.exit(1);
+  }
   if (v !== want) { console.error(`release: integrations/ervisio-plugin/${p} is version ${v}, the release is ${want}`); process.exit(1); }
 }
 const read = (p) => fs.readFileSync(p, 'utf8');
@@ -92,6 +121,8 @@ fs.writeFileSync(`${plugin}/src/bundle.generated.ts`,
 JS
   (cd "$src" && npm ci --no-audit --no-fund && npm run build)
   cp -R "$src/dist/ervisio-logs" "$dir"
+  cp "$src/LICENSE-plugin-caddy" "$dir/LICENSE-plugin-caddy"
+  cp "$src/node_modules/@ervisio/plugin-sdk/LICENSE" "$dir/LICENSE-plugin-sdk"
   install -m 0755 deploy/standalone/uninstall.sh "$dir/bin/uninstall.sh"
   chmod 0755 "$dir/bin/standalone.sh"
   printf '%s\n' "$version" > "$dir/bin/release.version"

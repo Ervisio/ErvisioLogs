@@ -15,7 +15,6 @@ import (
 	"github.com/Ervisio/ErvisioLogs/backend/internal/auth"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/httpx"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/notify"
-	"github.com/Ervisio/ErvisioLogs/backend/internal/settings"
 	"github.com/Ervisio/ErvisioLogs/backend/internal/store"
 )
 
@@ -29,6 +28,7 @@ type Integrations struct {
 // saved views, a range relative to the time the view is opened.
 type savedFilter struct {
 	Range        string       `json:"range,omitempty"`
+	Tags         []string     `json:"tags,omitempty"`
 	Query        string       `json:"query,omitempty"`
 	SeverityMin  uint8        `json:"severity_min,omitempty"`
 	Levels       []string     `json:"levels,omitempty"`
@@ -60,7 +60,7 @@ func parseRange(s string) (time.Duration, error) {
 func (f savedFilter) request(proj uuid.UUID, now time.Time, window time.Duration) *searchReq {
 	from := now.Add(-window)
 	return &searchReq{ProjectID: proj, From: &from, To: &now, Query: f.Query, SeverityMin: f.SeverityMin,
-		Levels: f.Levels, Streams: f.Streams, Environments: f.Environments, Events: f.Events,
+		Tags: f.Tags, Levels: f.Levels, Streams: f.Streams, Environments: f.Environments, Events: f.Events,
 		Services: f.Services, TraceID: f.TraceID, Filters: f.Filters}
 }
 
@@ -278,8 +278,8 @@ type channelView struct {
 }
 
 func (a *API) viewChannel(c store.NotificationChannel, withSecret bool) channelView {
-	v := channelView{NotificationChannel: c, URLHint: notify.RedactURL(c.URL)}
-	if withSecret && c.Format == notify.FormatErvisio {
+	v := channelView{NotificationChannel: c, URLHint: channelHint(c)}
+	if withSecret && c.Type == "webhook" && c.Format == notify.FormatErvisio {
 		v.Secret = notify.DisplaySecret(notify.DeriveKey(a.secret, c.ID, c.SecretVersion))
 	}
 	return v
@@ -332,6 +332,9 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) {
 		Type        string    `json:"type"`
 		Format      string    `json:"format"`
 		URL         string    `json:"url"`
+		Recipient   string    `json:"recipient"`
+		BotToken    string    `json:"bot_token"`
+		ChatID      string    `json:"chat_id"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -346,10 +349,6 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) {
 	if req.Type == "" {
 		req.Type = "webhook"
 	}
-	if req.Type != "webhook" {
-		invalid(w, r, "type must be webhook")
-		return
-	}
 	if req.Format == "" {
 		req.Format = notify.FormatErvisio
 	}
@@ -357,17 +356,19 @@ func (a *API) createChannel(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "format must be ervisio, slack or discord")
 		return
 	}
-	if err := notify.ValidateURL(req.URL, a.Settings.Bool(settings.WebhookAllowPrivate)); err != nil {
+	destination, err := a.channelDestination(req.Type, req.URL, req.Recipient, req.BotToken, req.ChatID)
+	if err != nil {
 		invalid(w, r, err.Error())
 		return
 	}
+	req.URL = destination
 	c, err := a.Store.CreateChannel(r.Context(), req.WorkspaceID, u.ID, name, req.Type, req.Format, req.URL)
 	if err != nil {
 		a.storeError(w, r, err)
 		return
 	}
 	a.audit(r, &c.WorkspaceID, "channel.create", "notification_channel", c.ID.String(),
-		map[string]any{"name": c.Name, "format": c.Format, "url": notify.RedactURL(c.URL)})
+		map[string]any{"name": c.Name, "format": c.Format, "url": channelHint(c)})
 	httpx.WriteJSON(w, http.StatusCreated, a.viewChannel(c, true))
 }
 
@@ -408,10 +409,13 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name    *string `json:"name"`
-		Format  *string `json:"format"`
-		URL     *string `json:"url"`
-		Enabled *bool   `json:"enabled"`
+		Name      *string `json:"name"`
+		Format    *string `json:"format"`
+		URL       *string `json:"url"`
+		Enabled   *bool   `json:"enabled"`
+		Recipient *string `json:"recipient"`
+		BotToken  *string `json:"bot_token"`
+		ChatID    *string `json:"chat_id"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -427,11 +431,30 @@ func (a *API) updateChannel(w http.ResponseWriter, r *http.Request) {
 		invalid(w, r, "format must be ervisio, slack or discord")
 		return
 	}
-	if req.URL != nil {
-		if err := notify.ValidateURL(*req.URL, a.Settings.Bool(settings.WebhookAllowPrivate)); err != nil {
+	if c.Type != "webhook" && req.URL != nil {
+		invalid(w, r, "use recipient or bot_token and chat_id for this channel type")
+		return
+	}
+	if req.URL != nil || req.Recipient != nil || req.BotToken != nil || req.ChatID != nil {
+		raw, recipient, bot, chat := c.URL, "", "", ""
+		if req.URL != nil {
+			raw = *req.URL
+		}
+		if req.Recipient != nil {
+			recipient = *req.Recipient
+		}
+		if req.BotToken != nil {
+			bot = *req.BotToken
+		}
+		if req.ChatID != nil {
+			chat = *req.ChatID
+		}
+		destination, err := a.channelDestination(c.Type, raw, recipient, bot, chat)
+		if err != nil {
 			invalid(w, r, err.Error())
 			return
 		}
+		req.URL = &destination
 	}
 	out, err := a.Store.UpdateChannel(r.Context(), c.WorkspaceID, c.ID,
 		store.ChannelUpdate{Name: req.Name, Format: req.Format, URL: req.URL, Enabled: req.Enabled})
@@ -450,6 +473,10 @@ func (a *API) rotateChannelSecret(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := a.channelAccess(w, r, auth.AlertsManage)
 	if !ok {
+		return
+	}
+	if c.Type != "webhook" || c.Format != notify.FormatErvisio {
+		invalid(w, r, "only signed Ervisio webhooks have a rotating signing secret")
 		return
 	}
 	out, err := a.Store.UpdateChannel(r.Context(), c.WorkspaceID, c.ID, store.ChannelUpdate{RotateSecret: true})
@@ -486,7 +513,7 @@ func (a *API) testChannel(w http.ResponseWriter, r *http.Request) {
 	p := notify.Payload{Type: "test", EventID: uuid.New(), SentAt: a.now().UTC(), WorkspaceID: c.WorkspaceID}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	sendErr := a.Integrations.Notify.Send(ctx, a.delivery(c, p))
+	sendErr := a.sendChannel(ctx, c, p)
 	if err := a.Store.RecordDelivery(context.WithoutCancel(r.Context()), c.ID, sendErr); err != nil {
 		a.Log.Warn("recording a delivery failed", "channel_id", c.ID, "error", err)
 	}
