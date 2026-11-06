@@ -22,7 +22,7 @@ import (
 )
 
 // SchemaVersion is the layout of the Parquet files this archiver writes (column set below).
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 const (
 	// defaultCutoffLag keeps the newest rows out of a segment: an insert that started before the
@@ -507,7 +507,7 @@ func (a *Archiver) export(ctx context.Context, seg store.Segment) (store.Segment
 	return store.SegmentStats{Checksum: h.Sum(nil), Bytes: cw.n, RowCount: int64(n), MinEventTime: &minT, MaxEventTime: &maxT}, nil
 }
 
-// exportSQL is the Parquet layout of SchemaVersion 1. Ids are strings and attributes a JSON
+// exportSQL is the Parquet layout of SchemaVersion 2. Ids are strings and attributes a JSON
 // string so any Parquet reader can open the file without ClickHouse types. The WHERE clause names
 // e.<column>: the SELECT aliases reuse the column names and would otherwise replace them there.
 const exportSQL = `SELECT
@@ -516,7 +516,7 @@ const exportSQL = `SELECT
 	event_id, timestamp, ingested_at, inserted_at,
 	severity_number, toString(severity_text) AS severity_text, toString(event_name) AS event_name,
 	message, toString(source_service) AS source_service, toString(source_host) AS source_host,
-	source_resource, trace_id, span_id, toJSONString(attributes) AS attributes, schema_version
+	source_resource, trace_id, span_id, toJSONString(attributes) AS attributes, schema_version, tags
 FROM events AS e
 WHERE e.workspace_id = {ws:UUID} AND e.project_id = {proj:UUID} AND e.stream_id = {stream:UUID}
   AND e.timestamp >= {day_from:DateTime64(3, 'UTC')} AND e.timestamp < {day_to:DateTime64(3, 'UTC')}

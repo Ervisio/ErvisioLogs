@@ -147,8 +147,13 @@ func (s *Store) RecordDelivery(ctx context.Context, id uuid.UUID, sendErr error)
 		m := truncate(sendErr.Error(), 500)
 		msg = &m
 	}
-	_, err := s.pool.Exec(ctx, `UPDATE notification_channels SET last_status=$2, last_error=$3, last_sent_at=now() WHERE id=$1`, id, status, msg)
-	return err
+	return s.tx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `UPDATE notification_channels SET last_status=$2, last_error=$3, last_sent_at=now() WHERE id=$1`, id, status, msg); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO notification_deliveries(id,channel_id,status,error) VALUES($1,$2,$3,$4)`, newID(), id, status, msg)
+		return err
+	})
 }
 
 // ---------- alert rules ----------
@@ -300,6 +305,9 @@ func (s *Store) ListAlertEvents(ctx context.Context, workspaceID, ruleID uuid.UU
 
 // PruneAlertEvents deletes history older than before.
 func (s *Store) PruneAlertEvents(ctx context.Context, before time.Time) (int64, error) {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM notification_deliveries WHERE created_at < $1`, before); err != nil {
+		return 0, err
+	}
 	tag, err := s.pool.Exec(ctx, `DELETE FROM alert_events WHERE created_at < $1`, before)
 	return tag.RowsAffected(), err
 }

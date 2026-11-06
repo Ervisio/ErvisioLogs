@@ -1,0 +1,13 @@
+{
+  "round": "014-acrylic-content",
+  "action": "choose",
+  "selected": [
+    "b"
+  ],
+  "id": "b762697cc6a4",
+  "approved_at": "2026-11-06T09:55:23.724Z",
+  "scope": "Shell, navigazione ed explorer: direzione visiva. Non integrazione React/API.",
+  "source": "../../../../.variant-studio/rounds/014-acrylic-content/b.html",
+  "prototype": "prototype.html",
+  "screenshot": "screenshot.png"
+}

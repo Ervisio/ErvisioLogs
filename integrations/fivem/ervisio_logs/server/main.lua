@@ -100,11 +100,11 @@ end
 -- ---------------------------------------------------------------------------
 
 -- exports.ervisio_logs:Log(stream, level, event, message, attributes) -> boolean queued
-exports('Log', function(stream, level, event, message, attributes)
+exports('Log', function(stream, level, event, message, attributes, tags)
     if features.exports == false then return false end
     return q:log({
         stream = stream, level = level, event = event, message = message,
-        attributes = attributes, resource = GetInvokingResource() or RES,
+        attributes = attributes, tags = tags, resource = GetInvokingResource() or RES,
     })
 end)
 
@@ -171,24 +171,30 @@ if features.player_connections then
     -- Plain AddEventHandler (no RegisterNetEvent): clients cannot trigger these.
     AddEventHandler('playerJoining', function()
         local src = source
-        local attributes = { player_id = src, action = 'join' }
-        if privacy.player_name then attributes.player_name = GetPlayerName(src) end
+        local attributes = { player_id = src, action = 'join', actor = { type = 'player', id = src } }
+        if privacy.player_name then
+            attributes.player_name = GetPlayerName(src)
+            attributes.actor.name = attributes.player_name
+        end
         q:log({
             level = 'INFO', event = 'player.join', message = 'Player joined',
-            attributes = attributes, resource = RES,
+            attributes = attributes, tags = { 'players', 'connection' }, resource = RES,
         })
     end)
 
     AddEventHandler('playerDropped', function(reason)
         local src = source
         local attributes = {
-            player_id = src, action = 'leave',
+            player_id = src, action = 'leave', actor = { type = 'player', id = src },
             reason = type(reason) == 'string' and reason:sub(1, 256) or nil,
         }
-        if privacy.player_name then attributes.player_name = GetPlayerName(src) end
+        if privacy.player_name then
+            attributes.player_name = GetPlayerName(src)
+            attributes.actor.name = attributes.player_name
+        end
         q:log({
             level = 'INFO', event = 'player.leave', message = 'Player left',
-            attributes = attributes, resource = RES,
+            attributes = attributes, tags = { 'players', 'connection' }, resource = RES,
         })
     end)
 end

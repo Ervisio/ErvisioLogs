@@ -351,6 +351,11 @@ func (a *API) queueEvents(r *http.Request, t *store.APIToken, in []ingest.InEven
 	v := ingest.Validator{MaxFutureSkew: a.Settings.Duration(settings.IngestMaxFutureSkew),
 		MaxPastAge: a.Settings.Duration(settings.IngestMaxPastAge), Now: a.now}
 	streams := &streamCreator{a: a, r: r, ws: t.WorkspaceID, project: t.ProjectID, cat: cat}
+	rules, err := a.Store.FieldRules(r.Context(), t.ProjectID)
+	if err != nil {
+		a.Log.Error("ingest rules unavailable", "request_id", res.RequestID, "error", err)
+		return res, &ingestFailure{status: http.StatusServiceUnavailable, msg: "ingestion rules are unavailable", retryAfter: "5"}
+	}
 	accepted := make([]ingest.Event, 0, len(in))
 	for i, ev := range in {
 		e, err := v.Normalize(ev, defStream, defEnv, streams, t.WorkspaceID, t.ProjectID)
@@ -358,12 +363,28 @@ func (a *API) queueEvents(r *http.Request, t *store.APIToken, in []ingest.InEven
 			res.Errors = append(res.Errors, ingest.Rejection{Index: i, Reason: err.Error()})
 			continue
 		}
+		e.Attributes, err = redactAttributes(e.Attributes, rules)
+		if err != nil {
+			return res, &ingestFailure{status: http.StatusInternalServerError, msg: "internal error"}
+		}
 		accepted = append(accepted, e)
 	}
 	res.Accepted, res.Rejected = len(accepted), len(res.Errors)
 	if len(accepted) == 0 {
 		res.Status = "rejected"
 		return res, nil
+	}
+	names := make([]string, 0, len(accepted))
+	seenNames := map[string]bool{}
+	for _, e := range accepted {
+		if e.EventName != "" && !seenNames[e.EventName] {
+			names = append(names, e.EventName)
+			seenNames[e.EventName] = true
+		}
+	}
+	if err := a.Store.DiscoverEventTypes(r.Context(), t.ProjectID, names); err != nil {
+		a.Log.Error("event discovery failed", "request_id", res.RequestID, "error", err)
+		return res, &ingestFailure{status: http.StatusServiceUnavailable, msg: "event catalog is unavailable", retryAfter: "5"}
 	}
 	rec, err := ingest.EncodeRecord(accepted)
 	if err != nil {

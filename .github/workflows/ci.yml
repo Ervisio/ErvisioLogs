@@ -2,6 +2,10 @@ name: ci
 on:
   push: { branches: [main] }
   pull_request:
+  workflow_dispatch:
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -70,3 +74,93 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: playwright-report, path: "web/playwright-report\nweb/test-results", retention-days: 7 }
+
+  clients:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24 }
+      - run: node --test test/*.test.ts
+        working-directory: packages/admin-client
+      - run: npm ci && npm run typecheck && npm test && npm run build
+        working-directory: sdk/typescript
+      - run: git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+      - run: npm ci && npm test && npm run build
+        working-directory: integrations/ervisio-plugin
+  collector:
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: python3 scripts/collector-test.py
+
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: scripts/archive-test.sh
+  artifacts:
+    runs-on: ubuntu-latest
+    needs: [backend, web, clients, openapi]
+    timeout-minutes: 40
+    env:
+      IMAGE: ghcr.io/ervisio/ervisio-logs
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
+      - name: Read package version
+        id: version
+        run: |
+          version="$(node -p "require('./integrations/ervisio-plugin/package.json').version")"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build standalone, Compose and plugin packages
+        run: |
+          git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+          scripts/release.sh
+      - name: Build SDK and FiveM archives
+        run: |
+          npm --prefix sdk/typescript ci --no-audit --no-fund
+          npm --prefix sdk/typescript run build
+          (cd sdk/typescript && npm pack --pack-destination "$GITHUB_WORKSPACE/dist/$VERSION")
+          tar -czf "dist/$VERSION/ervisio-logs-$VERSION-fivem.tar.gz" -C integrations/fivem ervisio_logs README.md
+      - name: Build multi-platform container archive
+        run: |
+          docker buildx create --use --name ci-artifacts
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            --build-arg VERSION="$VERSION" --build-arg COMMIT="$(git rev-parse --short=12 HEAD)" \
+            --tag "$IMAGE:$VERSION" --output "type=oci,dest=dist/$VERSION/ervisio-logs-$VERSION-image.oci.tar" .
+          cd "dist/$VERSION"
+          sha256sum -- *.tar.gz *.tgz *.oci.tar > SHA256SUMS
+      - name: Upload build candidates
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ervisio-logs-${{ steps.version.outputs.version }}-${{ github.sha }}
+          path: dist/${{ steps.version.outputs.version }}/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+  verified:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [backend, web, clients, openapi, integration, smoke, e2e, collector, archive, artifacts]
+    steps:
+      - name: Require successful checks and builds
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          failed = [name for name, job in json.loads(os.environ['RESULTS']).items() if job['result'] != 'success']
+          if failed:
+              raise SystemExit('Checks did not pass: ' + ', '.join(failed))
+          print('All checks and build artifacts passed.')
+          PYCODE

@@ -1,0 +1,12 @@
+{
+  "round": "017-plugin-navigation",
+  "action": "choose",
+  "selected": [
+    "a"
+  ],
+  "id": "42c8e0d15968",
+  "approved_at": "2026-11-06T11:15:21.785Z",
+  "scope": "Plugin Ervisio: menu laterale con nove sezioni e panoramica. Direzione visiva, non collegamento SDK/API.",
+  "prototype": "prototype.html",
+  "screenshot": "screenshot.png"
+}

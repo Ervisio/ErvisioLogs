@@ -33,7 +33,8 @@
   "theme": {
     "light": "Light",
     "dark": "Dark",
-    "toggle": "Switch theme"
+    "toggle": "Switch theme",
+    "amoled": "AMOLED"
   },
   "language": "Language",
   "status": {
@@ -707,17 +708,16 @@
             "title": "Send the first event",
             "paragraphs": [],
             "steps": [
-              "Open All projects and create a project in your workspace. You can create a workspace there too; use the account menu to switch workspaces.",
-              "Open the project. The first-event guide creates an ingest token, shows a curl request and lets you send a test event.",
-              "Copy the token before leaving the page. Once the event arrives, the project opens the Log Explorer.",
-              "For an existing project, create another token under Settings → API tokens, then use the API or FiveM examples in this guide."
+              "Open the workspace tile at the top of the rail to choose a workspace. Create a project from the project list.",
+              "Open the project. The first-event guide creates an ingest token and gives you a curl request. Copy the token before leaving the page.",
+              "Send an event, then open Log Explorer. For an existing project, create tokens under Project settings → Tokens."
             ]
           },
           {
             "title": "Navigate",
             "paragraphs": [
-              "The project rail switches projects. The project column opens the explorer, live logs, alerts, integrations, storage and settings. Use Ctrl K (⌘K on Mac) to search navigation commands. Documentation is always in the main rail, even without a project.",
-              "Some navigation entries are placeholders and say “Not available yet”. This guide describes the implemented explorer, tokens, members, alerts, notification channels and storage flows."
+              "The rail switches workspaces and projects. The project menu opens logs, alerts, dashboards and usage. Use the project gear for project settings and Manage for workspace settings or instance administration.",
+              "Open Account for password, sessions, optional security methods, language and theme. Ctrl K (⌘K on Mac) searches navigation commands. Documentation stays available without a workspace or project."
             ]
           }
         ]
@@ -747,15 +747,25 @@
           {
             "title": "Event fields and retries",
             "paragraphs": [
-              "Use level, event, message and attributes to describe an event. Optional context includes timestamp, id, service, host, resource, stream and environment. Use UTC RFC 3339 timestamps. Supplying a stable event id allows retries of that same event without making a new logical event.",
-              "On 429 or 503, honour Retry-After and back off. Fix invalid events on 422, split an oversized batch on 413, and check credentials and scopes on 401/403. Do not loop immediately on errors."
+              "Use level, event, message and attributes to describe an event. Add stream, environment, service, host or resource for context. Use UTC RFC 3339 timestamps and keep an event id stable when retrying the same event. A 202 response follows a durable write to the spool; search visibility follows the ClickHouse write.",
+              "On 429 or 503, honour Retry-After and back off. Correct invalid events on 422, split oversized payloads on 413, and check credentials and scopes on 401/403. Inspect accepted and rejected counts in batch responses."
             ]
           },
           {
             "title": "API reference and OpenTelemetry",
             "paragraphs": [
-              "The full versioned API contract is api/openapi.yaml in the Ervisio/ErvisioLogs repository. An experimental OTLP/HTTP receiver exists at POST /v1/logs (JSON or protobuf, with an ingest token). It has not been validated with a real OpenTelemetry exporter or Collector; use the JSON ingest examples above for the documented integration."
+              "The versioned contract lives in api/openapi.yaml. Send OTLP/HTTP JSON or protobuf to POST /v1/logs with an ingest token. Exporters that append /v1/logs need the instance base URL.",
+              "scripts/collector-test.py prepares an isolated app, databases and a real OpenTelemetry Collector to check forwarding and search. This fixture has not run in the 0.2 validation session because the Docker daemon did not respond."
             ]
+          },
+          {
+            "title": "Tags, actor and target",
+            "paragraphs": [
+              "Add up to 20 tags, each 1–40 characters. Use lowercase letters, digits, dot, underscore, colon, slash or dash. Search a tag with tag:economy. Start each tag with a lowercase letter or digit.",
+              "Put actor and target inside attributes when sending JSON. Each entity has type and id; name is optional. The TypeScript SDK also accepts actor and target in event options and writes them under attributes. Keep identifiers and player names within your privacy policy."
+            ],
+            "code": "{\n  \"level\": \"INFO\",\n  \"event\": \"money.add\",\n  \"message\": \"Reward paid\",\n  \"stream\": \"economy\",\n  \"tags\": [\n    \"economy\",\n    \"reward\"\n  ],\n  \"attributes\": {\n    \"actor\": {\n      \"type\": \"admin\",\n      \"id\": \"17\",\n      \"name\": \"Ada\"\n    },\n    \"target\": {\n      \"type\": \"player\",\n      \"id\": 42\n    },\n    \"amount\": 250,\n    \"account\": \"bank\"\n  }\n}",
+            "language": "JSON"
           }
         ]
       },
@@ -767,23 +777,24 @@
           {
             "title": "Search syntax",
             "paragraphs": [
-              "Free text searches messages. Attribute expressions are separate filters; values containing spaces can be quoted. The supported operators are =, !=, ~ (contains), >, >=, <, <= and has:key. Combine expressions with free text in the same search box."
+              "Free text searches messages. Attribute filters support =, !=, ~ (contains), >, >=, <, <= and has:key. Quote values containing spaces. Use the filter builder to choose a field, operator and value."
             ],
-            "code": "player_id=42 action=add\nitem~bread count>=2 has:player_id\nreason=\"card declined\" payment",
+            "code": "tag:economy amount>=250\nactor.id=17 target.type=player\nreason=\"card declined\" payment",
             "language": "Search"
           },
           {
-            "title": "Narrow the results",
+            "title": "Read events and narrow the range",
             "paragraphs": [
-              "Select a time range, level chips, stream and environment to narrow the project search. Open a row to inspect the event payload and attributes. Load more appends another page. Saved views let you reuse a search.",
-              "Archived searches can be slower than hot data searches. If a result is marked partial, treat it as incomplete and check archive availability before concluding that an event is missing."
+              "Rows show relative time, severity, the catalog title and a readable message. Actor, target and tag chips add context. Open a row for Who, What, Where, When and Technical groups; expand the original payload when you need JSON. Click a value or tag to add a filter.",
+              "Choose levels, event, category, stream and environment in Filters. Drag across histogram buckets to set the search range; keyboard users can select a bucket. Level chips retain their counts when you select another level. Saved views preserve your search and filters.",
+              "The Archive badge marks rows read from the archive. A partial result means part of the selected storage was unavailable; check its destination before concluding that an event is missing."
             ]
           },
           {
             "title": "Live and export",
             "paragraphs": [
-              "Live follows newly arriving events. Historical events belong in the explorer with an appropriate time range. A disconnected live connection does not prove ingestion has stopped.",
-              "Export requires logs:export as well as access to the project. Limit the time range and filters before exporting large amounts of data."
+              "Turn on Live in the explorer to follow new events with the active text, tag, event and attribute filters. Use the time range for historical searches. A disconnected Live connection does not prove ingestion has stopped.",
+              "Export requires logs:export. Narrow the time range and filters before exporting a large result."
             ]
           }
         ]
@@ -802,16 +813,18 @@
             ]
           },
           {
-            "title": "Workspace roles",
+            "title": "Workspace roles and invitations",
             "paragraphs": [
-              "Owner manages the workspace and its members. Admin manages projects, tokens, members and alerts but cannot grant ownership or change owners. Developer can create projects, manage tokens and alerts, and read/export logs. Analyst can read and export; Viewer can read.",
-              "Open Settings → Users to add an existing account by email or change a role. A workspace must retain at least one owner. Instance administration is separate from workspace membership and does not automatically grant access to tenant logs."
+              "Owner manages the workspace and its owners. Admin manages projects, members, tokens and alerts. Developer manages projects, tokens and alerts and reads/exports logs. Analyst reads and exports; Viewer reads. The workspace must retain an owner.",
+              "Open Workspace settings → Members to add an existing account or invite an email address. With SMTP configured, the app sends the link; otherwise copy the returned invitation URL. The recipient must use the invited email address.",
+              "Instance administrators manage users and service configuration. Their instance role grants no workspace membership or access to tenant logs."
             ]
           },
           {
-            "title": "Storage administration",
+            "title": "Operator tokens and archive administration",
             "paragraphs": [
-              "The Storage page is restricted to instance administrators because archive destinations and the local cache budget affect the whole server. Being a workspace owner alone does not grant this access."
+              "In Administration → Operator tokens, create an evl_adm_ token with the required admin:* scopes and an expiry within one year. Copy its plaintext value once, store it as a secret and revoke it when access ends. These tokens manage the instance and tenancy; they do not read, export or delete logs.",
+              "Administration → Archive holds shared destinations and the instance cache budget. Workspace and project retention live in their scoped settings."
             ]
           }
         ]
@@ -832,7 +845,7 @@
             "title": "Add and activate a destination",
             "paragraphs": [],
             "steps": [
-              "As an instance administrator, open Storage from a project.",
+              "As an instance administrator, open Administration → Archive.",
               "Add an S3 bucket, SFTP destination or absolute folder path on the server. For a folder, the service must have the required filesystem access.",
               "Enter credentials in the form, load a file from your computer, or reference a credential file already in the configured secrets directory.",
               "Test the destination, then activate it. Activation directs new archive segments to it; it does not migrate old segments.",
@@ -857,7 +870,7 @@
           {
             "title": "Retention and old destinations",
             "paragraphs": [
-              "Project retention inherits instance defaults unless overridden. Review the effective policy before saving: full retention expiry deletes data permanently.",
+              "Retention inherits from instance to workspace, project and stream. Set workspace and project overrides in their settings; leave a field blank to inherit it, or clear both to remove the override. Full retention expiry deletes data.",
               "Keep old destinations reachable while catalogued segments still reference them. Switching the active destination is not a data migration. If the archiver is disabled, configure it on the server before expecting cache eviction or remote archives to work."
             ]
           }
@@ -893,6 +906,15 @@
               "Run ervisio_logs_status in the server console to inspect queue counters. A 401/403 stops sending: fix the token and use ervisio_logs_resume.",
               "The integration and example adapters have not been verified in game. Test them on your development server before using them in production."
             ]
+          },
+          {
+            "title": "Log v2 and privacy",
+            "paragraphs": [
+              "Pass a tags array as the sixth Log argument, or use tags in LogBatch events. Put actor and target entities under attributes. Project settings can create unknown streams on ingest; disable this or set a stream limit when you need a fixed catalog.",
+              "Apply the FiveM preset under Project settings → Events and fields for event titles and templates. Player names and identifiers remain opt-in in config.lua; a catalog template does not enable their collection. Test resource hooks and payloads on your game server before deployment."
+            ],
+            "code": "exports.ervisio_logs:Log('economy', 'INFO', 'money.add', 'Reward paid', {\n    actor = { type = 'admin', id = '17' },\n    target = { type = 'player', id = source },\n    amount = 250,\n}, { 'economy', 'reward' })",
+            "language": "Lua / server"
           }
         ]
       },
@@ -904,24 +926,29 @@
           {
             "title": "Create a notification channel",
             "paragraphs": [
-              "In Integrations, add a channel with an HTTPS webhook URL. Select Discord, Slack or signed JSON for your own endpoint. Send a test and check the last-delivery status.",
-              "Signed JSON channels show their signing secret once. Store it at the receiving endpoint; rotating the secret invalidates the previous value. A webhook receives alert notifications, not a copy of every ingested event."
+              "Open Workspace settings → Notification channels. Choose a webhook, email or Telegram. Webhooks support Discord, Slack or signed JSON. For email, enter the recipient and ask an instance administrator to configure SMTP. For Telegram, enter a bot token and chat ID; the bot needs access to that chat.",
+              "Test the channel, then inspect delivery history for success or errors. The server keeps Telegram credentials encrypted and does not return the bot token. Signed JSON channels show a signing secret once; configure that secret in your receiver."
             ]
           },
           {
             "title": "Create an alert",
             "paragraphs": [],
             "steps": [
-              "Open Alerts and create a rule with the same search syntax as the explorer. Select the stream and event levels when needed.",
-              "Choose the time window, threshold and check interval. A rule fires when the matching event count is greater than the threshold.",
-              "Select notification channels and save. Without a channel, the rule only changes state in the app.",
-              "Inspect history for firing, resolved and evaluation errors. Pause a rule when notifications are temporarily unnecessary."
+              "Open Alerts in your project and choose a template or define the search. Select event, stream, environment and levels.",
+              "Set the observation window, threshold and check interval. The rule fires when the count exceeds the threshold.",
+              "Select channels and save. Review the sentence summary and alert history. Without a channel, the rule changes state in the app without sending a notification."
             ]
           },
           {
             "title": "Delivery problems",
             "paragraphs": [
               "Check whether the channel is enabled, its test succeeds, and the remote service accepts the webhook. If the rule is in an error state, inspect its history before changing the threshold."
+            ]
+          },
+          {
+            "title": "System alerts",
+            "paragraphs": [
+              "Instance administrators configure system alerts for spool pressure, archive delay and destination failures under Administration → System alerts. These rules monitor the service; project event rules remain in the project."
             ]
           }
         ]
@@ -934,8 +961,10 @@
           {
             "title": "Ervisio plugin",
             "paragraphs": [
-              "Install the signed Ervisio Logs plugin from Plugins → Browse. It can deploy Docker Compose or a standalone service and configure an address through an existing Caddy installation. Open launches the app, which has its own accounts.",
-              "To upgrade, update the plugin in Ervisio, then press Update in the Ervisio Logs plugin page. Updating the plugin package alone does not replace the running app. The plugin deploys the app version bundled with it."
+              "The plugin has Overview, Instance, Workspaces, Projects, Users, Archive, Server, Address and Console sections. Instance edits runtime settings; Server edits host environment values and offers an explicit restart. Console retains the last 20 operations for the current page session.",
+              "Local management uses the admin Unix socket through approved SDK capabilities. The default rootful Docker stack uses /var/lib/docker/volumes/ervisiologs_admin/_data/admin.sock; standalone uses /run/ervisio-logs/admin.sock. Reaching this socket grants operator management access.",
+              "For a remote instance or a custom socket location, choose HTTPS and an evl_adm_ token in Instance. Ervisio asks an administrator to approve the host and reloads the plugin on first approval; reconnect afterwards. The plugin keeps the token in page memory and omits browser cookies.",
+              "Update the plugin package in Ervisio, then update the app from its page. The package contains the matching app bundle; changing the plugin package alone does not restart or upgrade the app. The 0.2 host integration has not been verified in a real Ervisio panel."
             ]
           },
           {
@@ -965,7 +994,7 @@
             "steps": [
               "Confirm the sending URL and the project that owns the token. Inspect the ingest HTTP status and any rejected events.",
               "Clear search text and filters, choose the correct environment and stream, and widen the time range. Check the sender’s clock and event timestamps.",
-              "If ingestion is accepted but visibility is delayed, check System status, service logs and database connectivity.",
+              "If accepted events stay missing, check Administration → Overview, spool backlog, service logs and database connectivity.",
               "For FiveM, inspect ervisio_logs_status; after fixing a rejected token, run ervisio_logs_resume."
             ]
           },
@@ -979,13 +1008,372 @@
           {
             "title": "Storage and access problems",
             "paragraphs": [
-              "A workspace owner who cannot open Storage needs the separate instance-administrator role. If credentials cannot be saved, ask the operator to check the configured secrets directory and its service write permissions.",
+              "Archive destinations require the separate instance-administrator role. For credential writes, check the configured secrets directory and service permissions.",
               "For S3, verify bucket, region, endpoint and key permissions. For SFTP, verify port, host key, authentication and directory permissions. Test the destination and keep providers holding old segments accessible.",
-              "Use System status and backend logs for dependency failures. Copy error messages without including tokens, passwords or private keys when asking for help."
+              "Check Administration → Overview and backend logs for dependency failures. Remove tokens, passwords and private keys from any diagnostic text you share."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "settings",
+        "title": "Settings and event catalog",
+        "summary": "Find each setting at its instance, workspace or project scope.",
+        "sections": [
+          {
+            "title": "Scopes and inheritance",
+            "paragraphs": [
+              "Use Administration for shared archive destinations, access, email, ingest limits and service settings. Workspace settings hold members, invitations, channels and workspace defaults. Project settings hold environments, streams, tokens, catalog and project overrides.",
+              "Each runtime setting shows its source. An environment value locks that setting; change it on the host and restart the service. A database value takes effect through the runtime settings service. Reset an override to inherit the parent value."
+            ]
+          },
+          {
+            "title": "Event titles and field rules",
+            "paragraphs": [
+              "Open Project settings → Events and fields. Assign a title, message template, icon, category, color and up to ten featured attribute fields to each technical event name. Seen event names enter the catalog for you to describe; the FiveM preset provides editable starting values.",
+              "Templates use attribute paths such as {actor.name} and {amount}. Field rules set labels, display formats and visibility. Hiding a field changes presentation. Enable Redact to replace that field on new events before durable ingest; changing a rule does not rewrite stored events."
+            ]
+          },
+          {
+            "title": "Appearance",
+            "paragraphs": [
+              "Choose Light, Dark or AMOLED in Account. AMOLED keeps the event area black. The interface respects the device’s reduced-motion preference for background animation."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "account-security",
+        "title": "Account security",
+        "summary": "Manage password, sessions, optional authenticator codes and passkeys.",
+        "sections": [
+          {
+            "title": "Password and sessions",
+            "paragraphs": [
+              "Use Account to change your password or revoke another active session. A password change closes the other sessions. If you forgot the password, request a reset link from sign-in; the instance needs working SMTP to send it."
+            ]
+          },
+          {
+            "title": "Optional authenticator and recovery codes",
+            "paragraphs": [
+              "Authenticator codes (TOTP) and passkeys are optional for each account. To enable TOTP, open Account → Security, confirm your password, add the displayed secret to an authenticator and enter its current code. For an account without a local password, sign in again through your external provider before changing security methods.",
+              "Copy the recovery codes when you enable TOTP and store them outside this account. Each code works once. Use an authenticator code or an unused recovery code when sign-in asks for verification. Disabling TOTP requires verification and removes its recovery codes."
+            ]
+          },
+          {
+            "title": "Passkeys",
+            "paragraphs": [
+              "Use HTTPS and a browser with WebAuthn support. In Account → Security, name and add a passkey, then complete the browser’s device verification. Use the passkey button at sign-in to authenticate with that device or its synced credential.",
+              "Keep a working sign-in method before deleting a passkey. The 0.2 checks include a virtual authenticator; physical-device and real-provider sign-in still require host testing."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "dashboards",
+        "title": "Dashboards and usage",
+        "summary": "Build panels from saved searches and inspect project activity and quotas.",
+        "sections": [
+          {
+            "title": "Saved-query panels",
+            "paragraphs": [],
+            "steps": [
+              "Save a search in Log Explorer with the filters and time range you want to reuse.",
+              "Open Dashboards in the project and create a panel. Select the saved query and choose count, time series or top values. Top values also needs an attribute field.",
+              "Name the panel and save. Edit or delete it from its card. Workspace permissions control panel changes and access to the underlying logs."
+            ]
+          },
+          {
+            "title": "Usage and quotas",
+            "paragraphs": [
+              "Usage shows event counts and bytes by time and stream for the selected project. Byte totals measure uncompressed text payload, so they differ from compressed ClickHouse, archive or disk usage. Check partial-result notices before using totals.",
+              "Administrators can set ingest rate limits and daily event/byte quotas at workspace or project scope. A zero limit means unlimited. Quota counters belong to the running process and restart with it; multiple replicas do not share these counters."
             ]
           }
         ]
       }
     ]
+  },
+  "manage": {
+    "workspaceSettings": "Workspace settings",
+    "projectSettings": "Project settings",
+    "administration": "Administration",
+    "account": "Account",
+    "instance": "Instance",
+    "switchWorkspace": "Switch workspace",
+    "overview": "Overview",
+    "users": "Users",
+    "workspaces": "Workspaces",
+    "settings": "Runtime settings",
+    "archive": "Archive",
+    "tokens": "Tokens",
+    "audit": "Activity log",
+    "system-alerts": "System alerts",
+    "saved": "Saved.",
+    "failed": "The action failed. Try again.",
+    "save": "Save",
+    "create": "Create",
+    "delete": "Delete",
+    "danger": "Danger zone",
+    "confirmSlug": "This action is irreversible. Type {{slug}} to confirm.",
+    "confirmation": "Confirmation",
+    "general": "General",
+    "environments": "Environments",
+    "streams": "Streams",
+    "catalog": "Events and fields",
+    "retention": "Retention",
+    "members": "Members and invitations",
+    "channels": "Notification channels",
+    "locked": "Set on the server: {{env}}",
+    "source": "Source: {{source}}",
+    "seconds": "seconds",
+    "inherit": "Use inherited value",
+    "name": "Name",
+    "technicalName": "Technical name",
+    "displayName": "Display name",
+    "description": "Description",
+    "color": "Color",
+    "deleteNamed": "Delete {{name}}?",
+    "retentionHint": "Values are in hours. Leave blank to inherit from the parent scope.",
+    "localHours": "Local retention (hours)",
+    "globalHours": "Total retention (hours)",
+    "purge": "Purge logs",
+    "from": "From",
+    "to": "To",
+    "runtimeHint": "Changes apply without restarting. Values set by the server remain locked.",
+    "health": "Instance health",
+    "refresh": "Refresh",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "wal": "Disk queue space",
+    "queue": "Queued events",
+    "uploads": "Pending uploads",
+    "failedUploads": "Failed uploads",
+    "lastUpload": "Last verified upload",
+    "destination": "Active destination",
+    "none": "None",
+    "searchUsers": "Search by name or email",
+    "createUser": "Create user",
+    "instanceAdmin": "Instance admin",
+    "active": "Active",
+    "disabled": "Disabled",
+    "empty": "No results.",
+    "firstPage": "First page",
+    "next": "Next page",
+    "optionalPassword": "Optional: accounts without a password sign in through an external provider.",
+    "adminScopeHint": "Instance roles do not grant access to logs. Data permissions come from workspace membership.",
+    "ownAccount": "Manage your password and sessions in Account",
+    "status": "Status",
+    "resetPassword": "Reset password",
+    "resetPasswordHint": "Sets a new password and ends all the user’s sessions.",
+    "newPassword": "New password",
+    "deleteUser": "Delete user",
+    "sessions": "Active sessions",
+    "unknownDevice": "Unknown device",
+    "currentSession": "Current session",
+    "revoke": "Revoke",
+    "revokeOthers": "End other sessions",
+    "operatorTokens": "Administration tokens",
+    "operatorHint": "Connect the plugin to a remote instance. Grant only required permissions and set an expiry.",
+    "expires": "Expires",
+    "scopes": "Permissions",
+    "fivemPreset": "Import FiveM preset",
+    "createEvent": "Create event type",
+    "event_name": "Technical event name",
+    "event_title": "Title",
+    "event_template": "Message template",
+    "event_icon": "Lucide icon name",
+    "event_category": "Category",
+    "event_color": "Color",
+    "templateHint": "Reference fields in braces, for example {actor.name} and {amount}.",
+    "featuredFields": "Featured fields (comma separated)",
+    "fieldRules": "Field rules",
+    "redactionHint": "Hidden fields stay out of the detail view. Redaction replaces data before storage and applies only to new events.",
+    "fieldPath": "Field path",
+    "format": "Format",
+    "hidden": "Hide",
+    "redact": "Redact on ingest",
+    "addField": "Add field",
+    "noPanels": "Save a view in the explorer, then use it to add a panel.",
+    "edit": "Edit",
+    "createPanel": "Add panel",
+    "savedQuery": "Saved view",
+    "choose": "Choose…",
+    "panelType": "Panel type",
+    "panel_count": "Count",
+    "panel_timeseries": "Time series",
+    "panel_top": "Top values",
+    "events": "Events",
+    "payloadBytes": "Payload size",
+    "usageHint": "Uncompressed payload size. Daily quotas reset at midnight UTC; process counters reset on restart.",
+    "dailyQuota": "Daily quota",
+    "unlimited": "Unlimited",
+    "systemAlertsHint": "Notify when the queue exceeds 80%, archiving falls behind, or the destination is unavailable. Select channels from a workspace you manage.",
+    "profile": "Profile",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "resendVerification": "Send verification link",
+    "preferences": "Preferences",
+    "theme": "Theme",
+    "changePassword": "Change password",
+    "currentPassword": "Current password",
+    "security": "Security",
+    "optionalSecurity": "Authenticator and passkeys are optional. Configure either independently. Keep recovery codes somewhere safe.",
+    "securityPasswordHint": "For external accounts without a password, sign in again with your provider before changing security methods.",
+    "authenticatorCode": "Authenticator or recovery code",
+    "authenticator": "Authenticator app",
+    "disable": "Disable",
+    "setupAuthenticator": "Set up authenticator",
+    "authenticatorHint": "Add this key to your authenticator app, then enter a code to confirm.",
+    "openAuthenticator": "Open in authenticator app",
+    "confirm": "Confirm",
+    "recoveryHint": "Save these codes: they are shown only once. Each code can be used once.",
+    "savedRecovery": "I saved the codes",
+    "passkeys": "Passkeys",
+    "passkeyName": "Passkey name",
+    "addPasskey": "Add passkey",
+    "passkeyUnsupported": "Passkeys require an up-to-date browser and an HTTPS context.",
+    "link_forgot-password": "Forgot password",
+    "link_reset-password": "Reset password",
+    "link_verify-email": "Verify email",
+    "link_invite": "Workspace invitation",
+    "forgotSent": "If an account exists for this address, you will receive a password reset link.",
+    "completed": "Completed.",
+    "invalidLink": "Invalid or incomplete link.",
+    "continue": "Continue",
+    "signInToAccept": "Sign in to accept the invitation",
+    "backToApp": "Back to app",
+    "forgotPassword": "Forgot password?",
+    "usePasskey": "Sign in with a passkey",
+    "mfaRecoveryHint": "Enter an authenticator code or an unused recovery code.",
+    "back": "Back",
+    "filters": "Filters",
+    "addFilter": "Add filter",
+    "operator": "Operator",
+    "value": "Value",
+    "histogram": "Events over time",
+    "histogramHint": "Drag across bars to select a time range.",
+    "resetRange": "Reset range",
+    "original": "Show original",
+    "who": "Who",
+    "what": "What",
+    "where": "Where",
+    "when": "When",
+    "technical": "Technical",
+    "tags": "Tags",
+    "actor": "Actor",
+    "target": "Target",
+    "category": "Category",
+    "filterBy": "Filter by {{field}}: {{value}}",
+    "filterEvents": "Event type",
+    "allEvents": "All events",
+    "liveMalformed": "The Live stream sent an invalid event.",
+    "copyFailed": "Copy failed.",
+    "sources": {
+      "env": "Server",
+      "default": "Default",
+      "instance": "Instance",
+      "workspace": "Workspace",
+      "project": "Project"
+    }
+  },
+  "settingLabels": {
+    "auth_open_registration": "Open registration",
+    "auth_session_ttl": "Session lifetime",
+    "server_log_level": "Server log level",
+    "ingest_max_future_skew": "Maximum future skew",
+    "ingest_max_past_age": "Maximum event age",
+    "ingest_auto_create_streams": "Create streams automatically",
+    "ingest_max_streams": "Maximum streams (0 = unlimited)",
+    "archive_interval": "Archive interval",
+    "archive_grace": "Archive grace period",
+    "archive_late_interval": "Late event interval",
+    "alerts_interval": "Alert evaluation interval",
+    "alerts_history_retention": "Alert history retention",
+    "alerts_webhook_allow_private": "Allow webhooks to private networks",
+    "export_max_rows": "Maximum export rows",
+    "email_smtp_host": "SMTP server",
+    "email_smtp_port": "SMTP port",
+    "email_smtp_security": "SMTP security",
+    "email_smtp_username": "SMTP username",
+    "email_smtp_password_file": "SMTP secret file",
+    "email_from": "Email sender",
+    "ingest_rate_per_token": "Events per second per token",
+    "ingest_rate_per_project": "Events per second per project",
+    "ingest_rate_per_workspace": "Events per second per workspace",
+    "ingest_rate_burst_seconds": "Burst allowance",
+    "ingest_workspace_quota_events": "Workspace daily event quota",
+    "ingest_workspace_quota_bytes": "Workspace daily byte quota",
+    "ingest_project_quota_events": "Project daily event quota",
+    "ingest_project_quota_bytes": "Project daily byte quota"
+  },
+  "levelNames": {
+    "TRACE": "Trace",
+    "DEBUG": "Debug",
+    "INFO": "Info",
+    "NOTICE": "Notice",
+    "WARN": "Warning",
+    "ERROR": "Error",
+    "FATAL": "Critical"
+  },
+  "flows": {
+    "copyFailed": "Copy failed",
+    "next": "Next",
+    "back": "Back",
+    "views": {
+      "update": "Update view",
+      "updated": "Updated “{{name}}”.",
+      "loadFailed": "Saved views could not be loaded."
+    },
+    "invites": {
+      "title": "Invitations",
+      "hint": "Invite a person by email. They can accept after creating or signing in to their account.",
+      "send": "Send invitation",
+      "none": "No pending invitations.",
+      "cancel": "Cancel invitation",
+      "cancelConfirm": "Cancel the invitation for {{email}}?"
+    },
+    "tokens": {
+      "rotate": "Rotate",
+      "rotateConfirm": "Rotate “{{name}}”? The current token stops working immediately. Update your clients with the replacement.",
+      "rotateFailed": "The token could not be rotated.",
+      "expiry": "Expiration (optional)",
+      "expiryHint": "Leave empty for no expiration. The date uses your local time.",
+      "expiryInvalid": "Choose a future expiration date."
+    },
+    "alerts": {
+      "stepEvent": "Event",
+      "stepCondition": "Condition",
+      "stepNotify": "Notify and review",
+      "templates": "Start from a template",
+      "errors": "Any error",
+      "errorsName": "Errors in the last five minutes",
+      "failures": "Failed payments",
+      "failuresName": "Failed payment detected",
+      "security": "Moderation activity",
+      "securityName": "Player ban detected",
+      "review": "Rule summary",
+      "reviewText": "When more than {{threshold}} events match in {{window}}, check every {{interval}} and notify {{channels}}.",
+      "noDestination": "No notification channel selected",
+      "events": "Event names (optional)",
+      "eventsHint": "Comma-separated technical event names. Leave empty for all events."
+    },
+    "channels": {
+      "type": "Delivery method",
+      "webhook": "Webhook",
+      "email": "Email",
+      "telegram": "Telegram",
+      "recipient": "Recipient email",
+      "botToken": "Bot token",
+      "chatId": "Chat ID",
+      "credentialsHint": "Create a bot with BotFather and add it to the destination chat. The token is never shown again.",
+      "recipientRequired": "Enter a valid recipient email.",
+      "telegramRequired": "Enter the bot token and chat ID.",
+      "history": "Delivery history",
+      "noHistory": "No deliveries recorded.",
+      "delivered": "Delivered",
+      "failed": "Failed",
+      "intro": "Send alerts to a signed webhook, Slack, Discord, email or Telegram. Test a destination and inspect its recent deliveries."
+    }
   }
 }

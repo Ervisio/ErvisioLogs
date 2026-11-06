@@ -12,8 +12,9 @@ export type User = {
 };
 export type Workspace = { id: string; slug: string; name: string; created_at: string; role: string };
 export type Project = { id: string; workspace_id: string; slug: string; name: string; created_at: string };
-export type Environment = { id: string; project_id: string; name: string; created_at: string };
-export type Stream = { id: string; project_id: string; name: string; type: string; created_at: string };
+export type Metadata = { display_name?: string; description?: string; color?: string };
+export type Environment = Metadata & { id: string; project_id: string; name: string; created_at: string };
+export type Stream = Metadata & { id: string; project_id: string; name: string; type: string; created_at: string };
 export type ApiToken = {
   id: string;
   project_id: string;
@@ -42,6 +43,8 @@ export type LogItem = {
   trace_id: string;
   span_id: string;
   attributes: Record<string, unknown> | null;
+  tags?: string[];
+  tier?: string;
 };
 export type AttrFilter = { field: string; op: string; value?: string };
 export type SearchRequest = {
@@ -51,8 +54,12 @@ export type SearchRequest = {
   query?: string;
   levels?: string[];
   streams?: string[];
+  events?: string[];
+  services?: string[];
+  trace_id?: string;
   environments?: string[];
   filters?: AttrFilter[];
+  tags?: string[];
   limit?: number;
   cursor?: string;
   include_total?: boolean;
@@ -105,8 +112,15 @@ export type RetentionPolicy = {
   updated_by: string | null;
   updated_at: string;
 };
-export type RetentionInput = Partial<Pick<RetentionPolicy, 'local_age_hours' | 'global_age_hours' | 'cache_max_bytes' | 'high_pct' | 'low_pct'>>;
-export type ProviderInput = { name: string; type?: ProviderType; config: Record<string, unknown>; secret_file: string | null };
+export type RetentionInput = Partial<
+  Pick<RetentionPolicy, 'local_age_hours' | 'global_age_hours' | 'cache_max_bytes' | 'high_pct' | 'low_pct'>
+>;
+export type ProviderInput = {
+  name: string;
+  type?: ProviderType;
+  config: Record<string, unknown>;
+  secret_file: string | null;
+};
 export const INSTANCE_SCOPE = '00000000-0000-0000-0000-000000000000';
 
 export type SavedFilter = {
@@ -114,8 +128,12 @@ export type SavedFilter = {
   query?: string;
   levels?: string[];
   streams?: string[];
+  events?: string[];
+  services?: string[];
+  trace_id?: string;
   environments?: string[];
   filters?: AttrFilter[];
+  tags?: string[];
 };
 export type SavedQuery = {
   id: string;
@@ -199,7 +217,7 @@ export const setCsrfToken = (token: string | null) => {
   csrfToken = token;
 };
 
-async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json, application/problem+json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken;
@@ -228,11 +246,13 @@ const list = async <T>(path: string, signal?: AbortSignal) =>
 export const api = {
   providers: (signal?: AbortSignal) => request<Providers>('GET', '/auth/providers', undefined, signal),
   me: (signal?: AbortSignal) => request<Session>('GET', '/auth/me', undefined, signal),
-  login: (body: { login: string; password: string }) => request<Session>('POST', '/auth/login', body),
+  login: (body: { login: string; password: string }) =>
+    request<Session | { mfa_required: true; challenge: string }>('POST', '/auth/login', body),
   register: (body: { email: string; username: string; password: string; setup_code?: string }) =>
     request<Session>('POST', '/auth/register', body),
   logout: () => request<void>('POST', '/auth/logout'),
-  createWorkspace: (name: string) => request<Workspace>('POST', '/workspaces', { name, slug: slugFor(name, 'workspace') }),
+  createWorkspace: (name: string) =>
+    request<Workspace>('POST', '/workspaces', { name, slug: slugFor(name, 'workspace') }),
   createProject: (workspaceId: string, name: string) =>
     request<Project>('POST', '/projects', { workspace_id: workspaceId, name, slug: slugFor(name, 'project') }),
   projects: (workspaceId: string, signal?: AbortSignal) =>
@@ -241,10 +261,11 @@ export const api = {
     list<Environment>(`/projects/${encodeURIComponent(projectId)}/environments`, signal),
   streams: (projectId: string, signal?: AbortSignal) =>
     list<Stream>(`/projects/${encodeURIComponent(projectId)}/streams`, signal),
-  searchLogs: (body: SearchRequest, signal?: AbortSignal) => request<SearchResult>('POST', '/logs/search', body, signal),
+  searchLogs: (body: SearchRequest, signal?: AbortSignal) =>
+    request<SearchResult>('POST', '/logs/search', body, signal),
   tokens: (projectId: string, signal?: AbortSignal) =>
     list<ApiToken>(`/tokens?project_id=${encodeURIComponent(projectId)}`, signal),
-  createToken: (body: { project_id: string; name: string; scopes: string[] }) =>
+  createToken: (body: { project_id: string; name: string; scopes: string[]; expires_at?: string }) =>
     request<{ token: string; api_token: ApiToken }>('POST', '/tokens', body),
   revokeToken: (id: string) => request<void>('DELETE', `/tokens/${encodeURIComponent(id)}`),
   members: (workspaceId: string, signal?: AbortSignal) =>
@@ -252,7 +273,9 @@ export const api = {
   addMember: (workspaceId: string, body: { email: string; role: string }) =>
     request<Member>('POST', `/workspaces/${encodeURIComponent(workspaceId)}/members`, body),
   setMemberRole: (workspaceId: string, userId: string, role: string) =>
-    request<void>('PATCH', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`, { role }),
+    request<void>('PATCH', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`, {
+      role,
+    }),
   removeMember: (workspaceId: string, userId: string) =>
     request<void>('DELETE', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`),
   storage: (signal?: AbortSignal) => request<StorageOverview>('GET', '/admin/storage', undefined, signal),
@@ -260,7 +283,8 @@ export const api = {
   updateProvider: (id: string, body: ProviderInput) =>
     request<StorageProvider>('PUT', `/admin/storage/providers/${encodeURIComponent(id)}`, body),
   deleteProvider: (id: string) => request<void>('DELETE', `/admin/storage/providers/${encodeURIComponent(id)}`),
-  testProvider: (id: string) => request<StorageProvider>('POST', `/admin/storage/providers/${encodeURIComponent(id)}/test`),
+  testProvider: (id: string) =>
+    request<StorageProvider>('POST', `/admin/storage/providers/${encodeURIComponent(id)}/test`),
   setActiveProvider: (id: string | null) => request<void>('PUT', '/admin/storage/active', { provider_id: id }),
   secrets: (signal?: AbortSignal) => list<string>('/admin/storage/secrets', signal),
   putSecret: (name: string, value: string) =>
@@ -272,7 +296,8 @@ export const api = {
     request<void>('DELETE', `/admin/retention/${scope}/${encodeURIComponent(id)}`),
   savedQueries: (projectId: string, signal?: AbortSignal) =>
     list<SavedQuery>(`/queries?project_id=${encodeURIComponent(projectId)}`, signal),
-  createSavedQuery: (body: { project_id: string; name: string; query: SavedFilter }) => request<SavedQuery>('POST', '/queries', body),
+  createSavedQuery: (body: { project_id: string; name: string; query: SavedFilter }) =>
+    request<SavedQuery>('POST', '/queries', body),
   deleteSavedQuery: (id: string) => request<void>('DELETE', `/queries/${encodeURIComponent(id)}`),
   channels: (workspaceId: string, signal?: AbortSignal) =>
     list<NotificationChannel>(`/notification-channels?workspace_id=${encodeURIComponent(workspaceId)}`, signal),
@@ -281,20 +306,28 @@ export const api = {
   updateChannel: (id: string, body: { name?: string; format?: ChannelFormat; url?: string; enabled?: boolean }) =>
     request<NotificationChannel>('PATCH', `/notification-channels/${encodeURIComponent(id)}`, body),
   deleteChannel: (id: string) => request<void>('DELETE', `/notification-channels/${encodeURIComponent(id)}`),
-  testChannel: (id: string) => request<{ ok: boolean; error?: string }>('POST', `/notification-channels/${encodeURIComponent(id)}/test`),
+  testChannel: (id: string) =>
+    request<{ ok: boolean; error?: string }>('POST', `/notification-channels/${encodeURIComponent(id)}/test`),
   rotateChannelSecret: (id: string) =>
     request<NotificationChannel>('POST', `/notification-channels/${encodeURIComponent(id)}/rotate-secret`),
   alertRules: (projectId: string, signal?: AbortSignal) =>
     list<AlertRule>(`/alerts?project_id=${encodeURIComponent(projectId)}`, signal),
   createAlertRule: (body: AlertRuleInput) => request<AlertRule>('POST', '/alerts', body),
-  updateAlertRule: (id: string, body: AlertRuleInput) => request<AlertRule>('PUT', `/alerts/${encodeURIComponent(id)}`, body),
+  updateAlertRule: (id: string, body: AlertRuleInput) =>
+    request<AlertRule>('PUT', `/alerts/${encodeURIComponent(id)}`, body),
   deleteAlertRule: (id: string) => request<void>('DELETE', `/alerts/${encodeURIComponent(id)}`),
-  alertEvents: (id: string, signal?: AbortSignal) => list<AlertEvent>(`/alerts/${encodeURIComponent(id)}/events?limit=50`, signal),
+  alertEvents: (id: string, signal?: AbortSignal) =>
+    list<AlertEvent>(`/alerts/${encodeURIComponent(id)}/events?limit=50`, signal),
   /** Downloads the export as a Blob. Browsers do not expose HTTP trailers, so truncation is not reported here. */
   exportLogs: async (body: ExportRequest): Promise<Blob> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-    const res = await fetch('/api/v1/logs/export', { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify(body) });
+    const res = await fetch('/api/v1/logs/export', {
+      method: 'POST',
+      headers,
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { detail?: string } | null;
       throw new ApiError(res.status, data?.detail ?? res.statusText, null);

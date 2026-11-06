@@ -163,6 +163,12 @@ paths:
               additionalProperties: false
       security: []
       responses:
+        "202":
+          description: TOTP is enabled; complete the challenge before a session is issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MFAChallenge'
         "200":
           description: Signed in. Sets the HttpOnly session cookie.
           content:
@@ -2215,6 +2221,27 @@ paths:
         - sessionCookie: []
         - bearerToken: []
       parameters:
+        - name: services
+          in: query
+          description: Comma-separated source service names, using the same filter as search.
+          schema:
+            type: string
+        - name: trace_id
+          in: query
+          description: Exact trace ID, using the same filter as search.
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: Comma-separated tags; all must match.
+          schema:
+            type: string
+        - name: filters
+          in: query
+          description: JSON array using the same attribute filters as SearchRequest.
+          schema:
+            type: string
+            maxLength: 32768
         - name: project_id
           in: query
           description: Required with a session; optional with an API token.
@@ -4111,6 +4138,1480 @@ paths:
           $ref: "#/components/responses/TooMany"
         "503":
           $ref: "#/components/responses/IngestUnavailable"
+  /api/v1/projects/{id}/event-types:
+    get:
+      tags: [projects]
+      operationId: listEventTypes
+      summary: Manage the project event catalog.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "200":
+          description: Project configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTypeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    post:
+      tags: [projects]
+      operationId: saveEventTypes
+      summary: Manage the project event catalog.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTypeInput"
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "200":
+          description: Project configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventType"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/projects/{id}/event-types/{eventName}:
+    patch:
+      tags: [projects]
+      operationId: updateEventType
+      summary: Manage the project event catalog.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: eventName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTypePatch"
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "200":
+          description: Project configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventType"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [projects]
+      operationId: deleteEventType
+      summary: Manage the project event catalog.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: eventName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/projects/{id}/event-types/presets/fivem:
+    post:
+      tags: [projects]
+      operationId: saveFiveMEventPreset
+      summary: Apply the FiveM catalog preset without replacing customized entries.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "200":
+          description: Project configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTypeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/projects/{id}/field-rules:
+    get:
+      tags: [projects]
+      operationId: listFieldRules
+      summary: Manage project field display and ingest redaction rules.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "200":
+          description: Project configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldRuleSet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    put:
+      tags: [projects]
+      operationId: replaceFieldRules
+      summary: Manage project field display and ingest redaction rules.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FieldRuleSet"
+      responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "200":
+          description: Project configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldRuleSet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /api/v1/admin/workspaces:
+    get:
+      description: Requires admin:tenancy (or admin:read), or an instance admin session. Does not grant access to any workspace logs.
+      operationId: adminWorkspaces
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/Workspace'
+                    type: array
+                required:
+                  - items
+                type: object
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+        - adminToken: []
+      summary: List workspace metadata for instance administration
+      tags:
+        - admin
+  /api/v1/auth/mfa/verify:
+    post:
+      description: A challenge expires after five minutes and at most five attempts. A TOTP or one-time recovery code completes authentication; a replay is refused. No session is issued before verification.
+      operationId: verifyMFA
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MFAVerification'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security: []
+      summary: Complete a password or OAuth sign-in with TOTP
+      tags:
+        - auth
+  /api/v1/auth/passkeys/{id}:
+    delete:
+      description: Local accounts require their password. Accounts with only an external identity may use an empty password within five minutes of a fresh provider sign-in; otherwise sign in again. When TOTP is enabled, security-method removal and passkey registration also require a fresh TOTP or an unused recovery code.
+      operationId: deletePasskey
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecurityMethodProof'
+        required: true
+      responses:
+        "204":
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Remove an account passkey
+      tags:
+        - auth
+  /api/v1/auth/passkeys/login/finish:
+    post:
+      description: Requires the ceremony cookie, valid signature, RP/origin/challenge and authenticator user verification. Rejects replay and clone warnings. A verified passkey signs in without an additional TOTP challenge.
+      operationId: finishPasskeyLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyFinish'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security: []
+      summary: Complete passkey sign-in
+      tags:
+        - auth
+  /api/v1/auth/passkeys/login/start:
+    post:
+      description: Begin passkey sign-in
+      operationId: beginPasskeyLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyLoginStart'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyChallenge'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security: []
+      summary: Begin passkey sign-in
+      tags:
+        - auth
+  /api/v1/auth/passkeys/register/finish:
+    post:
+      description: Checks the single-use challenge, ceremony cookie, account, origin, RP ID and attestation through go-webauthn. Binary credential fields are base64url.
+      operationId: finishPasskeyRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyFinish'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityPasskey'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Complete passkey registration
+      tags:
+        - auth
+  /api/v1/auth/passkeys/register/start:
+    post:
+      description: Local accounts require their password. Accounts with only an external identity may use an empty password within five minutes of a fresh provider sign-in; otherwise sign in again. When TOTP is enabled, security-method removal and passkey registration also require a fresh TOTP or an unused recovery code. HTTPS or localhost is required. Ceremony cookie and returned challenge bind the browser. User verification is required; at most twenty credentials.
+      operationId: beginPasskeyRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyRegistrationStart'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyChallenge'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Begin optional passkey registration
+      tags:
+        - auth
+  /api/v1/auth/security:
+    get:
+      description: Read optional account security methods
+      operationId: userSecurity
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSecurity'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Read optional account security methods
+      tags:
+        - auth
+  /api/v1/auth/totp:
+    delete:
+      description: Local accounts require their password. Accounts with only an external identity may use an empty password within five minutes of a fresh provider sign-in; otherwise sign in again. When TOTP is enabled, security-method removal and passkey registration also require a fresh TOTP or an unused recovery code.
+      operationId: disableTOTP
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecurityMethodProof'
+        required: true
+      responses:
+        "204":
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Remove optional TOTP
+      tags:
+        - auth
+  /api/v1/auth/totp/confirm:
+    post:
+      description: The code must match the pending secret. Ten single-use recovery codes are displayed once. Replayed time steps are rejected.
+      operationId: confirmTOTP
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              properties:
+                code:
+                  type: string
+              required:
+                - code
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TOTPConfirmation'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Confirm TOTP and issue ten recovery codes
+      tags:
+        - auth
+  /api/v1/auth/totp/setup:
+    post:
+      description: Local accounts require their password. Accounts with only an external identity may use an empty password within five minutes of a fresh provider sign-in; otherwise sign in again. When TOTP is enabled, security-method removal and passkey registration also require a fresh TOTP or an unused recovery code. Secret and otpauth URI are returned once; the encrypted pending secret is not active until confirmed.
+      operationId: setupTOTP
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordProof'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TOTPSetup'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Begin optional TOTP enrollment
+      tags:
+        - auth
+  /api/v1/dashboard-panels:
+    get:
+      description: List persisted panels for a project
+      operationId: listDashboardPanels
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/DashboardPanel'
+                    type: array
+                required:
+                  - items
+                type: object
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: List persisted panels for a project
+      tags:
+        - queries
+    post:
+      description: The saved query and panel must belong to the same project. Any member with logs:read can create a panel; author or projects:write may edit it.
+      operationId: createDashboardPanel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardPanelRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardPanel'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Save a query-backed dashboard panel
+      tags:
+        - queries
+  /api/v1/dashboard-panels/{id}:
+    delete:
+      description: Delete a saved dashboard panel
+      operationId: deleteDashboardPanel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Delete a saved dashboard panel
+      tags:
+        - queries
+    put:
+      description: Replace a saved dashboard panel
+      operationId: updateDashboardPanel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardPanelRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardPanel'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Replace a saved dashboard panel
+      tags:
+        - queries
+  /api/v1/dashboard-panels/{id}/data:
+    get:
+      description: Uses the saved query relative range and filters. Counts deduplicate event_id across tiers. partial reports unavailable archive sources.
+      operationId: getDashboardPanelData
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelValues'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Evaluate a saved panel over hot and archived logs
+      tags:
+        - queries
+  /api/v1/notification-channels/{id}/deliveries:
+    get:
+      description: Requires alerts:manage. Includes alert, system-alert and manual-test outcomes; credentials and provider response bodies are never logged.
+      operationId: listChannelDeliveries
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: query
+          name: limit
+          schema:
+            default: 50
+            maximum: 200
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/NotificationDeliveryRecord'
+                    type: array
+                required:
+                  - items
+                type: object
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Read recent channel deliveries
+      tags:
+        - alerts
+  /api/v1/projects/{id}/retention:
+    delete:
+      description: Reset a scoped retention override
+      operationId: projectsDeleteRetention
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Reset a scoped retention override
+      tags:
+        - projects
+    get:
+      description: Members read the instance/workspace/project policy chain. Cache-budget controls and updater IDs are omitted.
+      operationId: projectsGetRetention
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/RetentionPolicy'
+                    type: array
+                required:
+                  - items
+                type: object
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Read inherited retention policy
+      tags:
+        - projects
+    put:
+      description: Requires workspace:manage for a workspace or projects:write for a project. At least one age override is required; global age must not be shorter than local age. Cache fields are rejected.
+      operationId: projectsPutRetention
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScopedRetentionRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPolicy'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Set a scoped retention override
+      tags:
+        - projects
+  /api/v1/tokens/{id}/rotate:
+    post:
+      description: Requires tokens:manage and all original scopes. Revokes the active old token and issues a new token with the same scopes, project, name and expiry in one transaction. Plaintext appears only once.
+      operationId: rotateToken
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  api_token:
+                    $ref: '#/components/schemas/ApiToken'
+                  token:
+                    type: string
+                required:
+                  - token
+                  - api_token
+                type: object
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Atomically replace and revoke an API token
+      tags:
+        - tokens
+  /api/v1/usage:
+    get:
+      description: Event counts and uncompressed persisted text payload bytes, not disk or network bytes. Uses available hot/archive tiers and reports partial results. Current daily quota counters are local to this process and restart with it.
+      operationId: usage
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: query
+          name: range
+          schema:
+            default: 24h
+            description: Positive relative duration up to 31d.
+            type: string
+        - in: query
+          name: interval_seconds
+          schema:
+            default: 3600
+            maximum: 86400
+            minimum: 60
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageReport'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Read event and payload usage by project and stream
+      tags:
+        - logs
+  /api/v1/workspaces/{id}/retention:
+    delete:
+      description: Reset a scoped retention override
+      operationId: workspacesDeleteRetention
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Reset a scoped retention override
+      tags:
+        - workspaces
+    get:
+      description: Members read the instance/workspace/project policy chain. Cache-budget controls and updater IDs are omitted.
+      operationId: workspacesGetRetention
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/RetentionPolicy'
+                    type: array
+                required:
+                  - items
+                type: object
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Read inherited retention policy
+      tags:
+        - workspaces
+    put:
+      description: Requires workspace:manage for a workspace or projects:write for a project. At least one age override is required; global age must not be shorter than local age. Cache fields are rejected.
+      operationId: workspacesPutRetention
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScopedRetentionRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPolicy'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Set a scoped retention override
+      tags:
+        - workspaces
+  /api/v1/workspaces/{id}/system-alerts:
+    get:
+      description: Requires an instance administrator who also holds alerts:manage in the workspace. Infra alerts expose no tenant logs.
+      operationId: getSystemSubscription
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemAlertSubscription'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Read the workspace system alert subscription
+      tags:
+        - alerts
+    put:
+      description: Requires instance admin and alerts:manage in the workspace. The evaluator notifies on WAL >80%, archive delay >48h (or twice the archive interval), and missing/unhealthy archive destination. Channel IDs must belong to the workspace.
+      operationId: putSystemSubscription
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemAlertSubscriptionRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemAlertSubscription'
+          description: Successful operation.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "429":
+          $ref: '#/components/responses/TooMany'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+      summary: Subscribe workspace channels to system alerts
+      tags:
+        - alerts
+  /api/v1/logs/histogram:
+    post:
+      description: Uses all matches over hot and archive tiers, deduplicated by event_id; does not use a page of search results. Rejects limit and cursor.
+      operationId: histogramLogs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistogramRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      properties:
+                        count:
+                          minimum: 0
+                          type: integer
+                        timestamp:
+                          format: date-time
+                          type: string
+                      required:
+                        - timestamp
+                        - count
+                      type: object
+                    type: array
+                  partial:
+                    type: boolean
+                  searched_tiers:
+                    items:
+                      type: string
+                    type: array
+                required:
+                  - items
+                  - partial
+                  - searched_tiers
+                type: object
+          description: Complete or partial histogram.
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "413":
+          $ref: '#/components/responses/PayloadTooLarge'
+        "422":
+          $ref: '#/components/responses/Invalid'
+        "503":
+          $ref: '#/components/responses/Unavailable'
+      security:
+        - sessionCookie: []
+        - bearerToken: []
+      summary: Count all filtered events per time bucket
+      tags:
+        - logs
 components:
   securitySchemes:
     metricsToken:
@@ -4223,6 +5724,8 @@ components:
       type: object
       description: "Unknown fields are rejected. Attribute keys match `^[A-Za-z0-9_-]+$` (no dots), nest at most 8 levels and total at most 64 KiB."
       properties:
+        tags:
+          $ref: "#/components/schemas/LogTags"
         id:
           type: string
           maxLength: 128
@@ -4290,6 +5793,8 @@ components:
     SearchRequest:
       type: object
       properties:
+        tags:
+          $ref: "#/components/schemas/LogTags"
         project_id:
           type: string
           format: uuid
@@ -4355,8 +5860,14 @@ components:
       additionalProperties: false
     LogItem:
       type: object
-      required: [id, timestamp, ingested_at, level, severity_number, event, message, stream, environment, service, host, resource, trace_id, span_id, attributes]
+      required: [id, timestamp, ingested_at, level, severity_number, event, message, stream, environment, service, host, resource, trace_id, span_id, attributes, tags, tier]
       properties:
+        tier:
+          type: string
+          enum: [hot, archive]
+          description: Storage tier of this event; hot wins when the archive overlaps.
+        tags:
+          $ref: "#/components/schemas/LogTags"
         id:
           type: string
         timestamp:
@@ -5192,6 +6703,8 @@ components:
       description: "A SearchRequest without `limit`, `cursor` and `include_total`, plus the output format."
       type: object
       properties:
+        tags:
+          $ref: "#/components/schemas/LogTags"
         project_id:
           type: string
           format: uuid
@@ -5242,6 +6755,8 @@ components:
       description: "The filter fields of a SearchRequest. `range` is a relative window such as `15m`, `24h` or `7d` (at most 31 days); alert rules ignore it and use their own window."
       type: object
       properties:
+        tags:
+          $ref: "#/components/schemas/LogTags"
         range:
           type: string
         query:
@@ -5329,7 +6844,7 @@ components:
           format: date-time
     ChannelCreateRequest:
       type: object
-      required: [workspace_id, name, url]
+      required: [workspace_id, name]
       properties:
         workspace_id:
           type: string
@@ -5340,16 +6855,28 @@ components:
           maxLength: 100
         type:
           type: string
-          enum: [webhook]
+          enum: [webhook, email, telegram]
           default: webhook
         format:
           type: string
           enum: [ervisio, slack, discord]
           default: ervisio
           description: "`ervisio` sends the signed JSON payload of ADR 0010; `slack` and `discord` send a text message their incoming webhooks accept."
+        recipient:
+          type: string
+          format: email
+          description: Required for email channels.
+        bot_token:
+          type: string
+          writeOnly: true
+          description: Required with chat_id for Telegram; encrypted at rest and never returned.
+        chat_id:
+          type: string
+          description: Numeric Telegram chat ID or public channel username.
         url:
           type: string
           format: uri
+          description: Required for webhook channels.
       additionalProperties: false
     ChannelUpdateRequest:
       type: object
@@ -5361,9 +6888,21 @@ components:
         format:
           type: string
           enum: [ervisio, slack, discord]
+        recipient:
+          type: string
+          format: email
+          description: Required for email channels.
+        bot_token:
+          type: string
+          writeOnly: true
+          description: Required with chat_id for Telegram; encrypted at rest and never returned.
+        chat_id:
+          type: string
+          description: Numeric Telegram chat ID or public channel username.
         url:
           type: string
           format: uri
+          description: Required for webhook channels.
         enabled:
           type: boolean
       additionalProperties: false
@@ -5381,7 +6920,7 @@ components:
           type: string
         type:
           type: string
-          enum: [webhook]
+          enum: [webhook, email, telegram]
         format:
           type: string
           enum: [ervisio, slack, discord]
@@ -5537,3 +7076,590 @@ components:
         created_at:
           type: string
           format: date-time
+
+    LogTags:
+      type: array
+      maxItems: 20
+      description: All supplied tags must match when used as a search filter.
+      items:
+        type: string
+        maxLength: 40
+        pattern: '^[a-z0-9][a-z0-9._:/-]*$'
+    EventTypePatch:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 150
+        template:
+          type: string
+          maxLength: 2000
+          description: Attribute placeholders such as '{actor.name}'. Rendering must treat all text as plain text.
+        icon:
+          type: string
+          maxLength: 64
+        category:
+          type: string
+          maxLength: 100
+        color:
+          type: string
+          description: Empty or lowercase hexadecimal color.
+        featured_fields:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+    EventTypeInput:
+      allOf:
+        - $ref: '#/components/schemas/EventTypePatch'
+        - type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+              pattern: '^[A-Za-z0-9._:/-]{1,128}$'
+    EventType:
+      allOf:
+        - $ref: '#/components/schemas/EventTypeInput'
+        - type: object
+          properties:
+            discovered:
+              type: boolean
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+    EventTypeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/EventType'
+    FieldRule:
+      type: object
+      required: [field]
+      properties:
+        field:
+          type: string
+          description: Attribute path; the attributes. prefix is optional.
+        label:
+          type: string
+          maxLength: 100
+        hidden:
+          type: boolean
+        format:
+          type: string
+          enum: ['', text, number, currency, datetime, json]
+        redact:
+          type: boolean
+          description: Replace this attribute with [REDACTED] before writing new events to the WAL. Existing events remain unchanged.
+      additionalProperties: false
+    FieldRuleSet:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/FieldRule'
+      additionalProperties: false
+
+    AccountSecurity:
+      additionalProperties: false
+      properties:
+        passkeys:
+          items:
+            $ref: '#/components/schemas/SecurityPasskey'
+          type: array
+        totp_enabled:
+          type: boolean
+      required:
+        - totp_enabled
+        - passkeys
+      type: object
+    DashboardPanel:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          format: uuid
+          type:
+            - string
+            - "null"
+        field:
+          default: level
+          description: level, stream, event, service, environment or attributes.<path>
+          type: string
+        id:
+          format: uuid
+          type: string
+        interval_seconds:
+          default: 3600
+          maximum: 86400
+          minimum: 60
+          type: integer
+        limit:
+          default: 10
+          maximum: 100
+          minimum: 1
+          type: integer
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        project_id:
+          format: uuid
+          type: string
+        saved_query_id:
+          format: uuid
+          type: string
+        type:
+          enum:
+            - count
+            - timeseries
+            - top
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        workspace_id:
+          format: uuid
+          type: string
+      required:
+        - id
+        - workspace_id
+        - project_id
+        - saved_query_id
+        - name
+        - type
+        - field
+        - interval_seconds
+        - limit
+        - created_by
+        - created_at
+        - updated_at
+      type: object
+    DashboardPanelRequest:
+      additionalProperties: false
+      properties:
+        field:
+          default: level
+          description: level, stream, event, service, environment or attributes.<path>
+          type: string
+        interval_seconds:
+          default: 3600
+          maximum: 86400
+          minimum: 60
+          type: integer
+        limit:
+          default: 10
+          maximum: 100
+          minimum: 1
+          type: integer
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        project_id:
+          format: uuid
+          type: string
+        saved_query_id:
+          format: uuid
+          type: string
+        type:
+          enum:
+            - count
+            - timeseries
+            - top
+          type: string
+      required:
+        - saved_query_id
+        - name
+        - type
+      type: object
+    MFAChallenge:
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+        mfa_required:
+          const: true
+          type: boolean
+      required:
+        - mfa_required
+        - challenge
+      type: object
+    MFAVerification:
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+        code:
+          type: string
+      required:
+        - challenge
+        - code
+      type: object
+    NotificationDeliveryRecord:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        error:
+          type:
+            - string
+            - "null"
+        id:
+          format: uuid
+          type: string
+        status:
+          enum:
+            - ok
+            - error
+          type: string
+      required:
+        - id
+        - status
+        - error
+        - created_at
+      type: object
+    PanelValues:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            additionalProperties: false
+            properties:
+              label:
+                type: string
+              value:
+                minimum: 0
+                type: integer
+            required:
+              - label
+              - value
+            type: object
+          type: array
+        partial:
+          type: boolean
+        searched_tiers:
+          items:
+            type: string
+          type: array
+      required:
+        - items
+        - partial
+        - searched_tiers
+      type: object
+    PasskeyChallenge:
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+        options:
+          description: WebAuthn CredentialCreation or CredentialAssertion JSON, including publicKey options.
+          type: object
+      required:
+        - challenge
+        - options
+      type: object
+    PasskeyFinish:
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+        credential:
+          description: Serialized PublicKeyCredential with base64url binary fields.
+          type: object
+      required:
+        - challenge
+        - credential
+      type: object
+    PasskeyLoginStart:
+      additionalProperties: false
+      properties:
+        login:
+          type: string
+      required:
+        - login
+      type: object
+    PasskeyRegistrationStart:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        password:
+          type: string
+      required:
+        - name
+      type: object
+    PasswordProof:
+      additionalProperties: false
+      properties:
+        password:
+          type: string
+      type: object
+    ScopedRetentionRequest:
+      additionalProperties: false
+      properties:
+        global_age_hours:
+          maximum: 87600
+          minimum: 1
+          type:
+            - integer
+            - "null"
+        local_age_hours:
+          maximum: 87600
+          minimum: 1
+          type:
+            - integer
+            - "null"
+      type: object
+    SecurityMethodProof:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        password:
+          type: string
+      type: object
+    SecurityPasskey:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        last_used_at:
+          format: date-time
+          type:
+            - string
+            - "null"
+        name:
+          type: string
+      required:
+        - id
+        - name
+        - created_at
+        - last_used_at
+      type: object
+    SystemAlertSubscription:
+      additionalProperties: false
+      properties:
+        channel_ids:
+          items:
+            format: uuid
+            type: string
+          type: array
+        workspace_id:
+          format: uuid
+          type: string
+      required:
+        - workspace_id
+        - channel_ids
+      type: object
+    SystemAlertSubscriptionRequest:
+      additionalProperties: false
+      properties:
+        channel_ids:
+          items:
+            format: uuid
+            type: string
+          maxItems: 20
+          type: array
+      required:
+        - channel_ids
+      type: object
+    TOTPConfirmation:
+      additionalProperties: false
+      properties:
+        recovery_codes:
+          items:
+            type: string
+          type: array
+        totp_enabled:
+          type: boolean
+      required:
+        - totp_enabled
+        - recovery_codes
+      type: object
+    TOTPSetup:
+      additionalProperties: false
+      properties:
+        secret:
+          type: string
+        uri:
+          type: string
+      required:
+        - secret
+        - uri
+      type: object
+    UsageReport:
+      additionalProperties: false
+      properties:
+        byte_measurement:
+          const: uncompressed_text_payload
+          type: string
+        bytes:
+          type: integer
+        events:
+          type: integer
+        items:
+          items:
+            additionalProperties: false
+            properties:
+              bytes:
+                type: integer
+              events:
+                type: integer
+              stream:
+                type: string
+              timestamp:
+                format: date-time
+                type: string
+            required:
+              - timestamp
+              - stream
+              - events
+              - bytes
+            type: object
+          type: array
+        partial:
+          type: boolean
+        quota:
+          additionalProperties: false
+          properties:
+            daily_bytes:
+              type: integer
+            daily_events:
+              type: integer
+          required:
+            - daily_events
+            - daily_bytes
+          type: object
+        quota_used:
+          additionalProperties: false
+          properties:
+            bytes:
+              type: integer
+            events:
+              type: integer
+            scope:
+              const: current_process
+              type: string
+          required:
+            - events
+            - bytes
+            - scope
+          type: object
+        searched_tiers:
+          items:
+            type: string
+          type: array
+      required:
+        - items
+        - events
+        - bytes
+        - byte_measurement
+        - partial
+        - searched_tiers
+        - quota
+        - quota_used
+      type: object
+
+    HistogramRequest:
+      additionalProperties: false
+      properties:
+        environments:
+          items:
+            type: string
+          type: array
+        events:
+          items:
+            type: string
+          type: array
+        filters:
+          items:
+            additionalProperties: false
+            properties:
+              field:
+                description: Attribute path with dots between keys, for example `player.license`.
+                type: string
+              op:
+                enum:
+                  - eq
+                  - neq
+                  - contains
+                  - exists
+                  - gt
+                  - gte
+                  - lt
+                  - lte
+                type: string
+              value:
+                type: string
+            required:
+              - field
+              - op
+            type: object
+          type: array
+        from:
+          format: date-time
+          type: string
+        include_total:
+          type: boolean
+        interval_seconds:
+          default: 300
+          enum:
+            - 60
+            - 300
+            - 900
+            - 3600
+            - 21600
+            - 86400
+          type: integer
+        levels:
+          items:
+            type: string
+          type: array
+        project_id:
+          format: uuid
+          type: string
+        query:
+          description: Case-insensitive substring of the message.
+          type: string
+        services:
+          items:
+            type: string
+          type: array
+        severity_min:
+          maximum: 255
+          minimum: 0
+          type: integer
+        streams:
+          items:
+            type: string
+          type: array
+        tags:
+          $ref: '#/components/schemas/LogTags'
+        to:
+          format: date-time
+          type: string
+        trace_id:
+          type: string
+      type: object

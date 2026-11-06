@@ -11,10 +11,17 @@ export type LevelInput =
   | "critical";
 
 /** Free-form event attributes. Sanitized before sending (see the README). */
+export interface Entity {
+  type: string;
+  id: string | number;
+  name?: string;
+}
+
 export type Attributes = Record<string, unknown>;
 
 /** The wire format of one event (`InEvent` in api/openapi.yaml). */
 export interface InEvent {
+  tags?: string[];
   id?: string;
   stream?: string;
   environment?: string;
@@ -32,6 +39,9 @@ export interface InEvent {
 
 /** Per-event values that replace the client defaults. */
 export interface EventOverrides {
+  tags?: string[];
+  actor?: Entity;
+  target?: Entity;
   /** Idempotency key. Defaults to a random UUID. Keep it stable if you resend the same event. */
   id?: string;
   stream?: string;

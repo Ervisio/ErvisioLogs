@@ -5,6 +5,7 @@ export type {
   ErrorKind,
   ErvisioLogsOptions,
   EventOverrides,
+  Entity,
   FetchLike,
   FlushResult,
   InEvent,

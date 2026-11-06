@@ -1,0 +1,12 @@
+{
+  "round": "015-project-settings",
+  "action": "choose",
+  "selected": [
+    "b"
+  ],
+  "id": "9ee89658eef3",
+  "approved_at": "2026-11-06T10:04:31.585Z",
+  "scope": "Organizzazione impostazioni progetto: schede in alto, selettore mobile. Preview Stream; non integrazione API.",
+  "prototype": "prototype.html",
+  "screenshot": "screenshot.png"
+}

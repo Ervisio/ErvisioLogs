@@ -162,3 +162,27 @@ Si parte da F2 (scelta 2026-11-04). F2 è divisa in PR:
 - F2d metadati di stream e ambienti, creazione automatica configurabile.
 - F2e socket admin locale + token admin d'istanza + CORS per Bearer.
 - F2f `/admin/health`, limiti e quote di ingest, purge.
+
+## Avanzamento al 2026-11-06
+
+F2a–F2f e F1 completate. F0 completata: shell B014, impostazioni B015, utenti B016 e plugin A017
+approvati; riferimenti in `docs/DESIGN.md`, prototipi autonomi in `docs/redesign/approved/`,
+token allineati in `web/src/index.css`. Build, lint e 67 test web passati.
+Prossima fase F3: nuova shell e impostazioni web, poi F4–F9 nell’ordine concordato.
+Le preview non sono integrazioni React/API/SDK. Nessun deploy o push in questa sessione.
+
+## Avanzamento implementazione 0.2 (2026-11-06)
+
+F3–F9 implementate nel checkout: shell e gestione per scope, Log v2 con catalogo/redazione,
+plugin a nove sezioni e client condiviso, avvisi email/Telegram e di sistema, dashboard/utilizzo,
+SDK/FiveM e sicurezza account facoltativa (TOTP, recupero e passkey). Versione plugin preparata 0.2.0.
+Dettagli e limiti in `docs/releases/0.2.0.md` e contratti in `docs/redesign/SECURITY-API.md`.
+
+Verificati: 115 test web, lint/typecheck/build, Go race/vet e compilazione dei test integration,
+OpenAPI valida, SDK22, plugin15, client condiviso7 e FiveM28. Build Linux amd64/arm64 con web incorporata
+e build plugin da sorgenti isolati passate. QA della build web a1440/390 con API fixture senza errori o overflow.
+
+La validazione dello stack resta aperta: Docker non risponde nemmeno a `/_ping` sul socket.
+Non eseguiti integration PostgreSQL/ClickHouse/archivio, smoke,13 scenari E2E reali e Collector;
+i test sono preparati e i relativi comandi/CI sono aggiornati. Non verificati host Ervisio,
+provider OAuth reali, dispositivi passkey fisici e hook in-game. Nessun commit/push/tag/deploy.
