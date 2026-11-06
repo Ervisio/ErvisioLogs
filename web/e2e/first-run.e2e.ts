@@ -11,7 +11,7 @@ async function signIn(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Email or username').fill(admin.username);
   await page.getByLabel('Password', { exact: true }).fill(admin.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   // The project rail hides in the drawer on phones; the explorer heading shows on every size.
   await expect(page.getByRole('heading', { name: projectName, level: 1 })).toBeVisible();
 }

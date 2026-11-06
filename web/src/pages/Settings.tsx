@@ -245,7 +245,8 @@ function Rename({
   const action = useAction();
   return (
     <ActionForm
-      busy={action.busy || !writable || value === name}
+      busy={action.busy || !writable}
+      submitDisabled={!value.trim() || value.trim() === name}
       submit={() =>
         action.run(async () => {
           if (scope === 'workspace') await management.renameWorkspace(id, value.trim());

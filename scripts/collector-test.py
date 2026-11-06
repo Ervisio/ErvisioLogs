@@ -108,6 +108,8 @@ exporters:
     encoding: proto
     retry_on_failure:
       enabled: true
+      initial_interval: 1s
+      max_interval: 5s
       max_elapsed_time: 20s
 service:
   pipelines:

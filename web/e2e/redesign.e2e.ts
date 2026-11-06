@@ -2,8 +2,6 @@ import { createHmac } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { RealAPI, signIn, type Entity } from './fixture';
 
-test.describe.configure({ mode: 'serial' });
-
 type ProjectFixture = { workspace: Entity; project: Entity; path: string };
 type Setting = { key: string; value: boolean | number | string; source: string; locked: boolean; inherited: boolean | number | string };
 let api: RealAPI;

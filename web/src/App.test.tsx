@@ -806,3 +806,24 @@ describe('storage', () => {
     expect(calls.find((c) => c.key === 'POST /admin/storage/providers')?.body).toEqual({ name: 'My Bucket', type: 's3', config: { bucket: 'logs' }, secret_file: file });
   });
 });
+
+
+test('project name stays editable before changes and saves through its scoped settings', async () => {
+  let stored = project;
+  const calls = stubApi({
+    ...signedIn,
+    'GET /projects?workspace_id=w1': () => ({ body: { items: [stored] } }),
+    'GET /projects/p1/settings': { body: { items: [] } },
+    'PATCH /projects/p1': () => { stored = { ...project, name: 'Shop production' }; return { body: stored }; },
+  });
+  renderApp('/w/w1/p/p1/settings/general');
+  const name = await screen.findByRole('textbox', { name: 'Name' });
+  expect(name).toBeEnabled();
+  const form = name.closest('form');
+  if (!form) throw new Error('Missing project name form');
+  expect(within(form).getByRole('button', { name: 'Save' })).toBeDisabled();
+  await userEvent.clear(name);
+  await userEvent.type(name, 'Shop production');
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(calls.find((call) => call.key === 'PATCH /projects/p1')?.body).toEqual({ name: 'Shop production' }));
+});

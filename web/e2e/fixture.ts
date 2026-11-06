@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 const configuredCode = process.env.E2E_SETUP_CODE;
@@ -18,8 +19,9 @@ export class RealAPI {
     this.csrf = session.csrf_token;
   }
   async project(name: string) {
-    const workspace = await this.call<Entity>('POST', '/workspaces', { name }, 201);
-    const project = await this.call<Entity>('POST', '/projects', { workspace_id: workspace.id, name }, 201);
+    const slug = `e2e-${randomUUID().replaceAll('-', '')}`;
+    const workspace = await this.call<Entity>('POST', '/workspaces', { name, slug }, 201);
+    const project = await this.call<Entity>('POST', '/projects', { workspace_id: workspace.id, name, slug: 'logs' }, 201);
     return { workspace, project, path: `/w/${workspace.id}/p/${project.id}` };
   }
 }

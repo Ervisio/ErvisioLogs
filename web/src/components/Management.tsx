@@ -165,12 +165,14 @@ export function ActionForm({
   busy,
   label,
   className = '',
+  submitDisabled = false,
 }: {
   children: ReactNode;
   submit: () => Promise<unknown>;
   busy: boolean;
   label?: string;
   className?: string;
+  submitDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -178,14 +180,14 @@ export function ActionForm({
       className={`grid gap-4 ${className}`}
       onSubmit={(e: FormEvent) => {
         e.preventDefault();
-        if (!busy) void submit();
+        if (!busy && !submitDisabled) void submit();
       }}
     >
       <fieldset disabled={busy} className="contents">
         {children}
       </fieldset>
       <button
-        disabled={busy}
+        disabled={busy || submitDisabled}
         aria-busy={busy}
         className="manage-button manage-primary justify-self-start"
         type="submit"
