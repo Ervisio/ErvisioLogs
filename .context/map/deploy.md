@@ -23,3 +23,4 @@ Gotchas:
 - Default VERSION without tag is `git describe` (may include -dirty); plugin check compares only the part before `+`.
 - SDK (sdk/typescript) is not part of the release pipeline.
 Related: map/backend.md, map/web.md, map/integrations.md, map/sdk.md
+ClickHouse tuning: compose.yaml top-level `configs:` (clickhouse-low-cpu, -profile) mounted in config.d/users.d; keep it inline, no sibling files (bundle/plugin embed only compose.yaml).

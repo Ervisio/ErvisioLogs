@@ -13,6 +13,65 @@ This procedure has not been tried on a real host yet (ADR 0011); review it befor
   ClickHouse, mount the same cache directory on both machines or leave the archive off.
 - A TLS reverse proxy (Caddy, nginx, Traefik) in front of `127.0.0.1:8080`.
 
+### ClickHouse tuning
+
+A default ClickHouse writes every query and metric to `system.*` tables and sizes its background pools for a
+dedicated analytics server, which keeps a small host busy even when idle. Ervisio Logs reads only `system.parts`, so
+on a shared host put this in `/etc/clickhouse-server/config.d/ervisio-low-cpu.xml` and restart ClickHouse. The same
+values are in `deploy/compose.yaml` (`configs:`), which is the reference:
+
+```xml
+<clickhouse>
+  <logger><level>warning</level></logger>
+  <query_log remove="1"/>
+  <query_thread_log remove="1"/>
+  <query_views_log remove="1"/>
+  <part_log remove="1"/>
+  <trace_log remove="1"/>
+  <text_log remove="1"/>
+  <metric_log remove="1"/>
+  <asynchronous_metric_log remove="1"/>
+  <opentelemetry_span_log remove="1"/>
+  <crash_log remove="1"/>
+  <session_log remove="1"/>
+  <processors_profile_log remove="1"/>
+  <asynchronous_insert_log remove="1"/>
+  <backup_log remove="1"/>
+  <blob_storage_log remove="1"/>
+  <error_log remove="1"/>
+  <query_metric_log remove="1"/>
+  <asynchronous_metrics_update_period_s>60</asynchronous_metrics_update_period_s>
+  <asynchronous_heavy_metrics_update_period_s>120</asynchronous_heavy_metrics_update_period_s>
+  <background_pool_size>4</background_pool_size>
+  <background_common_pool_size>4</background_common_pool_size>
+  <background_schedule_pool_size>16</background_schedule_pool_size>
+  <background_fetches_pool_size>2</background_fetches_pool_size>
+  <background_move_pool_size>2</background_move_pool_size>
+  <max_concurrent_queries>32</max_concurrent_queries>
+  <mark_cache_size>268435456</mark_cache_size>
+  <uncompressed_cache_size>0</uncompressed_cache_size>
+</clickhouse>
+```
+
+And the query settings, in `/etc/clickhouse-server/users.d/ervisio-low-cpu.xml`:
+
+```xml
+<clickhouse>
+  <profiles>
+    <default>
+      <log_queries>0</log_queries>
+      <log_query_threads>0</log_query_threads>
+      <log_query_views>0</log_query_views>
+      <log_processors_profiles>0</log_processors_profiles>
+      <query_profiler_real_time_period_ns>0</query_profiler_real_time_period_ns>
+      <query_profiler_cpu_time_period_ns>0</query_profiler_cpu_time_period_ns>
+      <memory_profiler_step>0</memory_profiler_step>
+      <max_threads>4</max_threads>
+    </default>
+  </profiles>
+</clickhouse>
+```
+
 ## Install
 
 ```sh

@@ -1,7 +1,11 @@
 # Ervisio Logs: Docker Compose
 
 The Compose bundle runs the app, PostgreSQL, ClickHouse and a one-shot migration job on one host, from the published
-image. Requirements: Docker Engine with Compose v2. Not tried from a published image yet (ADR 0011).
+image. Requirements: Docker Engine with Compose 2.23.1 or later. Not tried from a published image yet (ADR 0011).
+
+ClickHouse starts with a low-CPU configuration defined at the bottom of `compose.yaml` (`configs:`): the `system.*`
+log tables are off, the background pools are small and queries use at most 4 threads. On a large host, raise
+`background_pool_size` and `max_threads` there.
 
 ## Install
 
