@@ -88,3 +88,16 @@ test('field labels exclude select options and explain hints separately', () => {
   expect(control).toHaveAccessibleDescription('Choose a query');
   expect(screen.getByText('Saved view').tagName).toBe('LABEL');
 });
+
+test('field associates its input when an adjacent action is present', () => {
+  render(
+    <Field label="Event color">
+      <input type="color" defaultValue="#7798ff" />
+      <button type="button">Clear color</button>
+    </Field>,
+  );
+  const input = screen.getByLabelText('Event color');
+  expect(input.tagName).toBe('INPUT');
+  expect(input).toHaveAttribute('type', 'color');
+  expect(screen.getByRole('button', { name: 'Clear color' })).not.toHaveAttribute('id', input.id);
+});

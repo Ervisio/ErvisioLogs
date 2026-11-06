@@ -1,4 +1,5 @@
 import {
+  Children,
   cloneElement,
   isValidElement,
   useCallback,
@@ -162,17 +163,26 @@ export function Page({
 }
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   const generatedId = useId();
-  const element = isValidElement<{ id?: string; 'aria-describedby'?: string }>(children) ? children : null;
-  const id = element?.props.id ?? generatedId;
+  const nodes = Children.toArray(children);
+  const element = nodes.find(
+    (node) =>
+      isValidElement<{ id?: string; 'aria-describedby'?: string }>(node) &&
+      typeof node.type === 'string' &&
+      ['input', 'select', 'textarea'].includes(node.type),
+  );
+  const control = isValidElement<{ id?: string; 'aria-describedby'?: string }>(element) ? element : null;
+  const id = control?.props.id ?? generatedId;
   const hintId = `${id}-hint`;
   const describedBy =
-    [element?.props['aria-describedby'], hint ? hintId : undefined].filter(Boolean).join(' ') || undefined;
+    [control?.props['aria-describedby'], hint ? hintId : undefined].filter(Boolean).join(' ') || undefined;
   return (
     <div className="manage-field">
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
-      {element ? cloneElement(element, { id, 'aria-describedby': describedBy }) : children}
+      {nodes.map((node) =>
+        node === control && control ? cloneElement(control, { id, 'aria-describedby': describedBy }) : node,
+      )}
       {hint && (
         <span id={hintId} className="text-ink3 text-xs">
           {hint}
